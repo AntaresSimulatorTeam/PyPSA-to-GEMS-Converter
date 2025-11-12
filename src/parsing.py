@@ -19,7 +19,7 @@ from typing import List,TextIO
 import pandas as pd
 from yaml import safe_load
 
-from resources.models.gems_system_yaml_schema import GemsSystemYaml
+from models.gems_system_yaml_schema import GemsSystemYaml
 
 
 

@@ -17,12 +17,12 @@ import pandas as pd
 from pypsa import Network
 
 from src.utils import any_to_float
-from resources.models.pypsa_model_schema import (
+from models.pypsa_model_schema import (
     PyPSAComponentData,
     PyPSAGlobalConstraintData
 )
 
-from resources.models.gems_system_yaml_schema import (
+from models.gems_system_yaml_schema import (
     GemsComponent, 
     GemsComponentParameter, 
     GemsPortConnection, 

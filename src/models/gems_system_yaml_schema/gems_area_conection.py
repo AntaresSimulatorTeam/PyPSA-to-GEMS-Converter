@@ -1,4 +1,4 @@
-from resources.models import ModifiedBaseModel
+from ..modified_base_model import ModifiedBaseModel
 
 class GemsAreaConection(ModifiedBaseModel):
     component: str

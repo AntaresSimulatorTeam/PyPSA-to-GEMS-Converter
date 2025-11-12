@@ -1,5 +1,5 @@
 from typing import Optional, List
-from resources.models import ModifiedBaseModel
+from ..modified_base_model import ModifiedBaseModel
 from .gems_component_parameter import GemsComponentParameter
 
 class GemsComponent(ModifiedBaseModel):

@@ -1,4 +1,4 @@
-from resources.models import ModifiedBaseModel
+from ..modified_base_model import ModifiedBaseModel
 
 class GemsPortConnection(ModifiedBaseModel):
     component1: str
