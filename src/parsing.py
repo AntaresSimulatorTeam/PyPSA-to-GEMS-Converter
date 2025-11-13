@@ -19,7 +19,7 @@ from typing import List,TextIO
 import pandas as pd
 from yaml import safe_load
 
-from models.gems_system_yaml_schema import GemsSystemYaml
+from models.gems_system_yaml_schema import GemsSystem
 
 
 
@@ -28,9 +28,9 @@ from models.gems_system_yaml_schema import GemsSystemYaml
 # TO DO: ask to remove them, or keeep it?
 # We can find this implementation inside GemsPy repository 
 """
-def parse_yaml_components(input_study: TextIO) -> "GemsSystemYaml":
+def parse_yaml_components(input_study: TextIO) -> "GemsSystem":
     tree = safe_load(input_study)
-    return GemsSystemYaml.model_validate(tree["system"])
+    return GemsSystem.model_validate(tree["system"])
 
 
 def parse_scenario_builder(file: Path) -> pd.DataFrame:

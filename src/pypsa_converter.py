@@ -26,7 +26,7 @@ from models.gems_system_yaml_schema import (
     GemsComponent, 
     GemsComponentParameter, 
     GemsPortConnection, 
-    GemsSystemYaml
+    GemsSystem
 )
 
 class PyPSAStudyConverter:
@@ -395,7 +395,7 @@ class PyPSAStudyConverter:
             pypsa_params_to_gems_connections,
         )
 
-    def to_gems_study(self) -> GemsSystemYaml:
+    def to_gems_study(self) -> GemsSystem:
         """Main function, to export PyPSA as Gems system"""
 
         self.logger.info("Study conversion started")
@@ -418,7 +418,7 @@ class PyPSAStudyConverter:
             list_components.extend(components)
             list_connections.extend(connections)
 
-        return GemsSystemYaml(
+        return GemsSystem(
             nodes=[], components=list_components, connections=list_connections
         )
 
