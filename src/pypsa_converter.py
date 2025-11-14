@@ -17,17 +17,19 @@ import pandas as pd
 from pypsa import Network
 
 from src.utils import any_to_float
-from models.pypsa_model_schema import (
+from .models.pypsa_model_schema import (
     PyPSAComponentData,
     PyPSAGlobalConstraintData
 )
 
-from models.gems_system_yaml_schema import (
+from .models.gems_system_yaml_schema import (
     GemsComponent, 
     GemsComponentParameter, 
     GemsPortConnection, 
     GemsSystem
 )
+
+from .parsing import rename_series_directory
 
 class PyPSAStudyConverter:
     def __init__(
@@ -43,7 +45,7 @@ class PyPSAStudyConverter:
         """
         self.logger = logger
         self.system_dir = system_dir
-        self.series_dir = series_dir
+        self.series_dir = rename_series_directory(series_dir)
         self.pypsa_network = pypsa_network
         self.pypsalib_id = "pypsa_models"
         self.null_carrier_id = "null"

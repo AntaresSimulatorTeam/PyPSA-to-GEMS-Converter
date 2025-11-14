@@ -19,7 +19,7 @@ from typing import List,TextIO
 import pandas as pd
 from yaml import safe_load
 
-from models.gems_system_yaml_schema import GemsSystem
+from .models.gems_system_yaml_schema import GemsSystem
 
 
 
@@ -37,6 +37,22 @@ def parse_scenario_builder(file: Path) -> pd.DataFrame:
     sb = pd.read_csv(file, names=("name", "year", "scenario"))
     sb.rename(columns={0: "name", 1: "year", 2: "scenario"})
     return sb
+
+
+
+def rename_series_directory(series_dir: Path) -> Path:
+    if not series_dir.is_dir():
+        raise NotADirectoryError(f"The directory {series_dir} is not a directory")
+    
+    if series_dir.name == "data-series":
+        return series_dir
+    else:
+        corrected_series_dir = series_dir.parent / "data-series"
+        series_dir.rename(corrected_series_dir)
+        return corrected_series_dir
+
+
+
 
 @dataclass(frozen=True)
 class ParsedArguments:
