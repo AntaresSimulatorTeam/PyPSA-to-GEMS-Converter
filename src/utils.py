@@ -26,17 +26,4 @@ def any_to_float(el: Any) -> float:
     except:
         raise TypeError(f"Could not convert {el} to float")
 
-
-"""
-Currently unused.
-But it's useful for testing purposes.
-"""
-
-
-def transform_to_yaml(model: BaseModel, output_path: str) -> None:
-    with open(output_path, "w", encoding="utf-8") as yaml_file:
-        yaml.dump(
-            {"system": model.model_dump(by_alias=True, exclude_unset=True)},
-            yaml_file,
-            allow_unicode=True,
-        )
+   

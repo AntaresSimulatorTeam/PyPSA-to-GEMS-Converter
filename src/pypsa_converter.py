@@ -22,11 +22,13 @@ from .models.pypsa_model_schema import (
     PyPSAGlobalConstraintData
 )
 
-from .models.gems_system_yaml_schema import (
+from .models.gems_study_schema import (
     GemsComponent, 
     GemsComponentParameter, 
-    GemsPortConnection, 
-    GemsSystem
+    GemsPortConnection,
+    GemsStudy,
+    GemsSystem,
+    GemsParameters,
 )
 
 class PyPSAStudyConverter:
@@ -395,7 +397,7 @@ class PyPSAStudyConverter:
             pypsa_params_to_gems_connections,
         )
 
-    def to_gems_study(self) -> GemsSystem:
+    def to_gems_study(self) -> GemsStudy:
         """Main function, to export PyPSA as Gems system"""
 
         self.logger.info("Study conversion started")
@@ -418,8 +420,25 @@ class PyPSAStudyConverter:
             list_components.extend(components)
             list_connections.extend(connections)
 
-        return GemsSystem(
-            nodes=[], components=list_components, connections=list_connections
+        id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
+
+        return GemsStudy(
+            gems_system=GemsSystem(
+                id=id,
+                nodes=[],
+                components=list_components,
+                connections=list_connections,
+                model_libraries=self.pypsalib_id,
+                area_connections=None,
+            ),
+            gems_parameters=GemsParameters(
+                solver="xpress",
+                solver_logs=False,
+                solver_parameters="THREADS 1",
+                no_output=False,
+                first_time_step=0,
+                last_time_step=len(self.pypsa_network.snapshots) - 1,
+            ),
         )
 
     def _convert_pypsa_components_of_given_model(

@@ -1,5 +1,5 @@
 from typing import Optional, Union
-from ..modified_base_model import ModifiedBaseModel
+from ...modified_base_model import ModifiedBaseModel
 
 
 class GemsComponentParameter(ModifiedBaseModel):
