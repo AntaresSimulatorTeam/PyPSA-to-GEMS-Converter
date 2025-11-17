@@ -419,8 +419,13 @@ class PyPSAStudyConverter:
             list_connections.extend(connections)
 
         id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
+
         return GemsSystem(
-            id=id, nodes=[], components=list_components, connections=list_connections
+            id=id, 
+            model_libraries=self.pypsalib_id,
+            nodes=[], 
+            components=list_components, 
+            connections=list_connections
         )
 
     def _convert_pypsa_components_of_given_model(

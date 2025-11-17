@@ -28,15 +28,28 @@ def any_to_float(el: Any) -> float:
 
 
 """
-Currently unused.
-But it's useful for testing purposes.
+Order of fields according to Antares documentation:
+id, description, model-libraries, components, connections, nodes
 """
 
+def transform_to_system_yaml(model: BaseModel, output_path: str) -> None:
+    data = model.model_dump(by_alias=True, exclude_unset=True)
+    
+    ordered_data = {}
 
-def transform_to_yaml(model: BaseModel, output_path: str) -> None:
+    ordered_data["id"] = data.pop("id")
+
+    ordered_data["components"] = data.pop("components")
+
+    ordered_data["connections"] = data.pop("connections")
+
+    ordered_data.update(data) 
+    
+    
     with open(output_path, "w", encoding="utf-8") as yaml_file:
         yaml.dump(
-            {"system": model.model_dump(by_alias=True, exclude_unset=True)},
+            {"system": ordered_data},
             yaml_file,
             allow_unicode=True,
+            sort_keys=False,
         )
