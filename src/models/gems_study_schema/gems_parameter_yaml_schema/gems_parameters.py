@@ -24,11 +24,11 @@ class GemsParameters(ModifiedBaseModel):
         """Convert GemsParameters object to dictionary, handling PrivateAttr fields."""
         return {
             "solver": self._solver,
-            "solver_logs": self._solver_logs,
-            "solver_parameters": self._solver_parameters,
-            "no_output": self._no_output,
-            "first_time_step": self._first_time_step,
-            "last_time_step": self._last_time_step,
+            "solver-logs": self._solver_logs,
+            "solver-parameters": self._solver_parameters,
+            "no-output": self._no_output,
+            "first-time-step": self._first_time_step,
+            "last-time-step": self._last_time_step,
         }
 
 
