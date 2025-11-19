@@ -12,7 +12,7 @@
 import logging
 from math import inf
 from pathlib import Path
-
+import shutil
 import pandas as pd
 from pypsa import Network
 
@@ -28,7 +28,7 @@ from .models.gems_study_schema import (
     GemsPortConnection,
     GemsStudy,
     GemsSystem,
-    GemsParameters,
+    ModelerParameters,
 )
 
 class PyPSAStudyConverter:
@@ -36,16 +36,14 @@ class PyPSAStudyConverter:
         self,
         pypsa_network: Network,
         logger: logging.Logger,
-        system_dir: Path,
-        series_dir: Path,
+        study_dir: Path,
         series_file_format: str,
     ):
         """
         Initialize processor
         """
         self.logger = logger
-        self.system_dir = system_dir
-        self.series_dir = series_dir
+        self.study_dir = study_dir
         self.pypsa_network = pypsa_network
         self.pypsalib_id = "pypsa_models"
         self.null_carrier_id = "null"
@@ -397,11 +395,25 @@ class PyPSAStudyConverter:
             pypsa_params_to_gems_connections,
         )
 
-    def to_gems_study(self) -> GemsStudy:
-        """Main function, to export PyPSA as Gems system"""
+    def to_gems_study(self) -> None:
+        """Main function, to export PyPSA as Gems study"""
 
         self.logger.info("Study conversion started")
         list_components, list_connections = [], []
+
+        self.logger.info(f"Creating directory tree in {self.study_dir}")
+
+        Path(self.study_dir /"systems"/ "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
+
+        destination_file = Path(self.study_dir /"systems"/ "input" / "model-libraries" / "pypsa_models.yml")
+        destination_file.touch()
+
+
+        project_root = Path(__file__).parent.parent
+        source_file = project_root / "resources" / "pypsa_models" / "pypsa_models.yml"
+
+        shutil.copy(source_file, destination_file)
+        
 
         for pypsa_components_data in self.pypsa_components_data.values():
             components, connections = self._convert_pypsa_components_of_given_model(
@@ -420,26 +432,32 @@ class PyPSAStudyConverter:
             list_components.extend(components)
             list_connections.extend(connections)
 
-        id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
+        system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
 
-        return GemsStudy(
-            gems_system=GemsSystem(
-                id=id,
-                nodes=[],
-                components=list_components,
-                connections=list_connections,
-                model_libraries=self.pypsalib_id,
-                area_connections=None,
-            ),
-            gems_parameters=GemsParameters(
-                solver="xpress",
-                solver_logs=False,
-                solver_parameters="THREADS 1",
-                no_output=False,
-                first_time_step=0,
-                last_time_step=len(self.pypsa_network.snapshots) - 1,
-            ),
+        gems_system = GemsSystem(
+            id=system_id,
+            nodes=[],
+            components=list_components,
+            connections=list_connections,
+            model_libraries=self.pypsalib_id,
+            area_connections=None,
         )
+        self.logger.info(f"Dumping system.yml to {self.study_dir / 'systems' / 'input' / 'system.yml'}")
+        gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml") # dump system.yml
+
+
+        modeler_parameters = ModelerParameters(
+            solver="highs",
+            solver_logs=False,
+            solver_parameters="THREADS 1",
+            no_output=False,
+            first_time_step=0,
+            last_time_step=len(self.pypsa_network.snapshots) - 1,
+        )
+        self.logger.info(f"Dumping parameters.yml to {self.study_dir / 'systems' / 'parameters.yml'}")
+        modeler_parameters.to_yaml(self.study_dir / "systems" / "parameters.yml")
+
+        self.logger.info("Study conversion completed!")
 
     def _convert_pypsa_components_of_given_model(
         self, pypsa_components_data: PyPSAComponentData
@@ -517,13 +535,18 @@ class PyPSAStudyConverter:
         time_dependent_params: set[str],
     ) -> dict[tuple[str, str], str]:
         comp_param_to_timeseries_name = dict()
+        series_dir = self.study_dir / "systems" / "input" / "data-series"
+
+        if time_dependent_params:
+            series_dir.mkdir(parents=True, exist_ok=True)
+        
         for param in time_dependent_params:
             param_df = time_dependent_data[param]
             for component in param_df.columns:
                 timeseries_name = self.system_name + "_" + component + "_" + param
                 comp_param_to_timeseries_name[(component, param)] = timeseries_name
                 param_df[[component]].to_csv(
-                    self.series_dir / Path(timeseries_name + self.series_file_format),
+                    series_dir / Path(timeseries_name + self.series_file_format),
                     index=False,
                     header=False,
                 )

@@ -4,5 +4,5 @@ from .gems_system_yaml_schema import (
     GemsPortConnection,
     GemsSystem,
 )
-from .gems_parameter_yaml_schema import GemsParameters
+from .modeler_parameter_yaml_schema import ModelerParameters
 from .gems_study import GemsStudy

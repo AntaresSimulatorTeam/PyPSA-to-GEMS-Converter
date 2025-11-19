@@ -2,8 +2,8 @@ from pydantic import PrivateAttr
 from ...modified_base_model import ModifiedBaseModel
 import yaml
 
-class GemsParameters(ModifiedBaseModel):
-    solver: str = "xpress"
+class ModelerParameters(ModifiedBaseModel):
+    solver: str = "highs"
     solver_logs: bool = False
     solver_parameters: str = "THREADS 1"
     no_output: bool = False
@@ -21,7 +21,7 @@ class GemsParameters(ModifiedBaseModel):
         self._last_time_step = last_time_step
 
     def to_dict(self, by_alias: bool = True, exclude_unset: bool = True) -> dict:
-        """Convert GemsParameters object to dictionary, handling PrivateAttr fields."""
+        """Convert ModelerParameters object to dictionary, handling PrivateAttr fields."""
         return {
             "solver": self.solver,
             "solver-logs": self.solver_logs,
