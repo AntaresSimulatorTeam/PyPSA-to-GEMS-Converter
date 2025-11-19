@@ -541,6 +541,7 @@ class PyPSAStudyConverter:
                     index=False,
                     header=False,
                 )
+                param_df[[component]].to
 
         return comp_param_to_timeseries_name
 

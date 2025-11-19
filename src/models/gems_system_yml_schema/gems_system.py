@@ -10,7 +10,7 @@ from .gems_area_connection import GemsAreaConnection
 
 
 class GemsSystem(ModifiedBaseModel):
-    _id: Optional[str] = PrivateAttr(default=None)
+    _id: str = PrivateAttr(default=None)
     _model_libraries: Optional[str] = PrivateAttr(default=None)
     _components: List[GemsComponent] = PrivateAttr(default=[])
     _connections: Optional[List[GemsPortConnection]] = PrivateAttr(default=None)
