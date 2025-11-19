@@ -22,13 +22,12 @@ from .models.pypsa_model_schema import (
     PyPSAGlobalConstraintData
 )
 
-from .models.gems_study_schema import (
-    GemsComponent, 
-    GemsComponentParameter, 
-    GemsPortConnection,
-    GemsStudy,
+from .models import (
     GemsSystem,
     ModelerParameters,
+    GemsComponent, 
+    GemsComponentParameter, 
+    GemsPortConnection
 )
 
 class PyPSAStudyConverter:
@@ -401,20 +400,14 @@ class PyPSAStudyConverter:
         self.logger.info("Study conversion started")
         list_components, list_connections = [], []
 
-        self.logger.info(f"Creating directory tree in {self.study_dir}")
-
         Path(self.study_dir /"systems"/ "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
-
         destination_file = Path(self.study_dir /"systems"/ "input" / "model-libraries" / "pypsa_models.yml")
         destination_file.touch()
 
-
         project_root = Path(__file__).parent.parent
         source_file = project_root / "resources" / "pypsa_models" / "pypsa_models.yml"
-
         shutil.copy(source_file, destination_file)
         
-
         for pypsa_components_data in self.pypsa_components_data.values():
             components, connections = self._convert_pypsa_components_of_given_model(
                 pypsa_components_data
@@ -442,8 +435,7 @@ class PyPSAStudyConverter:
             model_libraries=self.pypsalib_id,
             area_connections=None,
         )
-        self.logger.info(f"Dumping system.yml to {self.study_dir / 'systems' / 'input' / 'system.yml'}")
-        gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml") # dump system.yml
+        gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml")
 
 
         modeler_parameters = ModelerParameters(
@@ -454,7 +446,6 @@ class PyPSAStudyConverter:
             first_time_step=0,
             last_time_step=len(self.pypsa_network.snapshots) - 1,
         )
-        self.logger.info(f"Dumping parameters.yml to {self.study_dir / 'systems' / 'parameters.yml'}")
         modeler_parameters.to_yaml(self.study_dir / "systems" / "parameters.yml")
 
         self.logger.info("Study conversion completed!")

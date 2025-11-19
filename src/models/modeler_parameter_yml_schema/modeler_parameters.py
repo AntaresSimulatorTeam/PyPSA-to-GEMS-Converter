@@ -1,5 +1,5 @@
 from pydantic import PrivateAttr
-from ...modified_base_model import ModifiedBaseModel
+from ..modified_base_model import ModifiedBaseModel
 import yaml
 
 class ModelerParameters(ModifiedBaseModel):

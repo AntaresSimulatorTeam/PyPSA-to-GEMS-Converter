@@ -14,17 +14,9 @@ import argparse
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List,TextIO
+from typing import List
 
 import pandas as pd
-from yaml import safe_load
-
-from .models.gems_system_yaml_schema import GemsSystem
-
-
-def parse_yaml_components(input_study: TextIO) -> "GemsSystem":
-    tree = safe_load(input_study)
-    return GemsSystem.model_validate(tree["system"])
 
 
 def parse_scenario_builder(file: Path) -> pd.DataFrame:

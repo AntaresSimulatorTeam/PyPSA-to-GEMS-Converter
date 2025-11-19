@@ -12,9 +12,6 @@
 
 from typing import Any
 
-import yaml
-from pydantic import BaseModel
-
 PYPSA_CONVERTER_MAX_FLOAT = 100_000_000_000
 
 def any_to_float(el: Any) -> float:
@@ -25,5 +22,3 @@ def any_to_float(el: Any) -> float:
         )
     except:
         raise TypeError(f"Could not convert {el} to float")
-
-   
