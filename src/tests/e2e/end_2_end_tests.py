@@ -6,6 +6,7 @@ import logging
 import pytest
 import subprocess
 import math
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,6 +76,9 @@ def end_2_end_test(file, load_scaling, quota, study_name):
     
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
 
-    assert math.isclose(execute_original_pypsa_study(network, quota), 
-                        execute_converted_gems_study(network, quota, study_name),
-                        rel_tol=1e-6)
+    try:
+        assert math.isclose(execute_original_pypsa_study(network, quota), 
+                            execute_converted_gems_study(network, quota, study_name),
+                            rel_tol=1e-6)
+    finally:
+        shutil.rmtree(current_dir / "tmp" / study_name)

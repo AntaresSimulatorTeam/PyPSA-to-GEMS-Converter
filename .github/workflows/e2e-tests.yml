@@ -1,0 +1,59 @@
+name: End-to-End Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    
+    - name: Download Antares continuous delivery release
+      run: |
+        # Download using direct URL pattern for continuous delivery release
+        # The continuous delivery release is always the latest release with that tag
+        curl -L -o antares-cd-Ubuntu-22.04.tar.gz \
+          "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/continuous-delivery/antares-cd-Ubuntu-22.04.tar.gz" || \
+        curl -L -o antares-cd-Ubuntu-22.04.tar.gz \
+          "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/latest/download/antares-cd-Ubuntu-22.04.tar.gz"
+    
+    - name: Extract Antares binaries
+      run: |
+        tar -xzf antares-cd-Ubuntu-22.04.tar.gz
+    
+    - name: Verify Antares binaries
+      run: |
+        if [ ! -d "antares-cd-Ubuntu-22.04" ]; then
+          echo "Error: antares-cd-Ubuntu-22.04 directory not found after extraction"
+          exit 1
+        fi
+        echo "Antares binaries extracted successfully"
+    
+    - name: Run end-to-end tests
+      run: |
+        pytest src/tests/e2e/end_2_end_tests.py -v
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -f antares-cd-Ubuntu-22.04.tar.gz
+        rm -rf antares-cd-Ubuntu-22.04
+        echo "Cleanup completed"
