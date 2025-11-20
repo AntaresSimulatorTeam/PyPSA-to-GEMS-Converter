@@ -36,7 +36,8 @@ def execute_converted_gems_study(network: Network,quota: bool,study_name: str):
                         study_dir = study_dir, 
                         series_file_format = ".tsv").to_gems_study()
 
-    modeler_bin = current_dir / "antares-cd-Ubuntu-22.04" / "antares-9.3.1-Ubuntu-22.04" / "bin" / "antares-modeler"
+    # update it dynamically
+    modeler_bin = current_dir / "antares-cd-Ubuntu-22.04" / "antares-9.3.2-rc4-Ubuntu-22.04" / "bin" / "antares-modeler"
     
     subprocess.run(
         [str(modeler_bin), str(study_dir / "systems")],
@@ -71,7 +72,7 @@ def execute_converted_gems_study(network: Network,quota: bool,study_name: str):
     ],
 )
 def end_2_end_test(file, load_scaling, quota, study_name):
-    if not (Path(current_dir / "antares-cd-Ubuntu-22.04").exists() and Path(current_dir / "antares-9.3.1-Ubuntu-22.04").is_dir()):
+    if not (Path(current_dir / "antares-cd-Ubuntu-22.04").exists() and Path(current_dir / "antares-9.3.2-rc4-Ubuntu-22.04").is_dir()):
         raise FileNotFoundError("Antares binaries not found please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
     
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
