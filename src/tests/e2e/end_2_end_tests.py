@@ -71,7 +71,7 @@ def execute_converted_gems_study(network: Network,quota: bool,study_name: str):
         ("base_s_6_elec_lvopt_.nc", 0.3, True, "study_three"),
     ],
 )
-def end_2_end_test(file, load_scaling, quota, study_name):
+def test_end_2_end_test(file, load_scaling, quota, study_name):
     if not (Path(current_dir / "antares-cd-Ubuntu-22.04").exists() and Path(current_dir / "antares-9.3.2-rc4-Ubuntu-22.04").is_dir()):
         raise FileNotFoundError("Antares binaries not found please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
     
