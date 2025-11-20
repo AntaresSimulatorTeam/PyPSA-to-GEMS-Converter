@@ -64,17 +64,6 @@ jobs:
         echo "Extracting archive..."
         tar -xzf antares-cd-Ubuntu-22.04.tar.gz
         
-        # Find the extracted directory and reorganize structure
-        EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "antares-*" -not -name "antares-cd-*" | head -1)
-        EXTRACTED_DIR_NAME=$(basename "$EXTRACTED_DIR")
-        
-        # Create the nested structure: antares-cd-Ubuntu-22.04/antares-9.3.2-rc4-Ubuntu-22.04
-        mkdir -p antares-cd-Ubuntu-22.04
-        mv "$EXTRACTED_DIR" antares-cd-Ubuntu-22.04/
-        
-        # Create a symlink at root level for the test check
-        ln -s "antares-cd-Ubuntu-22.04/$EXTRACTED_DIR_NAME" "$EXTRACTED_DIR_NAME"
-    
     - name: Run end-to-end tests
       run: |
         python -m pytest -n auto src/tests/e2e/end_2_end_tests.py -v
@@ -84,5 +73,4 @@ jobs:
       run: |
         rm -f antares-cd-Ubuntu-22.04.tar.gz
         rm -rf antares-cd-Ubuntu-22.04
-        rm -f antares-9.3.2-rc4-Ubuntu-22.04
         echo "Cleanup completed"
