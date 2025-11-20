@@ -15,6 +15,7 @@ from pathlib import Path
 import shutil
 import pandas as pd
 from pypsa import Network
+import os
 
 from src.utils import any_to_float
 from .models.pypsa_model_schema import (
@@ -437,11 +438,12 @@ class PyPSAStudyConverter:
         )
         gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml")
 
-
+        
+        num_threads = max(1, os.cpu_count() - 1) if os.cpu_count() else 1
         modeler_parameters = ModelerParameters(
             solver="highs",
             solver_logs=False,
-            solver_parameters="THREADS 1",
+            solver_parameters=f"THREADS {num_threads}",
             no_output=False,
             first_time_step=0,
             last_time_step=len(self.pypsa_network.snapshots) - 1,
