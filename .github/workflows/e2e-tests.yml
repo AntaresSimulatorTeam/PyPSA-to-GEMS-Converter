@@ -2,9 +2,9 @@ name: End-to-End Tests
 
 on:
   push:
-    branches: ['*']
+    branches: ['**']
   pull_request:
-    branches: ['*']
+    branches: ['**']
   workflow_dispatch:
 
 jobs:
@@ -32,15 +32,7 @@ jobs:
         echo "Fetching continuous delivery release information..."
         
         # Get all releases and find the one with "continuous delivery" in the name
-        RELEASE_DATA=$(curl -s https://api.github.com/repos/AntaresSimulatorTeam/Antares_Simulator/releases | \
-          python3 -c "
-import sys, json
-releases = json.load(sys.stdin)
-for release in releases:
-    if 'continuous delivery' in release.get('name', '').lower():
-        print(json.dumps(release))
-        break
-")
+        RELEASE_DATA=$(curl -s https://api.github.com/repos/AntaresSimulatorTeam/Antares_Simulator/releases | python3 -c "import sys, json; releases = json.load(sys.stdin); print(next((json.dumps(r) for r in releases if 'continuous delivery' in r.get('name', '').lower()), ''))")
         
         if [ -z "$RELEASE_DATA" ]; then
           echo "Error: Could not find continuous delivery release"
@@ -48,14 +40,7 @@ for release in releases:
         fi
         
         # Extract the download URL for antares-cd-Ubuntu-22.04.tar.gz
-        ASSET_URL=$(echo "$RELEASE_DATA" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for asset in data.get('assets', []):
-    if asset['name'] == 'antares-cd-Ubuntu-22.04.tar.gz':
-        print(asset['browser_download_url'])
-        break
-")
+        ASSET_URL=$(echo "$RELEASE_DATA" | python3 -c "import sys, json; data = json.load(sys.stdin); assets = data.get('assets', []); print(next((a['browser_download_url'] for a in assets if a['name'] == 'antares-cd-Ubuntu-22.04.tar.gz'), ''))")
         
         if [ -z "$ASSET_URL" ]; then
           echo "Error: Could not find antares-cd-Ubuntu-22.04.tar.gz asset"
