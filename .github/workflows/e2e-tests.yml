@@ -61,36 +61,28 @@ jobs:
     
     - name: Extract Antares binaries
       run: |
-        echo "Listing contents of tar.gz before extraction:"
-        tar -tzf antares-cd-Ubuntu-22.04.tar.gz | head -20
-        
         echo "Extracting archive..."
         tar -xzf antares-cd-Ubuntu-22.04.tar.gz
         
-        echo "Listing extracted contents:"
-        ls -la
-    
-    - name: Verify Antares binaries
-      run: |
-        if [ ! -d "antares-cd-Ubuntu-22.04" ]; then
-          echo "Error: antares-cd-Ubuntu-22.04 directory not found after extraction"
-          echo "Current directory contents:"
-          ls -la
-          echo "Looking for alternative directories:"
-          find . -maxdepth 2 -type d -name "*antares*" 2>/dev/null || true
-          exit 1
-        fi
-        echo "Antares binaries extracted successfully"
-        echo "Directory structure:"
-        ls -la antares-cd-Ubuntu-22.04/
+        # Find the extracted directory and reorganize structure
+        EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "antares-*" -not -name "antares-cd-*" | head -1)
+        EXTRACTED_DIR_NAME=$(basename "$EXTRACTED_DIR")
+        
+        # Create the nested structure: antares-cd-Ubuntu-22.04/antares-9.3.2-rc4-Ubuntu-22.04
+        mkdir -p antares-cd-Ubuntu-22.04
+        mv "$EXTRACTED_DIR" antares-cd-Ubuntu-22.04/
+        
+        # Create a symlink at root level for the test check
+        ln -s "antares-cd-Ubuntu-22.04/$EXTRACTED_DIR_NAME" "$EXTRACTED_DIR_NAME"
     
     - name: Run end-to-end tests
       run: |
-        pytest src/tests/e2e/end_2_end_tests.py -v
+        pytest -n auto src/tests/e2e/end_2_end_tests.py -v
     
     - name: Cleanup
       if: always()
       run: |
         rm -f antares-cd-Ubuntu-22.04.tar.gz
         rm -rf antares-cd-Ubuntu-22.04
+        rm -f antares-9.3.2-rc4-Ubuntu-22.04
         echo "Cleanup completed"
