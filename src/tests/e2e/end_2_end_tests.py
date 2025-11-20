@@ -1,5 +1,5 @@
 from ..utils import load_pypsa_study, extend_quota, replace_lines_by_links
-from src.pypsa_converter import PyPSAStudyConverter
+from ...pypsa_converter import PyPSAStudyConverter
 from pathlib import Path
 from pypsa import Network
 import logging
