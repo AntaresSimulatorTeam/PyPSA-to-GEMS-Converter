@@ -72,20 +72,20 @@ def execute_converted_gems_study(network: Network,quota: bool,replace_lines: boo
     return float('-inf') 
 
 @pytest.mark.parametrize(
-    "file, load_scaling, quota, study_name",
+    "file, load_scaling, quota, replace_lines, study_name",
     [
         ("base_s_4_elec.nc", 0.4, True, True, "test_one_study_one"),
         ("simple.nc", 1.0, False, True,"test_one_study_two"),
         ("base_s_6_elec_lvopt_.nc", 0.3, True, True, "test_one_study_three"),
     ],
 )
-def test_end_2_end_test(file, load_scaling, quota, study_name):
+def test_end_2_end_test(file, load_scaling, quota, replace_lines, study_name):
     
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
 
     try:
         assert math.isclose(execute_original_pypsa_study(network, quota), 
-                            execute_converted_gems_study(network, quota, True, study_name),
+                            execute_converted_gems_study(network, quota, replace_lines, study_name),
                             rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
