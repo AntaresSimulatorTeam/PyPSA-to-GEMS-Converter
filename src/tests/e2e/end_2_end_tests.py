@@ -453,7 +453,7 @@ def test_storage_unit(
     inflow_factor: float,
     study_name: str,
 ) -> None:
-    network = Network(name="Demo3", snapshots=[i for i in range(10)])
+    network = Network(name="Demo3", snapshots=[i for i in range(20)])
     network.add("Bus", "pypsatown", v_nom=1)
     network.add(
         "Load",
@@ -506,7 +506,7 @@ def test_storage_unit(
         spill_cost=100.0,  # €/MWh
         p_min_pu=-1,
         p_max_pu=1,
-        inflow=[i * inflow_factor for i in range(10)],
+        inflow=[i * inflow_factor for i in range(20)],
         cyclic_state_of_charge=True,
         cyclic_state_of_charge_per_period=True,
     )
