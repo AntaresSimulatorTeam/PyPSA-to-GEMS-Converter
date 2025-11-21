@@ -26,54 +26,23 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-dev.txt
     
-    - name: Download Antares continuous delivery release
+    - name: Download Antares v9.3.2-rc4 release
       run: |
-        # Use GitHub API to find the continuous delivery release and get the download URL
-        echo "Fetching continuous delivery release information..."
+        echo "Downloading Antares v9.3.2-rc4..."
+        curl -L -f -o antares-9.3.2-rc4-Ubuntu-22.04.tar.gz \
+          https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v9.3.2-rc4/antares-9.3.2-rc4-Ubuntu-22.04.tar.gz
         
-        # Get all releases and find the one with "continuous delivery" in the name
-        RELEASE_DATA=$(curl -s https://api.github.com/repos/AntaresSimulatorTeam/Antares_Simulator/releases | python3 -c "import sys, json; releases = json.load(sys.stdin); print(next((json.dumps(r) for r in releases if 'continuous delivery' in r.get('name', '').lower()), ''))")
-        
-        if [ -z "$RELEASE_DATA" ]; then
-          echo "Error: Could not find continuous delivery release"
-          exit 1
-        fi
-        
-        # Extract the download URL for antares-cd-Ubuntu-22.04.tar.gz
-        ASSET_URL=$(echo "$RELEASE_DATA" | python3 -c "import sys, json; data = json.load(sys.stdin); assets = data.get('assets', []); print(next((a['browser_download_url'] for a in assets if a['name'] == 'antares-cd-Ubuntu-22.04.tar.gz'), ''))")
-        
-        if [ -z "$ASSET_URL" ]; then
-          echo "Error: Could not find antares-cd-Ubuntu-22.04.tar.gz asset"
-          echo "Available assets:"
-          echo "$RELEASE_DATA" | python3 -c "import sys, json; data = json.load(sys.stdin); [print(f\"  - {a['name']}\") for a in data.get('assets', [])]"
-          exit 1
-        fi
-        
-        echo "Downloading from: $ASSET_URL"
-        curl -L -f -o antares-cd-Ubuntu-22.04.tar.gz "$ASSET_URL"
-        
-        if [ ! -f "antares-cd-Ubuntu-22.04.tar.gz" ]; then
+        if [ ! -f "antares-9.3.2-rc4-Ubuntu-22.04.tar.gz" ]; then
           echo "Error: Download failed"
           exit 1
         fi
         
-        echo "Download successful. File size: $(ls -lh antares-cd-Ubuntu-22.04.tar.gz | awk '{print $5}')"
+        echo "Download successful. File size: $(ls -lh antares-9.3.2-rc4-Ubuntu-22.04.tar.gz | awk '{print $5}')"
     
     - name: Extract Antares binaries
       run: |
         echo "Extracting archive..."
-        tar -xzf antares-cd-Ubuntu-22.04.tar.gz
-        
-        # Find the extracted directory and reorganize structure
-        EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "antares-*" -not -name "antares-cd-*" | head -1)
-        EXTRACTED_DIR_NAME=$(basename "$EXTRACTED_DIR")
-        
-        # Create the nested structure: antares-cd-Ubuntu-22.04/antares-9.3.2-rc4-Ubuntu-22.04
-        mkdir -p antares-cd-Ubuntu-22.04
-        mv "$EXTRACTED_DIR" antares-cd-Ubuntu-22.04/
-        
-        # Create a symlink at root level for the test check
-        ln -s "antares-cd-Ubuntu-22.04/$EXTRACTED_DIR_NAME" "$EXTRACTED_DIR_NAME"
+        tar -xzf antares-9.3.2-rc4-Ubuntu-22.04.tar.gz
     
     - name: Run end-to-end tests
       run: |
@@ -82,7 +51,6 @@ jobs:
     - name: Cleanup
       if: always()
       run: |
-        rm -f antares-cd-Ubuntu-22.04.tar.gz
-        rm -rf antares-cd-Ubuntu-22.04
-        rm -f antares-9.3.2-rc4-Ubuntu-22.04
+        rm -f antares-9.3.2-rc4-Ubuntu-22.04.tar.gz
+        rm -rf antares-9.3.2-rc4-Ubuntu-22.04
         echo "Cleanup completed"
