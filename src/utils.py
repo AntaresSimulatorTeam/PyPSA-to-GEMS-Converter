@@ -12,9 +12,6 @@
 
 from typing import Any
 
-import yaml
-from pydantic import BaseModel
-
 PYPSA_CONVERTER_MAX_FLOAT = 100_000_000_000
 
 def any_to_float(el: Any) -> float:
@@ -25,12 +22,3 @@ def any_to_float(el: Any) -> float:
         )
     except:
         raise TypeError(f"Could not convert {el} to float")
-
-
-def transform_to_yaml(model: BaseModel, output_path: str) -> None:
-    with open(output_path, "w", encoding="utf-8") as yaml_file:
-        yaml.dump(
-            {"system": model.model_dump(by_alias=True, exclude_unset=True)},
-            yaml_file,
-            allow_unicode=True,
-        )
