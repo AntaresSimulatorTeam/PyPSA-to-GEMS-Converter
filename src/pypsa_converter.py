@@ -44,7 +44,6 @@ class PyPSAStudyConverter:
         """
         self.logger = logger
         self.system_dir = study_dir
-        self.series_dir = series_dir
         self.pypsa_network = pypsa_network
         self.pypsalib_id = "pypsa_models"
         self.null_carrier_id = "null"
