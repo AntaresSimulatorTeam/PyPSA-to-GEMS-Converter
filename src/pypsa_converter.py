@@ -28,8 +28,7 @@ from .models import (
     ModelerParameters,
     GemsComponent, 
     GemsComponentParameter, 
-    GemsPortConnection, 
-    GemsSystem
+    GemsPortConnection,
 )
 
 class PyPSAStudyConverter:
@@ -44,7 +43,7 @@ class PyPSAStudyConverter:
         Initialize processor
         """
         self.logger = logger
-        self.system_dir = system_dir
+        self.system_dir = study_dir
         self.series_dir = series_dir
         self.pypsa_network = pypsa_network
         self.pypsalib_id = "pypsa_models"
