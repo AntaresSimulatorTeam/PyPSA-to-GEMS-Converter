@@ -1,4 +1,4 @@
-from ..utils import load_pypsa_study, extend_quota, replace_lines_by_links
+from ..utils import load_pypsa_study, preprocess_network
 from ...pypsa_converter import PyPSAStudyConverter
 from pathlib import Path
 from pypsa import Network
@@ -22,10 +22,7 @@ def check_antares_binaries():
         pytest.skip("Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
 
 def execute_original_pypsa_study(network: Network,quota: bool):
-    if quota:
-        network = extend_quota(network)
-        
-    network = replace_lines_by_links(network)
+    network = preprocess_network(network,quota,False)
     
     logger.info("Optimizing the PyPSA study")
     network.optimize()
@@ -34,11 +31,7 @@ def execute_original_pypsa_study(network: Network,quota: bool):
 
 
 def get_gems_study_objective(network: Network,quota: bool,replace_lines: bool,study_name: str):
-    if quota:
-        network = extend_quota(network)
-        
-    if replace_lines:
-        network = replace_lines_by_links(network)
+    network = preprocess_network(network,quota,replace_lines)
 
     study_dir = current_dir / "tmp" / study_name
     PyPSAStudyConverter(pypsa_network = network, 

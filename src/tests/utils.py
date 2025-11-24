@@ -61,3 +61,9 @@ def replace_lines_by_links(network: Network) -> Network:
     network.remove("Line", lines.index)
     return network
 
+def preprocess_network(network: Network,quota: bool,lines_to_links: bool) -> Network:
+    if quota:
+        network = extend_quota(network)
+    if lines_to_links:
+        network = replace_lines_by_links(network)
+    return network
