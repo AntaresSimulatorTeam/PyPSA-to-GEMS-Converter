@@ -43,7 +43,7 @@ class PyPSAStudyConverter:
         Initialize processor
         """
         self.logger = logger
-        self.system_dir = study_dir
+        self.study_dir = study_dir
         self.pypsa_network = pypsa_network
         self.pypsalib_id = "pypsa_models"
         self.null_carrier_id = "null"
