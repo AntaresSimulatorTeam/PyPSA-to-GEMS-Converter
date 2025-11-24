@@ -7,6 +7,7 @@ import pytest
 import subprocess
 import math
 import shutil
+import pandas as pd 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def execute_original_pypsa_study(network: Network,quota: bool):
     return network.objective + network.objective_constant
 
 
-def execute_converted_gems_study(network: Network,quota: bool,replace_lines: bool,study_name: str):
+def get_gems_study_objective(network: Network,quota: bool,replace_lines: bool,study_name: str):
     if quota:
         network = extend_quota(network)
         
@@ -47,29 +48,38 @@ def execute_converted_gems_study(network: Network,quota: bool,replace_lines: boo
 
     modeler_bin = current_dir / "antares-9.3.2-rc4-Ubuntu-22.04" / "bin" / "antares-modeler"
     
-    subprocess.run(
-        [str(modeler_bin), str(study_dir / "systems")],
-        capture_output=True,
-        text=True,
-        check=False,  
-        cwd=str(modeler_bin.parent)  
-    )
+
+    logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
+
+    try:
+        subprocess.run(
+            [str(modeler_bin), str(study_dir / "systems")],
+            capture_output=True,
+            text=True,
+            check=False,  
+            cwd=str(modeler_bin.parent)  
+        )
+        
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Antares modeler failed with error: {e}")
+
+    logger.info("Getting Antares study objective")
 
     output_dir = study_dir / "systems" / "output"
     result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
 
+
     if result_file:
-        with open(result_file[0], "rb") as f:
-            f.seek(-2, 2)  
-            while f.tell() > 0:
-                byte = f.read(1)
-                if byte == b'\n':
-                    break
-                f.seek(-2, 1)
-            objective_value = float(f.readline().decode().split(",")[-2])
+        if result_file[0].endswith(".csv"):
+            df = pd.read_csv(result_file[0])
+            objective_value = float(df.iloc[-1, -2])
+            return objective_value
+        elif result_file[0].endswith(".tsv"):
+            df = pd.read_csv(result_file[0], sep="\t")
+            objective_value = float(df.iloc[-1, -2])
             return objective_value
     
-    return float('-inf') 
+    raise FileNotFoundError(f"Result file not found in {output_dir}")
 
 @pytest.mark.parametrize(
     "file, load_scaling, quota, replace_lines, study_name",
@@ -85,7 +95,7 @@ def test_end_2_end_test(file, load_scaling, quota, replace_lines, study_name):
 
     try:
         assert math.isclose(execute_original_pypsa_study(network, quota), 
-                            execute_converted_gems_study(network, quota, replace_lines, study_name),
+                            get_gems_study_objective(network, quota, replace_lines, study_name),
                             rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
@@ -123,7 +133,7 @@ def test_load_gen() -> None:
     
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, "test_two_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_two_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_two_study_one")
 
@@ -172,7 +182,7 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
     
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, study_name), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, study_name), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
 
@@ -236,7 +246,7 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, study_name), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, study_name), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
 
@@ -271,7 +281,7 @@ def test_load_gen_pmin() -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, "test_five_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_five_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_five_study_one")
 
@@ -308,7 +318,7 @@ def test_load_gen_sum() -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, "test_six_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_six_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_six_study_one")
 
@@ -363,7 +373,7 @@ def test_load_gen_link() -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, "test_seven_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_seven_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_seven_study_one")
 
@@ -432,7 +442,7 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, execute_converted_gems_study(network, False, False, study_name), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, study_name), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
 
@@ -519,7 +529,7 @@ def test_storage_unit(
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            execute_converted_gems_study(network, False, False, study_name),
+            get_gems_study_objective(network, False, False, study_name),
             rel_tol=1e-6
         )
     finally:
@@ -612,7 +622,7 @@ def test_storage_unit_ext(
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            execute_converted_gems_study(network, False, False, study_name),
+            get_gems_study_objective(network, False, False, study_name),
             rel_tol=1e-6
         )
     finally:
@@ -686,7 +696,7 @@ def test_store(
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            execute_converted_gems_study(network, False, False, study_name),
+            get_gems_study_objective(network, False, False, study_name),
             rel_tol=1e-6
         )
     finally:
@@ -754,7 +764,7 @@ def test_store_ext() -> None:
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            execute_converted_gems_study(network, False, False, "store_test_case_ext"),
+            get_gems_study_objective(network, False, False, "store_test_case_ext"),
             rel_tol=1e-6
         )
     finally:
