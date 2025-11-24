@@ -70,11 +70,11 @@ def get_gems_study_objective(network: Network,quota: bool,replace_lines: bool,st
 
 
     if result_file:
-        if result_file[0].endswith(".csv"):
+        if result_file[0].suffix == ".csv":
             df = pd.read_csv(result_file[0])
             objective_value = float(df.iloc[-1, -2])
             return objective_value
-        elif result_file[0].endswith(".tsv"):
+        elif result_file[0].suffix == ".tsv":
             df = pd.read_csv(result_file[0], sep="\t")
             objective_value = float(df.iloc[-1, -2])
             return objective_value

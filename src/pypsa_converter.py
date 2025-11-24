@@ -439,7 +439,7 @@ class PyPSAStudyConverter:
         gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml")
 
         
-        num_threads = max(1, os.cpu_count() - 1) if os.cpu_count() else 1
+        num_threads = max(1, os.cpu_count() - 3) if os.cpu_count() else 1
         modeler_parameters = ModelerParameters(
             solver="highs",
             solver_logs=False,
