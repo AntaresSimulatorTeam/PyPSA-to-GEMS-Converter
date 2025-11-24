@@ -87,7 +87,7 @@ def test_end_2_end_test(file, load_scaling, quota, replace_lines, study_name):
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
 
     try:
-        assert math.isclose(execute_original_pypsa_study(network, quota, False), 
+        assert math.isclose(execute_original_pypsa_study(network, quota, replace_lines), 
                             get_gems_study_objective(network, quota, replace_lines, study_name),
                             rel_tol=1e-6)
     finally:
