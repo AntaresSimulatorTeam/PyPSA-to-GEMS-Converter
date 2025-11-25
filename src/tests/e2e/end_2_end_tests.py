@@ -21,9 +21,7 @@ def check_antares_binaries():
     if not antares_dir.is_dir():
         pytest.skip("Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
 
-def get_original_pypsa_study_objective(network: Network, quota: bool, replace_lines: bool):
-    network = preprocess_network(network, quota, replace_lines)
-    
+def get_original_pypsa_study_objective(network: Network):    
     logger.info("Optimizing the PyPSA study")
     network.optimize()
     logger.info("PyPSA study optimized")
