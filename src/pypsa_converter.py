@@ -28,7 +28,7 @@ from .models import (
     ModelerParameters,
     GemsComponent, 
     GemsComponentParameter, 
-    GemsPortConnection
+    GemsPortConnection,
 )
 
 class PyPSAStudyConverter:
