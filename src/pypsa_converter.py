@@ -15,6 +15,7 @@ from pathlib import Path
 import shutil
 import pandas as pd
 from pypsa import Network
+import os
 
 from src.utils import any_to_float
 from .models.pypsa_model_schema import (
@@ -27,7 +28,7 @@ from .models import (
     ModelerParameters,
     GemsComponent, 
     GemsComponentParameter, 
-    GemsPortConnection
+    GemsPortConnection,
 )
 
 class PyPSAStudyConverter:
@@ -436,7 +437,6 @@ class PyPSAStudyConverter:
             area_connections=None,
         )
         gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml")
-
 
         modeler_parameters = ModelerParameters(
             solver="highs",
