@@ -1,6 +1,6 @@
 from pathlib import Path
 from pypsa import Network
-
+import time
 
 def load_pypsa_study(file: str, load_scaling: float) -> Network:
     """
@@ -16,6 +16,22 @@ def load_pypsa_study(file: str, load_scaling: float) -> Network:
     network = scale_load(network, load_scaling)
 
     return network
+
+def load_pypsa_study_benchmark(file: str, load_scaling: float) -> tuple[Network, float]:
+    """
+    Load a PyPSA study from a NetCDF file, preparing it for analysis or manipulation.
+    """
+    current_dir = Path(__file__).resolve().parents[2]
+
+    input_file = current_dir / "resources" / "test_files" / file
+
+    start_time = time.time()
+    network = Network(input_file)
+    end_time = time.time() - start_time
+    # Scale the load to make the test case feasible
+    network = scale_load(network, load_scaling)
+
+    return tuple([network, end_time])
 
 def scale_load(network: Network, factor: float) -> Network:
     network.loads_t["p_set"] *= factor
