@@ -119,7 +119,7 @@ def test_load_gen() -> None:
     
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_two_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_two_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_two_study_one")
 
@@ -168,7 +168,7 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
     
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, study_name), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
 
@@ -232,7 +232,7 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, study_name), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
 
@@ -267,7 +267,7 @@ def test_load_gen_pmin() -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_five_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_five_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_five_study_one")
 
@@ -304,7 +304,7 @@ def test_load_gen_sum() -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_six_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_six_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_six_study_one")
 
@@ -359,7 +359,7 @@ def test_load_gen_link() -> None:
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, "test_seven_study_one"), rel_tol=1e-6)
+        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_seven_study_one"), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_seven_study_one")
 
@@ -428,7 +428,7 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
                         series_file_format = ".tsv").to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, False, False, study_name), rel_tol=1e-6)
+            assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6)
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
 
@@ -515,7 +515,7 @@ def test_storage_unit(
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            get_gems_study_objective(network, False, False, study_name),
+            get_gems_study_objective(network, study_name),
             rel_tol=1e-6
         )
     finally:
@@ -608,7 +608,7 @@ def test_storage_unit_ext(
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            get_gems_study_objective(network, False, False, study_name),
+            get_gems_study_objective(network, study_name),
             rel_tol=1e-6
         )
     finally:
@@ -682,7 +682,7 @@ def test_store(
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            get_gems_study_objective(network, False, False, study_name),
+            get_gems_study_objective(network, study_name),
             rel_tol=1e-6
         )
     finally:
@@ -750,7 +750,7 @@ def test_store_ext() -> None:
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
-            get_gems_study_objective(network, False, False, "store_test_case_ext"),
+            get_gems_study_objective(network, "store_test_case_ext"),
             rel_tol=1e-6
         )
     finally:
