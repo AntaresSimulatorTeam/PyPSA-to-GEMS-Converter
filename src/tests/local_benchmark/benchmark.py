@@ -8,6 +8,7 @@ import logging
 import time
 from pathlib import Path
 import yaml
+import shutil
 import subprocess
 
 logger = logging.getLogger("benchmark")
@@ -16,12 +17,39 @@ current_dir = Path(__file__).resolve().parents[3]
 
 
 @pytest.mark.parametrize(
-    "file_name, load_scaling",
+    "file_name, load_scaling, study_name",
     [
-        ("base_s_20_elec_nl.nc", 1.0),
+        ("ac-dc-data_nl.nc", 1.0, "benchmark_study_ac_dc_data_nl"), #fast
+        #("base_s_11_elec_custom_1_nl.nc", 1.0, "benchmark_study_base_s_11_elec_custom_1_nl"), ValueError: Added data contains non-customized dimension names. This is not allowed when setting `force_dim_names` to True.
+        #("base_s_11_elec_custom_2_nl.nc", 1.0, "benchmark_study_base_s_11_elec_custom_2_nl"), Same -||-
+        #("base_s_11_elec_custom_3_nl.nc", 1.0, "benchmark_study_base_s_11_elec_custom_3_nl"), Same -||-
+        #("base_s_11_elec_nl.nc", 1.0, "benchmark_study_base_s_11_elec_nl"), Same -||-
+        ("base_s_20_elec_custom1_nl.nc", 1.0, "benchmark_study_base_s_20_elec_custom1_nl"), #Works not much fast but works
+        ("base_s_20_elec_nl.nc", 1.0, "benchmark_study_base_s_20_elec_nl"), #Works not much fast but works
+        ("base_s_4_elec.nc", 0.4, "benchmark_study_base_s_4_elec"), #fast
+        ("base_s_6_elec_lvopt__nl.nc", 1.0, "benchmark_study_base_s_6_elec_lvopt__nl"), #fast
+        ("base_s_6_elec_lvopt_.nc", 0.3, "benchmark_study_base_s_6_elec_lvopt_"), #fast
+        ("network_168_10_extendable_gen_nl.nc", 1.0, "benchmark_study_network_168_10_extendable_gen_nl"), #fast
+        ("network_168_10_s_nl.nc", 1.0, "benchmark_study_network_168_10_s_nl"), #fast
+        ("network_168_30_extendable_gen_nl.nc", 1.0, "benchmark_study_network_168_30_extendable_gen_nl"), #fast
+        ("network_168_30_nl.nc", 1.0, "benchmark_study_network_168_30_nl"), #fast
+        ("network_168_30_s_nl.nc", 1.0, "benchmark_study_network_168_30_s_nl"),#fast
+        ("network_168_60_extendable_gen_nl.nc", 1.0, "benchmark_study_network_168_60_extendable_gen_nl"), #1,5mb JUMP,fast
+        ("network_168_60_s_nl.nc", 1.0, "benchmark_study_network_168_60_s_nl"), #1,5mb JUMP
+        ("network_168_nl.nc", 1.0, "benchmark_study_network_168_nl"), #fast
+        ("network_1680_30_nl.nc", 1.0, "benchmark_study_network_1680_30_nl"), #3,7mb JUMP,fast
+        ("network_1680_30_s_nl.nc", 1.0, "benchmark_study_network_1680_30_s_nl"), #5,6mb JUMP,fast
+        ("network_336_10_s_nl.nc", 1.0, "benchmark_study_network_336_10_s_nl"), #fast
+        ("network_336_30_s_nl.nc", 1.0, "benchmark_study_network_336_30_s_nl"), #1,2mb jump,fast
+        ("network_336_60_s_nl.nc", 1.0, "benchmark_study_network_336_60_s_nl"), #2,6mb JUMP,fast
+        ("network_672_10_s_nl.nc", 1.0, "benchmark_study_network_672_10_s_nl"), #fast
+        #("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"), #22,3 mb JUMP 22minutes on my laptop 
+        #("simple.nc", 1.0, "benchmark_study_simple"),#fast TypeError: dtype 'carrier_carrier    object
+                                                            #E           carrier_carrier    object
+                                                            #E           dtype: object' not understood
     ],
 )
-def test_start_benchmark(file_name: str, load_scaling: float):
+def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
     if not Path(current_dir / "antares-9.3.2-rc4-Ubuntu-22.04").is_dir():
         pytest.skip("Antares binaries not found. Please download version 9.3.2-rc4 from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
 
@@ -59,17 +87,17 @@ def test_start_benchmark(file_name: str, load_scaling: float):
     start_time_conversion = time.time()
     PyPSAStudyConverter(pypsa_network = network, 
                         logger = logger, 
-                        study_dir = current_dir / "tmp" / "benchmark_study", 
+                        study_dir = current_dir / "tmp" / study_name, 
                         series_file_format = ".tsv").to_gems_study()
     end_time_conversion = time.time() - start_time_conversion
     benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = end_time_conversion
 
     modeler_bin = current_dir / "antares-9.3.2-rc4-Ubuntu-22.04" / "bin" / "antares-modeler"
 
-    logger.info(f"Running Antares modeler with study directory: {current_dir / 'tmp' / 'benchmark_study' / 'systems'}")
+    logger.info(f"Running Antares modeler with study directory: {current_dir / 'tmp' / study_name / 'systems'}")
 
 
-    study_dir = current_dir / "tmp" / "benchmark_study"
+    study_dir = current_dir / "tmp" / study_name
     start_time_antares_modeler = time.time()
     try:
         subprocess.run(
@@ -117,7 +145,7 @@ def test_start_benchmark(file_name: str, load_scaling: float):
     except subprocess.CalledProcessError as e:
         raise Exception(f"Antares modeler failed with error: {e}")
 
-    parameters_yml_path = current_dir / "tmp" / "benchmark_study" / "systems" / "parameters.yml"
+    parameters_yml_path = current_dir / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
         parameters_yml = yaml.safe_load(f)   
         benchmark_data_frame.loc[0, "antares_solver_parameters"] = parameters_yml["solver-parameters"]
@@ -171,6 +199,20 @@ def test_start_benchmark(file_name: str, load_scaling: float):
     print(f"antares_objective_value: {antares_objective_value}")
     print(f"pypsa_objective: {pypsa_objective}")
     
-    
+    shutil.rmtree(current_dir / "tmp" / study_name)
 
-    return benchmark_data_frame
+
+    # Save/append to combined results file
+    results_dir = current_dir / "tmp" / "benchmark_results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    combined_results_file = results_dir / "all_studies_results.csv"
+    
+    # Check if file exists to determine if we need headers
+    file_exists = combined_results_file.exists()
+    benchmark_data_frame.to_csv(
+        combined_results_file, 
+        mode='a',  # append mode
+        header=not file_exists,  # write header only if file doesn't exist
+        index=False
+    )
+    logger.info(f"Appended benchmark results to {combined_results_file}")
