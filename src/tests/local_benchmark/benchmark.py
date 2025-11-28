@@ -99,7 +99,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
             cwd=str(modeler_bin.parent)  
         )
         total_time_antares_modeler = time.time() - start_time_antares_modeler
-        benchmark_data_frame.loc[0, "antares_modeler__total_time"] = total_time_antares_modeler
+        benchmark_data_frame.loc[0, "modeler_total_time"] = total_time_antares_modeler
 
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Antares modeler failed with error: {e}")
@@ -116,7 +116,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
         elif result_file[-1].suffix == ".tsv":
             df = pd.read_csv(result_file[-1], sep="\t")
             objective_value = float(df.iloc[-1, -2])
-    benchmark_data_frame.loc[0, "antares_objective_value"] = objective_value
+    benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
 
 
     mps_files = [f for f in output_dir.iterdir() if f.is_file() and f.name.endswith(".mps") and f.name != "master.mps"]
@@ -126,17 +126,17 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
             lines = f.readlines()
             if len(lines) > 3 and 'Constraints' in lines[3]:
                 constraints = int(lines[3].split(':')[-1].strip())
-                benchmark_data_frame.loc[0, "number_of_constraints_antares"] = constraints
+                benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = constraints
             if len(lines) > 4 and 'Variables' in lines[4]:
                 variables = int(lines[4].split(':')[-1].strip())
-                benchmark_data_frame.loc[0, "number_of_variables_antares"] = variables
+                benchmark_data_frame.loc[0, "number_of_variables_modeler"] = variables
 
 
     parameters_yml_path = current_dir / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
         parameters_yml = yaml.safe_load(f)   
-        benchmark_data_frame.loc[0, "antares_solver_parameters"] = parameters_yml["solver-parameters"]
-        benchmark_data_frame.loc[0, "antares_solver_name"] = parameters_yml["solver"]
+        benchmark_data_frame.loc[0, "modeler_solver_parameters"] = parameters_yml["solver-parameters"]
+        benchmark_data_frame.loc[0, "modeler_solver_name"] = parameters_yml["solver"]
 
     #make pypsa optimization problem equations,constraints,variables
     start_time_build_optimization_problem = time.time()
