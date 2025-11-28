@@ -22,3 +22,12 @@ def any_to_float(el: Any) -> float:
         )
     except:
         raise TypeError(f"Could not convert {el} to float")
+
+def check_time_series_format(series_file_format: str) -> str:
+    if series_file_format not in {".csv", ".tsv","csv","tsv"}:
+        raise ValueError(f"Invalid series file format: {series_file_format}")
+    
+    if series_file_format in {"csv", "tsv"}:
+        return "." + series_file_format
+
+    return series_file_format

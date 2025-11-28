@@ -17,7 +17,7 @@ import pandas as pd
 from pypsa import Network
 import os
 
-from src.utils import any_to_float
+from src.utils import any_to_float,check_time_series_format
 from .models.pypsa_model_schema import (
     PyPSAComponentData,
     PyPSAGlobalConstraintData
@@ -48,7 +48,7 @@ class PyPSAStudyConverter:
         self.pypsalib_id = "pypsa_models"
         self.null_carrier_id = "null"
         self.system_name = pypsa_network.name
-        self.series_file_format = series_file_format
+        self.series_file_format = check_time_series_format(series_file_format)
 
         self.pypsa_components = [
             "buses",
@@ -535,13 +535,16 @@ class PyPSAStudyConverter:
             param_df = time_dependent_data[param]
             for component in param_df.columns:
                 timeseries_name = self.system_name + "_" + component + "_" + param
+                
                 comp_param_to_timeseries_name[(component, param)] = timeseries_name
+
+                separator = "," if self.series_file_format == ".csv" else "\t"
                 param_df[[component]].to_csv(
                     series_dir / Path(timeseries_name + self.series_file_format),
                     index=False,
                     header=False,
+                    sep=separator,
                 )
-
         return comp_param_to_timeseries_name
 
     def _create_gems_components(
