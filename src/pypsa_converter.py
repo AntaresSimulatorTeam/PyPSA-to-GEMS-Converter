@@ -438,12 +438,10 @@ class PyPSAStudyConverter:
         )
         gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml")
 
-        
-        num_threads = max(1, os.cpu_count() - 3) if os.cpu_count() else 1
         modeler_parameters = ModelerParameters(
             solver="highs",
             solver_logs=False,
-            solver_parameters=f"THREADS {num_threads}",
+            solver_parameters="THREADS 1",
             no_output=False,
             first_time_step=0,
             last_time_step=len(self.pypsa_network.snapshots) - 1,
@@ -537,20 +535,16 @@ class PyPSAStudyConverter:
             param_df = time_dependent_data[param]
             for component in param_df.columns:
                 timeseries_name = self.system_name + "_" + component + "_" + param
+                
                 comp_param_to_timeseries_name[(component, param)] = timeseries_name
-                if self.series_file_format == ".csv":
-                    param_df[[component]].to_csv(
-                        series_dir / Path(timeseries_name + self.series_file_format),
-                        index=False,
-                        header=False,
-                    )
-                else:
-                    param_df[[component]].to_csv(
-                        series_dir / Path(timeseries_name + self.series_file_format),
-                        index=False,
-                        header=False,
-                        sep="\t"
-                    )
+
+                separator = "," if self.series_file_format == ".csv" else "\t"
+                param_df[[component]].to_csv(
+                    series_dir / Path(timeseries_name + self.series_file_format),
+                    index=False,
+                    header=False,
+                    sep=separator,
+                )
         return comp_param_to_timeseries_name
 
     def _create_gems_components(

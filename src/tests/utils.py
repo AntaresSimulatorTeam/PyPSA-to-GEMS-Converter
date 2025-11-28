@@ -1,6 +1,6 @@
 from pathlib import Path
 from pypsa import Network
-import time
+
 
 def load_pypsa_study(file: str, load_scaling: float) -> Network:
     """
