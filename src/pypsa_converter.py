@@ -535,20 +535,16 @@ class PyPSAStudyConverter:
             param_df = time_dependent_data[param]
             for component in param_df.columns:
                 timeseries_name = self.system_name + "_" + component + "_" + param
+                
                 comp_param_to_timeseries_name[(component, param)] = timeseries_name
-                if self.series_file_format == ".csv":
-                    param_df[[component]].to_csv(
-                        series_dir / Path(timeseries_name + self.series_file_format),
-                        index=False,
-                        header=False,
-                    )
-                else:
-                    param_df[[component]].to_csv(
-                        series_dir / Path(timeseries_name + self.series_file_format),
-                        index=False,
-                        header=False,
-                        sep="\t"
-                    )
+
+                separator = "," if self.series_file_format == ".csv" else "\t"
+                param_df[[component]].to_csv(
+                    series_dir / Path(timeseries_name + self.series_file_format),
+                    index=False,
+                    header=False,
+                    sep=separator,
+                )
         return comp_param_to_timeseries_name
 
     def _create_gems_components(
