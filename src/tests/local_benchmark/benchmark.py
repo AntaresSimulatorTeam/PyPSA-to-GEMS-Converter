@@ -110,11 +110,13 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
     objective_value = None
     if result_file:
         if result_file[-1].suffix == ".csv":
-            df = pd.read_csv(result_file[-1])
-            objective_value = float(df.iloc[-1, -2])
+            df = pd.read_csv(result_file[-1], usecols=['output', 'value'])
+            result = df.query("output == 'OBJECTIVE_VALUE'")['value']
+            objective_value = float(result.iloc[0]) if len(result) > 0 else None
         elif result_file[-1].suffix == ".tsv":
-            df = pd.read_csv(result_file[-1], sep="\t")
-            objective_value = float(df.iloc[-1, -2])
+            df = pd.read_csv(result_file[-1], sep="\t", usecols=['output', 'value'])
+            result = df.query("output == 'OBJECTIVE_VALUE'")['value']
+            objective_value = float(result.iloc[0]) if len(result) > 0 else None
     benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
 
 
