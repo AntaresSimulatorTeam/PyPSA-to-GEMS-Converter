@@ -1,5 +1,5 @@
 pandas==2.2.3
-pypsa==0.34.1
+pypsa==1.0.0
 pyyaml==6.0.2
 pydantic==2.11.7
 pytest==7.0.1
