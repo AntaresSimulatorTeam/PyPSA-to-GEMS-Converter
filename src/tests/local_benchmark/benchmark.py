@@ -1,4 +1,4 @@
-from ..utils import load_pypsa_study_benchmark,preprocess_network
+from ..utils import load_pypsa_study_benchmark,preprocess_network,get_objective_value
 from ...pypsa_converter import PyPSAStudyConverter
 from pypsa.optimization.optimize import create_model
 import pytest
@@ -108,17 +108,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
     result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
 
 
-    objective_value = None
     if result_file:
-        if result_file[-1].suffix == ".csv":
-            df = pd.read_csv(result_file[-1], usecols=['output', 'value'])
-            result = df.query("output == 'OBJECTIVE_VALUE'")['value']
-            objective_value = float(result.iloc[0]) if len(result) > 0 else None
-        elif result_file[-1].suffix == ".tsv":
-            df = pd.read_csv(result_file[-1], sep="\t", usecols=['output', 'value'])
-            result = df.query("output == 'OBJECTIVE_VALUE'")['value']
-            objective_value = float(result.iloc[0]) if len(result) > 0 else None
-    benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
+        objective_value = get_objective_value(result_file[-1])
+        benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
 
 
     mps_files = [f for f in output_dir.iterdir() if f.is_file() and f.name.endswith(".mps") and f.name != "master.mps"]
