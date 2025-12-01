@@ -129,22 +129,17 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
 
     #make pypsa optimization problem equations,constraints,variables
     start_time_build_optimization_problem = time.time()
-    create_model(network) 
+    network.model = create_model(network) 
     build_optimization_problem_time_pypsa = time.time() - start_time_build_optimization_problem
 
     benchmark_data_frame.loc[0, "build_optimization_problem_time_pypsa"] = build_optimization_problem_time_pypsa
     
     #solve pypsa optimization problem
-    total_time_start = time.time()
-    # network.optimize.solve_model()  
-    # Note: Linopy releases memory after solve_model(), so constraint details aren't accessible. 
-    # To access constraint counts, use network.optimize() instead and query network.model.solver_model.
+    optimization_time_start = time.time()
     network.optimize()
+    optimization_time = time.time() - optimization_time_start
+
     solver = network.model.solver_model
-
-
-    total_time = time.time() - total_time_start
-
 
     #number of constraints
     benchmark_data_frame.loc[0, "number_of_constraints_pypsa"] = solver.getNumRow()
@@ -152,11 +147,8 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
     #number of variables
     benchmark_data_frame.loc[0, "number_of_variables_pypsa"] = solver.getNumCol()
 
-    
-    #this is approximately the time spent solving the problem,because we use create_model from linopy,pypsa has internal logic inside .optimize()
-    #but if we call network.optimize.solve_model() we cannot get the number of constraints and variables
-    benchmark_data_frame.loc[0, "pypsa_optimization_time"] = total_time - build_optimization_problem_time_pypsa
-    benchmark_data_frame.loc[0, "total_time_pypsa"] = total_time
+    benchmark_data_frame.loc[0, "pypsa_optimization_time"] = optimization_time
+    benchmark_data_frame.loc[0, "total_time_pypsa"] = optimization_time + build_optimization_problem_time_pypsa
 
     
     benchmark_data_frame.loc[0, "solver_name_pypsa"] = network.model.solver_name
