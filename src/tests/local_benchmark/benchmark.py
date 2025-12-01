@@ -1,6 +1,5 @@
 from ..utils import load_pypsa_study_benchmark,preprocess_network
 from ...pypsa_converter import PyPSAStudyConverter
-from pypsa import Network
 from pypsa.optimization.optimize import create_model
 import pytest
 import pandas as pd
@@ -158,12 +157,10 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
 
 
     #number of constraints
-    number_of_constraints = solver.getNumRow()
-    benchmark_data_frame.loc[0, "number_of_constraints_pypsa"] = number_of_constraints
+    benchmark_data_frame.loc[0, "number_of_constraints_pypsa"] = solver.getNumRow()
 
     #number of variables
-    number_of_variables = solver.getNumCol()
-    benchmark_data_frame.loc[0, "number_of_variables_pypsa"] = number_of_variables
+    benchmark_data_frame.loc[0, "number_of_variables_pypsa"] = solver.getNumCol()
 
     
     #this is approximately the time spent solving the problem,because we use create_model from linopy,pypsa has internal logic inside .optimize()
