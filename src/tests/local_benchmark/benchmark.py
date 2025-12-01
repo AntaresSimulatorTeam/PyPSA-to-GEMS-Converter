@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 import shutil
 import subprocess
+import highspy
 
 logger = logging.getLogger("benchmark")
 logger.setLevel(logging.INFO)
@@ -122,16 +123,11 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
 
     mps_files = [f for f in output_dir.iterdir() if f.is_file() and f.name.endswith(".mps") and f.name != "master.mps"]
     if mps_files:
-        mps_file = mps_files[0]
-        with open(mps_file, 'r') as f:
-            lines = f.readlines()
-            if len(lines) > 3 and 'Constraints' in lines[3]:
-                constraints = int(lines[3].split(':')[-1].strip())
-                benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = constraints
-            if len(lines) > 4 and 'Variables' in lines[4]:
-                variables = int(lines[4].split(':')[-1].strip())
-                benchmark_data_frame.loc[0, "number_of_variables_modeler"] = variables
-
+        highs = highspy.Highs()
+        highs.readModel(str(mps_files[0]))
+        lp = highs.getLp()
+        benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = lp.num_row_
+        benchmark_data_frame.loc[0, "number_of_variables_modeler"] = lp.num_col_
 
     parameters_yml_path = current_dir / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
