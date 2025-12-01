@@ -1,6 +1,5 @@
 from ..utils import load_pypsa_study_benchmark,preprocess_network,get_objective_value
 from ...pypsa_converter import PyPSAStudyConverter
-from pypsa.optimization.optimize import create_model
 import pytest
 import pandas as pd
 import logging
@@ -129,14 +128,14 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
 
     #make pypsa optimization problem equations,constraints,variables
     start_time_build_optimization_problem = time.time()
-    network.model = create_model(network) 
+    network.optimize.create_model()
     build_optimization_problem_time_pypsa = time.time() - start_time_build_optimization_problem
 
     benchmark_data_frame.loc[0, "build_optimization_problem_time_pypsa"] = build_optimization_problem_time_pypsa
     
     #solve pypsa optimization problem
     optimization_time_start = time.time()
-    network.optimize()
+    network.optimize.solve_model()
     optimization_time = time.time() - optimization_time_start
 
     solver = network.model.solver_model
