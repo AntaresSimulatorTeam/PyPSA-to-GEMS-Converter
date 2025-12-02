@@ -1,17 +1,41 @@
-from pydantic import PrivateAttr
-from ..modified_base_model import ModifiedBaseModel
+# Copyright (c) 2025, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+
+from pathlib import Path
+from typing import Any
+
 import yaml
+from pydantic import PrivateAttr
+
+from ..modified_base_model import ModifiedBaseModel
+
 
 class ModelerParameters(ModifiedBaseModel):
     solver: str = "highs"
     solver_logs: bool = False
     solver_parameters: str = "THREADS 1"
     no_output: bool = False
-    _first_time_step: int = PrivateAttr(default=None)
-    _last_time_step: int = PrivateAttr(default=None)
+    _first_time_step: int = PrivateAttr(default=0)
+    _last_time_step: int = PrivateAttr(default=0)
 
-
-    def __init__(self, solver: str, solver_logs: bool, solver_parameters: str, no_output: bool, first_time_step: int, last_time_step: int):
+    def __init__(
+        self,
+        solver: str,
+        solver_logs: bool,
+        solver_parameters: str,
+        no_output: bool,
+        first_time_step: int,
+        last_time_step: int,
+    ):
         super().__init__()
         self.solver = solver
         self.solver_logs = solver_logs
@@ -20,7 +44,7 @@ class ModelerParameters(ModifiedBaseModel):
         self._first_time_step = first_time_step
         self._last_time_step = last_time_step
 
-    def to_dict(self, by_alias: bool = True, exclude_unset: bool = True) -> dict:
+    def to_dict(self, by_alias: bool = True, exclude_unset: bool = True) -> dict[str, Any]:
         """Convert ModelerParameters object to dictionary, handling PrivateAttr fields."""
         return {
             "solver": self.solver,
@@ -31,8 +55,7 @@ class ModelerParameters(ModifiedBaseModel):
             "last-time-step": self._last_time_step,
         }
 
-
-    def to_yaml(self, output_path: str) -> None:
+    def to_yaml(self, output_path: Path) -> None:
         converted_data = self.to_dict(by_alias=True, exclude_unset=True)
 
         with open(output_path, "w", encoding="utf-8") as yaml_file:
@@ -42,7 +65,7 @@ class ModelerParameters(ModifiedBaseModel):
                 allow_unicode=True,
                 sort_keys=False,
             )
-    
+
     def get_first_time_step(self) -> int:
         return self._first_time_step
 

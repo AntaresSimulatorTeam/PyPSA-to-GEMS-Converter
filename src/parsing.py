@@ -1,4 +1,4 @@
-# Copyright (c) 2024, RTE (https://www.rte-france.com)
+# Copyright (c) 2025, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -24,6 +24,7 @@ def parse_scenario_builder(file: Path) -> pd.DataFrame:
     sb.rename(columns={0: "name", 1: "year", 2: "scenario"})
     return sb
 
+
 @dataclass(frozen=True)
 class ParsedArguments:
     models_path: List[Path]
@@ -32,41 +33,25 @@ class ParsedArguments:
     duration: int
     nb_scenarios: int
 
+
 def parse_cli() -> ParsedArguments:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--study", type=Path, help="path to the root directory of the study"
-    )
-    parser.add_argument(
-        "--models", nargs="+", type=Path, help="list of path to model file, *.yml"
-    )
-    parser.add_argument(
-        "--component", type=Path, help="path to the component file, *.yml"
-    )
-    parser.add_argument(
-        "--timeseries", type=Path, help="path to the timeseries directory"
-    )
-    parser.add_argument(
-        "--duration", type=int, help="duration of the simulation", default=1
-    )
-    parser.add_argument(
-        "--scenario", type=int, help="number of scenario of the simulation", default=1
-    )
+    parser.add_argument("--study", type=Path, help="path to the root directory of the study")
+    parser.add_argument("--models", nargs="+", type=Path, help="list of path to model file, *.yml")
+    parser.add_argument("--component", type=Path, help="path to the component file, *.yml")
+    parser.add_argument("--timeseries", type=Path, help="path to the timeseries directory")
+    parser.add_argument("--duration", type=int, help="duration of the simulation", default=1)
+    parser.add_argument("--scenario", type=int, help="number of scenario of the simulation", default=1)
 
     args = parser.parse_args()
 
     if args.study:
         if args.models or args.component or args.timeseries:
-            parser.error(
-                "--study flag can't be use with --models, --component and --timeseries"
-            )
+            parser.error("--study flag can't be use with --models, --component and --timeseries")
 
         components_path = args.study / "input" / "components" / "components.yml"
         timeseries_dir = args.study / "input" / "components" / "series"
-        model_paths = [
-            args.study / "input" / "models" / file
-            for file in os.listdir(args.study / "input" / "models")
-        ]
+        model_paths = [args.study / "input" / "models" / file for file in os.listdir(args.study / "input" / "models")]
 
     else:
         if not args.models or not args.component:
@@ -76,6 +61,4 @@ def parse_cli() -> ParsedArguments:
         timeseries_dir = args.timeseries
         model_paths = args.models
 
-    return ParsedArguments(
-        model_paths, components_path, timeseries_dir, args.duration, args.scenario
-    )
+    return ParsedArguments(model_paths, components_path, timeseries_dir, args.duration, args.scenario)

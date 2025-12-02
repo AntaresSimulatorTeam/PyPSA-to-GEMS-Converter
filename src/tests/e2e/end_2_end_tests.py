@@ -1,42 +1,57 @@
-from ..utils import load_pypsa_study, preprocess_network
-from ...pypsa_converter import PyPSAStudyConverter
-from pathlib import Path
-from pypsa import Network
+# Copyright (c) 2025, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+
 import logging
-import pytest
-import subprocess
 import math
 import shutil
-import pandas as pd 
+import subprocess
+from pathlib import Path
+
+import pytest
+from pypsa import Network
+
+from ...pypsa_converter import PyPSAStudyConverter
+from ..utils import get_objective_value, load_pypsa_study, preprocess_network
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 current_dir = Path(__file__).resolve().parents[3]
 
+
 # Pytest fixture to check for Antares binaries
 @pytest.fixture(scope="function", autouse=True)
-def check_antares_binaries():
+def check_antares_binaries() -> None:
     """Check if Antares binaries are available before running tests."""
     antares_dir = current_dir / "antares-9.3.2-Ubuntu-22.04"
     if not antares_dir.is_dir():
-        pytest.skip("Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
+        pytest.skip(
+            "Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
+        )
 
-def get_original_pypsa_study_objective(network: Network):    
+
+def get_original_pypsa_study_objective(network: Network) -> float:
     logger.info("Optimizing the PyPSA study")
     network.optimize()
     logger.info("PyPSA study optimized")
     return network.objective + network.objective_constant
 
 
-def get_gems_study_objective(network: Network,study_name: str):
+def get_gems_study_objective(network: Network, study_name: str) -> float:
     study_dir = current_dir / "tmp" / study_name
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = study_dir, 
-                        series_file_format = ".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=study_dir, series_file_format=".tsv"
+    ).to_gems_study()
 
     modeler_bin = current_dir / "antares-9.3.2-Ubuntu-22.04" / "bin" / "antares-modeler"
-    
 
     logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
 
@@ -45,10 +60,10 @@ def get_gems_study_objective(network: Network,study_name: str):
             [str(modeler_bin), str(study_dir / "systems")],
             capture_output=True,
             text=True,
-            check=False,  
-            cwd=str(modeler_bin.parent)  
+            check=False,
+            cwd=str(modeler_bin.parent),
         )
-        
+
     except subprocess.CalledProcessError as e:
         raise Exception(f"Antares modeler failed with error: {e}")
 
@@ -57,43 +72,33 @@ def get_gems_study_objective(network: Network,study_name: str):
     output_dir = study_dir / "systems" / "output"
     result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
 
-
     if result_file:
-        if result_file[0].suffix == ".csv":
-            df = pd.read_csv(result_file[0])
-            objective_value = float(df.iloc[-1, -2])
-            return objective_value
-        elif result_file[0].suffix == ".tsv":
-            df = pd.read_csv(result_file[0], sep="\t")
-            objective_value = float(df.iloc[-1, -2])
-            return objective_value
-    
+        return get_objective_value(result_file[-1])
+
     raise FileNotFoundError(f"Result file not found in {output_dir}")
+
 
 @pytest.mark.parametrize(
     "file, load_scaling, quota, replace_lines, study_name",
     [
         ("base_s_4_elec.nc", 0.4, True, True, "test_one_study_one"),
-        ("simple.nc", 1.0, False, True,"test_one_study_two"),
+        ("simple.nc", 1.0, False, True, "test_one_study_two"),
         ("base_s_6_elec_lvopt_.nc", 0.3, True, True, "test_one_study_three"),
     ],
 )
-def test_end_2_end_test(file, load_scaling, quota, replace_lines, study_name):
-    
+def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lines: bool, study_name: str) -> None:
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
     network = preprocess_network(network, quota, replace_lines)
-    assert math.isclose(get_original_pypsa_study_objective(network), 
-                        get_gems_study_objective(network, study_name),
-                        rel_tol=1e-6)
+    assert math.isclose(
+        get_original_pypsa_study_objective(network), get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 def test_load_gen() -> None:
     # Function to test the behaviour of Generator with "p_nom_extendable = False"
     network = Network(name="Demo", snapshots=[i for i in range(10)])
     network.add("Bus", "pypsatown", v_nom=1)
-    network.add(
-        "Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0
-    )
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0)
     network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
     network.add(
         "Generator",
@@ -111,15 +116,21 @@ def test_load_gen() -> None:
         marginal_cost=40,  # €/MWh
         p_nom=50,  # MW
     )
-    
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / "test_two_study_one", 
-                        series_file_format = ".tsv").to_gems_study()
-    
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        logger=logger,
+        study_dir=current_dir / "tmp" / "test_two_study_one",
+        series_file_format=".tsv",
+    ).to_gems_study()
+
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_two_study_one"), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant,
+            get_gems_study_objective(network, "test_two_study_one"),
+            rel_tol=1e-6,
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_two_study_one")
 
@@ -138,9 +149,7 @@ def test_load_gen() -> None:
 def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, study_name: str) -> None:
     network = Network(name="Demo", snapshots=[i for i in range(10)])
     network.add("Bus", "pypsatown", v_nom=1)
-    network.add(
-        "Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0
-    )
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0)
     network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
     network.add(
         "Generator",
@@ -161,16 +170,18 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
         p_nom_max=p_nom_max,  # MW
     )
 
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / study_name, 
-                        series_file_format = ".tsv").to_gems_study()
-    
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
+
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
+
 
 @pytest.mark.parametrize(
     "ratio, sense, study_name",
@@ -220,21 +231,20 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
         marginal_cost=50,  # €/MWh
         p_nom=10,  # MW
     )
-    quota = (ratio * min_emissions + (1 - ratio) * max_emissions) * (
-        sum(load1) + sum(load2)
-    )
+    quota = (ratio * min_emissions + (1 - ratio) * max_emissions) * (sum(load1) + sum(load2))
     network.add("GlobalConstraint", name="co2_budget", sense=sense, constant=quota)
-    
 
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / study_name, 
-                        series_file_format = ".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
+
 
 def test_load_gen_pmin() -> None:
     # Testing pmin_pu and pmax_pu parameters for Generator component
@@ -261,15 +271,22 @@ def test_load_gen_pmin() -> None:
         marginal_cost=10,  # €/MWh
         p_nom=50,  # MW
     )
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / "test_five_study_one", 
-                        series_file_format = ".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        logger=logger,
+        study_dir=current_dir / "tmp" / "test_five_study_one",
+        series_file_format=".tsv",
+    ).to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_five_study_one"), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant,
+            get_gems_study_objective(network, "test_five_study_one"),
+            rel_tol=1e-6,
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_five_study_one")
+
 
 def test_load_gen_sum() -> None:
     # Testing e_sum parameters for Generator component
@@ -296,24 +313,28 @@ def test_load_gen_sum() -> None:
         marginal_cost=10,  # €/MWh
         p_nom=50,  # MW
     )
-    
 
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / "test_six_study_one", 
-                        series_file_format = ".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        logger=logger,
+        study_dir=current_dir / "tmp" / "test_six_study_one",
+        series_file_format=".tsv",
+    ).to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_six_study_one"), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant,
+            get_gems_study_objective(network, "test_six_study_one"),
+            rel_tol=1e-6,
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_six_study_one")
+
 
 def test_load_gen_link() -> None:
     network = Network(name="Demo2", snapshots=[i for i in range(10)])
     network.add("Bus", "pypsatown", v_nom=1)
-    network.add(
-        "Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0
-    )
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0)
     network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
     network.add(
         "Generator",
@@ -352,16 +373,23 @@ def test_load_gen_link() -> None:
         p_min_pu=-1,
         p_max_pu=1,
     )
-    
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / "test_seven_study_one", 
-                        series_file_format = ".tsv").to_gems_study()
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        logger=logger,
+        study_dir=current_dir / "tmp" / "test_seven_study_one",
+        series_file_format=".tsv",
+    ).to_gems_study()
     network.optimize()
     try:
-        assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, "test_seven_study_one"), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant,
+            get_gems_study_objective(network, "test_seven_study_one"),
+            rel_tol=1e-6,
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / "test_seven_study_one")
+
 
 @pytest.mark.parametrize(
     "capital_cost, p_nom_min, p_nom_max, study_name",
@@ -377,9 +405,7 @@ def test_load_gen_link() -> None:
 def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, study_name: str) -> None:
     network = Network(name="Demo2", snapshots=[i for i in range(10)])
     network.add("Bus", "pypsatown", v_nom=1)
-    network.add(
-        "Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0
-    )
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0)
     network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
     network.add(
         "Generator",
@@ -421,16 +447,18 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
         p_min_pu=-1,
         p_max_pu=1,
     )
-    
-    PyPSAStudyConverter(pypsa_network = network, 
-                        logger = logger, 
-                        study_dir = current_dir / "tmp" / study_name, 
-                        series_file_format = ".tsv").to_gems_study()
+
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
     network.optimize()
     try:
-            assert math.isclose(network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6)
+        assert math.isclose(
+            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        )
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
+
 
 @pytest.mark.parametrize(
     "state_of_charge_initial, standing_loss, efficiency_store, inflow_factor, study_name",
@@ -507,19 +535,18 @@ def test_storage_unit(
         cyclic_state_of_charge_per_period=True,
     )
 
-    PyPSAStudyConverter(pypsa_network=network,
-                        logger=logger,
-                        study_dir=current_dir / "tmp" / study_name,
-                        series_file_format=".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
     network.optimize()
     try:
         assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, study_name),
-            rel_tol=1e-6
+            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
         )
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
+
+
 @pytest.mark.parametrize(
     "state_of_charge_initial, standing_loss, efficiency_store, inflow_factor, study_name",
     [
@@ -599,20 +626,18 @@ def test_storage_unit_ext(
         cyclic_state_of_charge=True,
         cyclic_state_of_charge_per_period=True,
     )
-    PyPSAStudyConverter(pypsa_network=network,
-                        logger=logger,
-                        study_dir=current_dir / "tmp" / study_name,
-                        series_file_format=".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
     network.optimize()
 
     try:
         assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, study_name),
-            rel_tol=1e-6
+            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
         )
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
+
 
 @pytest.mark.parametrize(
     "e_initial, standing_loss, study_name",
@@ -622,9 +647,7 @@ def test_storage_unit_ext(
         (0.0, 0.05, "store_test_case_3"),
     ],
 )
-def test_store(
-    e_initial: float, standing_loss: float, study_name: str
-) -> None:
+def test_store(e_initial: float, standing_loss: float, study_name: str) -> None:
     network = Network(name="StoreDemo", snapshots=[i for i in range(20)])
     network.add("Bus", "pypsatown", v_nom=1)
     network.add(
@@ -674,19 +697,17 @@ def test_store(
         marginal_cost_storage=1.5,  # €/MWh
         e_cyclic=True,
     )
-    PyPSAStudyConverter(pypsa_network=network,
-                        logger=logger,
-                        study_dir=current_dir / "tmp" / study_name,
-                        series_file_format=".tsv").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
     network.optimize()
     try:
         assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, study_name),
-            rel_tol=1e-6
+            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
         )
     finally:
         shutil.rmtree(current_dir / "tmp" / study_name)
+
 
 def test_store_ext() -> None:
     network = Network(name="StoreDemo", snapshots=[i for i in range(20)])
@@ -741,17 +762,19 @@ def test_store_ext() -> None:
         marginal_cost_storage=1.5,  # €/MWh
         e_cyclic=True,
     )
-    
-    PyPSAStudyConverter(pypsa_network=network,
-                        logger=logger,
-                        study_dir=current_dir / "tmp" / "store_test_case_ext",
-                        series_file_format=".tsv").to_gems_study()
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        logger=logger,
+        study_dir=current_dir / "tmp" / "store_test_case_ext",
+        series_file_format=".tsv",
+    ).to_gems_study()
     network.optimize()
     try:
         assert math.isclose(
             network.objective + network.objective_constant,
             get_gems_study_objective(network, "store_test_case_ext"),
-            rel_tol=1e-6
+            rel_tol=1e-6,
         )
     finally:
         shutil.rmtree(current_dir / "tmp" / "store_test_case_ext")
