@@ -1,6 +1,5 @@
 from ..utils import load_pypsa_study_benchmark,preprocess_network,get_objective_value
 from ...pypsa_converter import PyPSAStudyConverter
-from pypsa.optimization.optimize import create_model
 import pytest
 import pandas as pd
 import logging
@@ -43,8 +42,8 @@ current_dir = Path(__file__).resolve().parents[3]
     ],
 )
 def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
-    if not Path(current_dir / "antares-9.3.2-rc4-Ubuntu-22.04").is_dir():
-        pytest.skip("Antares binaries not found. Please download version 9.3.2-rc4 from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
+    if not Path(current_dir / "antares-9.3.2-Ubuntu-22.04").is_dir():
+        pytest.skip("Antares binaries not found. Please download version 9.3.2 from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases")
 
 
     benchmark_data_frame = pd.DataFrame()
@@ -53,7 +52,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
     benchmark_data_frame.loc[0, "pypsa_network_name"] = network.name
     benchmark_data_frame.loc[0, "number_of_time_steps"] = len(network.snapshots)
 
-    benchmark_data_frame.loc[0, "antares_version"] = "v9.3.2-rc4"
+    benchmark_data_frame.loc[0, "antares_version"] = "v9.3.2"
 
     # The available PyPSA components registered in pypsa_converter are:
     benchmark_data_frame.loc[0, "number_of_buses"] = len(network.buses)
@@ -83,7 +82,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
     end_time_conversion = time.time() - start_time_conversion
     benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = end_time_conversion
 
-    modeler_bin = current_dir / "antares-9.3.2-rc4-Ubuntu-22.04" / "bin" / "antares-modeler"
+    modeler_bin = current_dir / "antares-9.3.2-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     logger.info(f"Running Antares modeler with study directory: {current_dir / 'tmp' / study_name / 'systems'}")
 
@@ -129,14 +128,14 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str):
 
     #make pypsa optimization problem equations,constraints,variables
     start_time_build_optimization_problem = time.time()
-    network.model = create_model(network) 
+    network.optimize.create_model()
     build_optimization_problem_time_pypsa = time.time() - start_time_build_optimization_problem
 
     benchmark_data_frame.loc[0, "build_optimization_problem_time_pypsa"] = build_optimization_problem_time_pypsa
     
     #solve pypsa optimization problem
     optimization_time_start = time.time()
-    network.optimize()
+    network.optimize.solve_model()
     optimization_time = time.time() - optimization_time_start
 
     solver = network.model.solver_model
