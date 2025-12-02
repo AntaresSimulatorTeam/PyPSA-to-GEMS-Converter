@@ -10,26 +10,24 @@
 #
 # This file is part of the Antares project.
 import logging
+import shutil
 from math import inf
 from pathlib import Path
-import shutil
+
 import pandas as pd
 from pypsa import Network
-import os
 
-from src.utils import any_to_float,check_time_series_format
-from .models.pypsa_model_schema import (
-    PyPSAComponentData,
-    PyPSAGlobalConstraintData
-)
+from src.utils import any_to_float, check_time_series_format
 
 from .models import (
+    GemsComponent,
+    GemsComponentParameter,
+    GemsPortConnection,
     GemsSystem,
     ModelerParameters,
-    GemsComponent, 
-    GemsComponentParameter, 
-    GemsPortConnection,
 )
+from .models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
+
 
 class PyPSAStudyConverter:
     def __init__(
@@ -79,63 +77,47 @@ class PyPSAStudyConverter:
         assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
         ### PyPSA components : Generators
         if not (all((self.pypsa_network.generators["marginal_cost_quadratic"] == 0))):
-            raise ValueError(f"Converter supports only Generators with linear cost")
+            raise ValueError("Converter supports only Generators with linear cost")
         if not (all((self.pypsa_network.generators["active"] == 1))):
-            raise ValueError(f"Converter supports only Generators with active = 1")
+            raise ValueError("Converter supports only Generators with active = 1")
         if not (all((self.pypsa_network.generators["committable"] == False))):
-            raise ValueError(
-                f"Converter supports only Generators with commitable = False"
-            )
+            raise ValueError("Converter supports only Generators with commitable = False")
         ### PyPSA components : Loads
         if not (all((self.pypsa_network.loads["active"] == 1))):
-            raise ValueError(f"Converter supports only Loads with active = 1")
+            raise ValueError("Converter supports only Loads with active = 1")
         ### PyPSA components : Links
         if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError(f"Converter supports only Links with active = 1")
+            raise ValueError("Converter supports only Links with active = 1")
         ### PyPSA components : Lines
         if not len(self.pypsa_network.lines) == 0:
-            raise ValueError(f"Converter does not support Lines yet")
+            raise ValueError("Converter does not support Lines yet")
         ### PyPSA components : Storage Units
         if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError(f"Converter supports only Storage Units with active = 1")
+            raise ValueError("Converter supports only Storage Units with active = 1")
         if not (all((self.pypsa_network.storage_units["sign"] == 1))):
-            raise ValueError(f"Converter supports only Storage Units with sign = 1")
+            raise ValueError("Converter supports only Storage Units with sign = 1")
         if not (all((self.pypsa_network.storage_units["cyclic_state_of_charge"] == 1))):
-            raise ValueError(
-                f"Converter supports only Storage Units with cyclic_state_of_charge"
-            )
-        if not (
-            all((self.pypsa_network.storage_units["marginal_cost_quadratic"] == 0))
-        ):
-            raise ValueError(f"Converter supports only Storage Units with linear cost")
+            raise ValueError("Converter supports only Storage Units with cyclic_state_of_charge")
+        if not (all((self.pypsa_network.storage_units["marginal_cost_quadratic"] == 0))):
+            raise ValueError("Converter supports only Storage Units with linear cost")
         ### PyPSA components : Stores
         if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError(f"Converter supports only Stores with active = 1")
+            raise ValueError("Converter supports only Stores with active = 1")
         if not (all((self.pypsa_network.stores["sign"] == 1))):
-            raise ValueError(f"Converter supports only Stores with sign = 1")
+            raise ValueError("Converter supports only Stores with sign = 1")
         if not (all((self.pypsa_network.stores["e_cyclic"] == 1))):
-            raise ValueError(f"Converter supports only Stores with e_cyclic = True")
+            raise ValueError("Converter supports only Stores with e_cyclic = True")
         if not (all((self.pypsa_network.stores["marginal_cost_quadratic"] == 0))):
-            raise ValueError(f"Converter supports only Stores with linear cost")
+            raise ValueError("Converter supports only Stores with linear cost")
         ### PyPSA components : GlobalConstraint
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
-            assert (
-                self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"]
-                == "primary_energy"
-            )
-            assert (
-                self.pypsa_network.global_constraints.loc[
-                    pypsa_model_id, "carrier_attribute"
-                ]
-                == "co2_emissions"
-            )
+            assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
+            assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"] == "co2_emissions"
 
     def _rename_buses(self) -> None:
         ### Rename PyPSA buses, to delete spaces
         if len(self.pypsa_network.buses) > 0:
-            self.pypsa_network.buses.index = self.pypsa_network.buses.index.str.replace(
-                " ", "_"
-            )
+            self.pypsa_network.buses.index = self.pypsa_network.buses.index.str.replace(" ", "_")
             for _, val in self.pypsa_network.buses_t.items():
                 val.columns = val.columns.str.replace(" ", "_")
         ### Update the 'bus' columns for the different types of PyPSA components
@@ -154,9 +136,7 @@ class PyPSAStudyConverter:
             co2_emissions=0,
             max_growth=any_to_float(inf),
         )
-        self.pypsa_network.carriers[
-            "carrier"
-        ] = self.pypsa_network.carriers.index.values
+        self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
         self._rename_buses()
 
     def _rename_pypsa_components(self, component_type: str) -> None:
@@ -179,9 +159,7 @@ class PyPSAStudyConverter:
             df.loc[df[capa_str + "_extendable"] == False, field] = df[capa_str]
             df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
 
-    def _preprocess_pypsa_components(
-        self, component_type: str, extendable: bool, capa_str: str
-    ) -> None:
+    def _preprocess_pypsa_components(self, component_type: str, extendable: bool, capa_str: str) -> None:
         ### Handling PyPSA objects without carriers
         df = getattr(self.pypsa_network, component_type)
         for comp in df.index:
@@ -323,8 +301,7 @@ class PyPSAStudyConverter:
     ) -> list[tuple[str, str]]:
         df = getattr(self.pypsa_network, component_type)
         gems_components_and_ports += [
-            (comp, "emission_port")
-            for comp in df[df["carrier"] != self.null_carrier_id].index
+            (comp, "emission_port") for comp in df[df["carrier"] != self.null_carrier_id].index
         ]
         return gems_components_and_ports
 
@@ -339,34 +316,24 @@ class PyPSAStudyConverter:
             name, sense, carrier_attribute = (
                 pypsa_model_id,
                 self.pypsa_network.global_constraints.loc[pypsa_model_id, "sense"],
-                self.pypsa_network.global_constraints.loc[
-                    pypsa_model_id, "carrier_attribute"
-                ],
+                self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"],
             )
             if carrier_attribute == "co2_emissions" and sense == "<=":
-                self.pypsa_globalconstraints_data[
-                    pypsa_model_id
-                ] = PyPSAGlobalConstraintData(
+                self.pypsa_globalconstraints_data[pypsa_model_id] = PyPSAGlobalConstraintData(
                     name,
                     carrier_attribute,
                     sense,
-                    self.pypsa_network.global_constraints.loc[
-                        pypsa_model_id, "constant"
-                    ],
+                    self.pypsa_network.global_constraints.loc[pypsa_model_id, "constant"],
                     "global_constraint_co2_max",
                     "emission_port",
                     gems_components_and_ports,
                 )
             elif carrier_attribute == "co2_emissions" and sense == "==":
-                self.pypsa_globalconstraints_data[
-                    pypsa_model_id
-                ] = PyPSAGlobalConstraintData(
+                self.pypsa_globalconstraints_data[pypsa_model_id] = PyPSAGlobalConstraintData(
                     name,
                     carrier_attribute,
                     sense,
-                    self.pypsa_network.global_constraints.loc[
-                        pypsa_model_id, "constant"
-                    ],
+                    self.pypsa_network.global_constraints.loc[pypsa_model_id, "constant"],
                     "global_constraint_co2_eq",
                     "emission_port",
                     gems_components_and_ports,
@@ -401,18 +368,16 @@ class PyPSAStudyConverter:
         self.logger.info("Study conversion started")
         list_components, list_connections = [], []
 
-        Path(self.study_dir /"systems"/ "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
-        destination_file = Path(self.study_dir /"systems"/ "input" / "model-libraries" / "pypsa_models.yml")
+        Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
+        destination_file = Path(self.study_dir / "systems" / "input" / "model-libraries" / "pypsa_models.yml")
         destination_file.touch()
 
         project_root = Path(__file__).parent.parent
         source_file = project_root / "resources" / "pypsa_models" / "pypsa_models.yml"
         shutil.copy(source_file, destination_file)
-        
+
         for pypsa_components_data in self.pypsa_components_data.values():
-            components, connections = self._convert_pypsa_components_of_given_model(
-                pypsa_components_data
-            )
+            components, connections = self._convert_pypsa_components_of_given_model(pypsa_components_data)
             list_components.extend(components)
             list_connections.extend(connections)
 
@@ -420,9 +385,7 @@ class PyPSAStudyConverter:
             (
                 components,
                 connections,
-            ) = self._convert_pypsa_globalconstraint_of_given_model(
-                pypsa_global_constraint_data
-            )
+            ) = self._convert_pypsa_globalconstraint_of_given_model(pypsa_global_constraint_data)
             list_components.extend(components)
             list_connections.extend(connections)
 
@@ -458,17 +421,15 @@ class PyPSAStudyConverter:
 
         """
 
-        self.logger.info(
-            f"Creating objects of type: {pypsa_components_data.gems_model_id}. "
-        )
+        self.logger.info(f"Creating objects of type: {pypsa_components_data.gems_model_id}. ")
 
         # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
         pypsa_components_data.check_params_consistency()
 
         # List of params that may be time-dependent in the pypsa model, among those we want to keep
-        time_dependent_params = set(
-            pypsa_components_data.pypsa_params_to_gems_params
-        ).intersection(set(pypsa_components_data.time_dependent_data.keys()))
+        time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
+            set(pypsa_components_data.time_dependent_data.keys())
+        )
         # Save time series and memorize the time-dependent parameters
         comp_param_to_timeseries_name = self._write_and_register_timeseries(
             pypsa_components_data.time_dependent_data, time_dependent_params
@@ -490,9 +451,7 @@ class PyPSAStudyConverter:
     def _convert_pypsa_globalconstraint_of_given_model(
         self, pypsa_gc_data: PyPSAGlobalConstraintData
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
-        self.logger.info(
-            f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. "
-        )
+        self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
         components = [
             GemsComponent(
                 id=pypsa_gc_data.pypsa_name,
@@ -530,12 +489,12 @@ class PyPSAStudyConverter:
 
         if time_dependent_params:
             series_dir.mkdir(parents=True, exist_ok=True)
-        
+
         for param in time_dependent_params:
             param_df = time_dependent_data[param]
             for component in param_df.columns:
                 timeseries_name = self.system_name + "_" + component + "_" + param
-                
+
                 comp_param_to_timeseries_name[(component, param)] = timeseries_name
 
                 separator = "," if self.series_file_format == ".csv" else "\t"
@@ -563,8 +522,7 @@ class PyPSAStudyConverter:
                     parameters=[
                         GemsComponentParameter(
                             id=pypsa_params_to_gems_params[param],
-                            time_dependent=(component, param)
-                            in comp_param_to_timeseries_name,
+                            time_dependent=(component, param) in comp_param_to_timeseries_name,
                             scenario_dependent=False,
                             value=(
                                 comp_param_to_timeseries_name[(component, param)]

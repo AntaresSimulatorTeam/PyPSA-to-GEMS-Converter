@@ -11,6 +11,7 @@
 # This file is part of the Antares project.
 
 from typing import Optional, Union
+
 from ..modified_base_model import ModifiedBaseModel
 
 

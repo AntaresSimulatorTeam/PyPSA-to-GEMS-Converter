@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pypsa-to-gems-converter"
+version = "0.0.1"
+license = {text = "MPL-2.0"}
+dependencies = ["pandas==2.2.3", "pypsa==1.0.0", "pyyaml==6.0.2", "pydantic==2.11.7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = [".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "resources", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"*.ipynb" = ["E402"]
+"src/pypsa_converter.py" = ["E712"]
+
+[tool.ruff.format]
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+files = "src"
+strict = true
+plugins = ["pydantic.mypy"]
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = ["src.models", "src.models.gems_system_yml_schema", "src.models.modeler_parameter_yml_schema"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["src.tests.e2e.end_2_end_tests"]
+disable_error_code = ["operator"]
+
+[[tool.mypy.overrides]]
+module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*"]

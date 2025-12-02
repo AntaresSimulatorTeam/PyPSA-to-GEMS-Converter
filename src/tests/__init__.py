@@ -10,4 +10,4 @@
 #
 # This file is part of the Antares project.
 
-from .utils import load_pypsa_study, scale_load, extend_quota, replace_lines_by_links
+from .utils import extend_quota, load_pypsa_study, replace_lines_by_links, scale_load

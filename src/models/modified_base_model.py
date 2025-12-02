@@ -13,8 +13,13 @@
 from pydantic import BaseModel
 
 
+def alias_generator(snake: str) -> str:
+    """Convert snake_case to kebab-case."""
+    return snake.replace("_", "-")
+
+
 class ModifiedBaseModel(BaseModel):
     class Config:
-        alias_generator = lambda snake: snake.replace("_", "-")
+        alias_generator = alias_generator
         extra = "forbid"
         populate_by_name = True

@@ -12,6 +12,7 @@
 
 from ..modified_base_model import ModifiedBaseModel
 
+
 class GemsPortConnection(ModifiedBaseModel):
     component1: str
     port1: str

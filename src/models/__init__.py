@@ -10,6 +10,6 @@
 #
 # This file is part of the Antares project.
 
-from .modified_base_model import ModifiedBaseModel
-from .gems_system_yml_schema import GemsSystem,GemsComponent,GemsComponentParameter,GemsPortConnection
+from .gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection, GemsSystem
 from .modeler_parameter_yml_schema import ModelerParameters
+from .modified_base_model import ModifiedBaseModel
