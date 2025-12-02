@@ -39,7 +39,7 @@ module = ["src.models", "src.models.gems_system_yml_schema", "src.models.modeler
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["src.tests.e2e.end_2_end_tests"]
+module = ["src.tests.e2e.end_2_end_tests", "src.tests.local_benchmark.benchmark"]
 disable_error_code = ["operator"]
 
 [[tool.mypy.overrides]]

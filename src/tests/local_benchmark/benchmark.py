@@ -161,9 +161,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     benchmark_data_frame.loc[0, "solver_name_pypsa"] = network.model.solver_name
     benchmark_data_frame.loc[0, "solver_version_pypsa"] = network.model.solver_model.version()
 
-    pypsa_objective = 0 if network.objective is None else network.objective
-    pypsa_objective_constant = 0 if network.objective_constant is None else network.objective_constant
-    benchmark_data_frame.loc[0, "pypsa_objective"] = pypsa_objective + pypsa_objective_constant
+    benchmark_data_frame.loc[0, "pypsa_objective"] = network.objective + network.objective_constant
 
     shutil.rmtree(current_dir / "tmp" / study_name)
 
