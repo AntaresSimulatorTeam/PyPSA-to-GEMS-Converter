@@ -1,0 +1,5 @@
+Github identifiers of authors, in alphabetical order:
+
+dusanparipovic
+nikolaredstork
+tbittar
