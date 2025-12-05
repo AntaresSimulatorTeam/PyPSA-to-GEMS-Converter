@@ -12,19 +12,18 @@
 
 import logging
 import math
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 from pypsa import Network
 
-from ...pypsa_converter import PyPSAStudyConverter
-from ..utils import get_objective_value, load_pypsa_study, preprocess_network
+from src.pypsa_converter import PyPSAStudyConverter
+from tests.utils import get_objective_value, load_pypsa_study, preprocess_network
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-current_dir = Path(__file__).resolve().parents[3]
+current_dir = Path(__file__).resolve().parents[2]
 
 
 # Pytest fixture to check for Antares binaries
@@ -93,7 +92,6 @@ def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lin
         get_original_pypsa_study_objective(network), get_gems_study_objective(network, study_name), rel_tol=1e-6
     )
 
-
 def test_load_gen() -> None:
     # Function to test the behaviour of Generator with "p_nom_extendable = False"
     network = Network(name="Demo", snapshots=[i for i in range(10)])
@@ -125,14 +123,11 @@ def test_load_gen() -> None:
     ).to_gems_study()
 
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, "test_two_study_one"),
-            rel_tol=1e-6,
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / "test_two_study_one")
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(network, "test_two_study_one"),
+        rel_tol=1e-6,
+    )
 
 
 @pytest.mark.parametrize(
@@ -175,12 +170,9 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
     ).to_gems_study()
 
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / study_name)
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -238,12 +230,9 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
         pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / study_name)
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 def test_load_gen_pmin() -> None:
@@ -278,14 +267,11 @@ def test_load_gen_pmin() -> None:
         series_file_format=".tsv",
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, "test_five_study_one"),
-            rel_tol=1e-6,
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / "test_five_study_one")
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(network, "test_five_study_one"),
+        rel_tol=1e-6,
+    )
 
 
 def test_load_gen_sum() -> None:
@@ -321,14 +307,11 @@ def test_load_gen_sum() -> None:
         series_file_format=".tsv",
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, "test_six_study_one"),
-            rel_tol=1e-6,
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / "test_six_study_one")
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(network, "test_six_study_one"),
+        rel_tol=1e-6,
+    )
 
 
 def test_load_gen_link() -> None:
@@ -381,14 +364,11 @@ def test_load_gen_link() -> None:
         series_file_format=".tsv",
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, "test_seven_study_one"),
-            rel_tol=1e-6,
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / "test_seven_study_one")
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(network, "test_seven_study_one"),
+        rel_tol=1e-6,
+    )
 
 
 @pytest.mark.parametrize(
@@ -452,12 +432,9 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
         pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / study_name)
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -539,12 +516,9 @@ def test_storage_unit(
         pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / study_name)
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -631,12 +605,9 @@ def test_storage_unit_ext(
     ).to_gems_study()
     network.optimize()
 
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / study_name)
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -701,12 +672,9 @@ def test_store(e_initial: float, standing_loss: float, study_name: str) -> None:
         pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / study_name)
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+    )
 
 
 def test_store_ext() -> None:
@@ -770,11 +738,8 @@ def test_store_ext() -> None:
         series_file_format=".tsv",
     ).to_gems_study()
     network.optimize()
-    try:
-        assert math.isclose(
-            network.objective + network.objective_constant,
-            get_gems_study_objective(network, "store_test_case_ext"),
-            rel_tol=1e-6,
-        )
-    finally:
-        shutil.rmtree(current_dir / "tmp" / "store_test_case_ext")
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(network, "store_test_case_ext"),
+        rel_tol=1e-6,
+    )

@@ -22,7 +22,7 @@ def load_pypsa_study(file: str, load_scaling: float) -> Network:
     """
     Load a PyPSA study from a NetCDF file, preparing it for analysis or manipulation.
     """
-    current_dir = Path(__file__).resolve().parents[2]
+    current_dir = Path(__file__).resolve().parents[1]
 
     input_file = current_dir / "resources" / "test_files" / file
 
@@ -38,7 +38,7 @@ def load_pypsa_study_benchmark(file: str, load_scaling: float) -> tuple[Network,
     """
     Load a PyPSA study from a NetCDF file, preparing it for analysis or manipulation.
     """
-    current_dir = Path(__file__).resolve().parents[2]
+    current_dir = Path(__file__).resolve().parents[1]
 
     input_file = current_dir / "resources" / "test_files" / file
 

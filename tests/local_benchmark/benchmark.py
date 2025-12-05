@@ -21,12 +21,12 @@ import pytest
 import yaml
 from highspy import Highs  # type: ignore
 
-from ...pypsa_converter import PyPSAStudyConverter
-from ..utils import get_objective_value, load_pypsa_study_benchmark, preprocess_network
+from src.pypsa_converter import PyPSAStudyConverter
+from tests.utils import get_objective_value, load_pypsa_study_benchmark, preprocess_network
 
 logger = logging.getLogger("benchmark")
 logger.setLevel(logging.INFO)
-current_dir = Path(__file__).resolve().parents[3]
+current_dir = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize(
