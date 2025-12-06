@@ -46,7 +46,7 @@ jobs:
     
     - name: Run end-to-end tests
       run: |
-        python -m pytest -n auto src/tests/e2e/end_2_end_tests.py -v
+        python -m pytest -n auto tests/e2e/end_2_end_tests.py -v -s
     
     - name: Cleanup
       if: always()

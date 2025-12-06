@@ -13,7 +13,7 @@ repos:
       - id: ruff-format
         name: Ruff format
         entry: ruff
-        args: ["format", "src","src/tests"]
+        args: ["format", "src", "tests"]
         language: system
         types: [python]
 
@@ -22,6 +22,6 @@ repos:
       - id: ruff-check
         name: Ruff check
         entry: ruff
-        args: ["check", "--fix", "src","src/tests"]
+        args: ["check", "--fix", "src", "tests"]
         language: system
         types: [python]
