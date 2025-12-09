@@ -74,10 +74,10 @@ library:
         #- id : type # This parameter is not used in the Gems model
         - id: p_set
           time-dependent: true
-          scenario-dependent: false # Since PyPSA v0.x does not manage simultaneous scenarios at this point
+          scenario-dependent: true
         - id: q_set
           time-dependent: true
-          scenario-dependent: false  # Since PyPSA v0.x does not manage simultaneous scenarios at this point
+          scenario-dependent: true
         - id: sign #default value = -1
           time-dependent: false
           scenario-dependent: false
@@ -110,25 +110,25 @@ library:
           scenario-dependent: false 
         - id: p_min_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: p_max_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: p_set #Parameter not instantiated for now
         #- id: q_set #Parameter not instantiated for now
         - id: e_sum_min
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: e_sum_max
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: sign #default value = 1
           time-dependent: false
           scenario-dependent: false
         #- id: carrier # This parameter is not used in the Gems model
         - id: marginal_cost
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: marginal_cost_quadratic #Parameter not instantiated for now
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
@@ -138,7 +138,7 @@ library:
           scenario-dependent: false
         - id: efficiency
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: committable #Parameter not instantiated for now
         #- id: start_up_cost #Parameter not instantiated for now
         #- id: shut_down_cost #Parameter not instantiated for now
@@ -202,7 +202,7 @@ library:
         #- id: carrier # This parameter is not used in the Gems model
         - id: efficiency
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
         #- id: lifetime #Parameter not instantiated for now
@@ -217,16 +217,16 @@ library:
         #- id: p_set #Parameter not instantiated for now
         - id: p_min_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: p_max_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: capital_cost 
           time-dependent: false
           scenario-dependent: false
         - id: marginal_cost
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: marginal_cost_quadratic #Parameter not instantiated for now
         #- id: stand_by_cost #Parameter not instantiated for now
         #- id: length #Parameter not instantiated for now
@@ -297,10 +297,10 @@ library:
           scenario-dependent: false
         - id: p_min_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: p_max_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: p_set #Parameter not instantiated for now
         #- id: q_set #Parameter not instantiated for now
         - id: sign #default value = 1
@@ -309,14 +309,14 @@ library:
         #- id: carrier # This parameter is not used in the Gems model
         - id: spill_cost #Parameter not instantiated for now
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: marginal_cost
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: marginal_cost_quadratic #Parameter not instantiated for now
         - id: marginal_cost_storage 
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: capital_cost
           time-dependent: false
           scenario-dependent: false 
@@ -333,16 +333,16 @@ library:
           scenario-dependent: false
         - id: efficiency_store
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: efficiency_dispatch
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: standing_loss
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: inflow
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
       ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
@@ -404,10 +404,10 @@ library:
           scenario-dependent: false
         - id: e_min_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: e_max_pu
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: e_initial #Parameter not instantiated for now
         #- id: e_initial_per_period #Parameter not instantiated for now
         #- id: e_cyclic #Parameter not instantiated for now
@@ -419,17 +419,17 @@ library:
           scenario-dependent: false
         - id: marginal_cost
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: marginal_cost_quadratic #Parameter not instantiated for now
         - id: marginal_cost_storage
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: capital_cost
           time-dependent: false
           scenario-dependent: false 
         - id: standing_loss
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
         #- id: lifetime #Parameter not instantiated for now
