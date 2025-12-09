@@ -54,21 +54,35 @@ def get_gems_study_objective(network: Network, study_name: str) -> float:
 
     logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
 
-    try:
-        subprocess.run(
-            [str(modeler_bin), str(study_dir / "systems")],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=str(modeler_bin.parent),
-        )
+    result = subprocess.run(
+        [str(modeler_bin), str(study_dir / "systems")],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(modeler_bin.parent),
+    )
 
-    except subprocess.CalledProcessError as e:
-        raise Exception(f"Antares modeler failed with error: {e}")
+    if result.returncode != 0:
+        error_msg = f"Antares modeler failed with return code {result.returncode}"
+        if result.stdout:
+            logger.error(f"Modeler stdout:\n{result.stdout}")
+            error_msg += f"\nStdout: {result.stdout}"
+        if result.stderr:
+            logger.error(f"Modeler stderr:\n{result.stderr}")
+            error_msg += f"\nStderr: {result.stderr}"
+        raise RuntimeError(error_msg)
 
     logger.info("Getting Antares study objective")
 
     output_dir = study_dir / "systems" / "output"
+    if not output_dir.exists():
+        raise FileNotFoundError(
+            f"Output directory does not exist: {output_dir}. "
+            f"The Antares modeler may have failed silently. "
+            f"Return code was {result.returncode}. "
+            f"Check the logs above for details."
+        )
+
     result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
 
     if result_file:
