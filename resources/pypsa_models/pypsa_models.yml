@@ -74,10 +74,10 @@ library:
         #- id : type # This parameter is not used in the Gems model
         - id: p_set
           time-dependent: true
-          scenario-dependent: false # Since PyPSA v0.x does not manage simultaneous scenarios at this point
+          scenario-dependent: true # Since PyPSA v0.x does not manage simultaneous scenarios at this point
         - id: q_set
           time-dependent: true
-          scenario-dependent: false  # Since PyPSA v0.x does not manage simultaneous scenarios at this point
+          scenario-dependent: true  # Since PyPSA v0.x does not manage simultaneous scenarios at this point
         - id: sign #default value = -1
           time-dependent: false
           scenario-dependent: false
@@ -114,8 +114,17 @@ library:
         - id: p_max_pu
           time-dependent: true
           scenario-dependent: false
+        # Parameters regarding 2 phase stochastic
+        #=========================================
+        - id: p_set
+          time-dependent: false
+          scenario-dependent: true
+        - id: q_set
+          time-dependent: false
+          scenario-dependent: true
         #- id: p_set #Parameter not instantiated for now
         #- id: q_set #Parameter not instantiated for now
+        #=========================================
         - id: e_sum_min
           time-dependent: false
           scenario-dependent: false
@@ -139,10 +148,21 @@ library:
         - id: efficiency
           time-dependent: true
           scenario-dependent: false
-        #- id: committable #Parameter not instantiated for now
+        #- id: committable #Parameter not instantiated for now 
+        #=========================================
+        - id: start_up_cost
+          time-dependent: false
+          scenario-dependent: true
+        - id: shut_down_cost
+          time-dependent: false
+          scenario-dependent: true
+        - id: stand_by_cost
+          time-dependent: false
+          scenario-dependent: true
         #- id: start_up_cost #Parameter not instantiated for now
         #- id: shut_down_cost #Parameter not instantiated for now
         #- id: stand_by_cost #Parameter not instantiated for now
+        #=========================================
         #- id: min_up_time #Parameter not instantiated for now
         #- id: min_down_time #Parameter not instantiated for now
         #- id: up_time_before #Parameter not instantiated for now
@@ -214,7 +234,12 @@ library:
         - id: p_nom_max
           time-dependent: false
           scenario-dependent: false
+        #=========================================
+        - id: p_set
+          time-dependent: false
+          scenario-dependent: true
         #- id: p_set #Parameter not instantiated for now
+        #=========================================
         - id: p_min_pu
           time-dependent: true
           scenario-dependent: false
@@ -232,7 +257,7 @@ library:
         #- id: length #Parameter not instantiated for now
         #- id: terrain_factor #Parameter not instantiated for now
         #- id: committable #Parameter not instantiated for now
-        #- id: start_up_cost #Parameter not instantiated for now
+        #- id: start_up_cost #Parameter not instantiated for 
         #- id: shut_down_cost #Parameter not instantiated for now
         #- id: min_up_time #Parameter not instantiated for now
         #- id: min_down_time #Parameter not instantiated for now
@@ -242,6 +267,17 @@ library:
         #- id: ramp_limit_down #Parameter not instantiated for now
         #- id: ramp_limit_start_up #Parameter not instantiated for now
         #- id: ramp_limit_shut_down #Parameter not instantiated for now
+        #=========================================
+        - id: start_up_cost
+          time-dependent: false
+          scenario-dependent: true
+        - id: shut_down_cost
+          time-dependent: false
+          scenario-dependent: true
+        - id: stand_by_cost
+          time-dependent: false
+          scenario-dependent: true
+        #=========================================
       variables:
         - id: p_nom
           time-dependent: false
@@ -301,8 +337,16 @@ library:
         - id: p_max_pu
           time-dependent: true
           scenario-dependent: false
+        #=========================================
         #- id: p_set #Parameter not instantiated for now
         #- id: q_set #Parameter not instantiated for now
+        - id: p_set
+          time-dependent: false
+          scenario-dependent: true
+        - id: q_set
+          time-dependent: false
+          scenario-dependent: true
+        #=========================================
         - id: sign #default value = 1
           time-dependent: false
           scenario-dependent: false
@@ -412,8 +456,16 @@ library:
         #- id: e_initial_per_period #Parameter not instantiated for now
         #- id: e_cyclic #Parameter not instantiated for now
         #- id: e_cyclic_per_period #Parameter not instantiated for now
+        #=========================================
         #- id: p_set #Parameter not instantiated for now
         #- id: q_set #Parameter not instantiated for now
+        - id: p_set
+          time-dependent: false
+          scenario-dependent: true
+        - id: q_set
+          time-dependent: false
+          scenario-dependent: true
+        #=========================================
         - id: sign #default value = 1
           time-dependent: false
           scenario-dependent: false
