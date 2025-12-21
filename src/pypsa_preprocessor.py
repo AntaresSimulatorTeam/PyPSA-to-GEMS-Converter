@@ -92,6 +92,13 @@ class PyPSAPreprocessor:
         self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
 
     def _rename_buses(self) -> None:
+        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
+            self._rename_buses_linear_optimal_power_flow()
+        else:
+            raise ValueError(f"Study type {self.study_type} not supported")
+
+    def _rename_buses_linear_optimal_power_flow(self) -> None:
+        """Rename buses for linear optimal power flow"""
         # #TODO: This function needs to be adapted to the study type
         # #Current: implementation is only for linear optimal power flow
         #
@@ -109,6 +116,12 @@ class PyPSAPreprocessor:
                         df[col] = df[col].str.replace(" ", "_")
 
     def _rename_pypsa_component(self, component_type: str) -> None:
+        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
+            self._rename_pypsa_components_linear_optimal_power_flow(component_type)
+        else:
+            raise ValueError(f"Study type {self.study_type} not supported")
+
+    def _rename_pypsa_components_linear_optimal_power_flow(self, component_type: str) -> None:
         df = getattr(self.pypsa_network, component_type)
         if len(df) == 0:
             return
