@@ -18,7 +18,7 @@ current_dir = Path(__file__).resolve().parents[2]
 tmp_dir = current_dir / "tmp"
 
 
-def pytest_sessionfinish(session, exitstatus):
+def pytest_sessionfinish() -> None:
     """Cleanup tmp folder after all tests, including xdist workers."""
     # Get worker_id - it's None or not set when on master node
     worker_id = os.environ.get("PYTEST_XDIST_WORKER")
