@@ -10,7 +10,10 @@
 #
 # This file is part of the Antares project.
 
+from enum import Enum
 from typing import Any
+
+from pypsa import Network
 
 PYPSA_CONVERTER_MAX_FLOAT = 100_000_000_000
 
@@ -31,3 +34,25 @@ def check_time_series_format(series_file_format: str) -> str:
         return "." + series_file_format
 
     return series_file_format
+
+
+def convert_pypsa_version_to_integer(pypsa_version: str) -> int:
+    """
+    Convert PyPSA version to integer, example: 1.0.0 -> 100
+    """
+    decomposed_version = pypsa_version.split(".")
+    return int("".join(decomposed_version))
+
+
+class StudyType(Enum):
+    LINEAR_OPTIMAL_POWER_FLOW = 1
+    TWO_STAGE_STOCHASTIC = 2
+
+
+def determine_pypsa_study_type(pypsa_network: Network) -> StudyType:
+    study_version = convert_pypsa_version_to_integer(pypsa_network.pypsa_version)
+
+    if study_version >= 100 and hasattr(pypsa_network, "has_scenarios") and pypsa_network.has_scenarios:
+        return StudyType.TWO_STAGE_STOCHASTIC
+
+    return StudyType.LINEAR_OPTIMAL_POWER_FLOW

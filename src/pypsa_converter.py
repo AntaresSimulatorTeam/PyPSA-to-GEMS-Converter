@@ -11,13 +11,13 @@
 # This file is part of the Antares project.
 import logging
 import shutil
-from math import inf
 from pathlib import Path
 
 import pandas as pd
 from pypsa import Network
 
-from src.utils import any_to_float, check_time_series_format
+from src.pypsa_preprocessor import PyPSAPreprocessor
+from src.utils import any_to_float, check_time_series_format, determine_pypsa_study_type
 
 from .models import (
     GemsComponent,
@@ -44,140 +44,15 @@ class PyPSAStudyConverter:
         self.study_dir = study_dir
         self.pypsa_network = pypsa_network
         self.pypsalib_id = "pypsa_models"
-        self.null_carrier_id = "null"
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
-
-        self.pypsa_components = [
-            "buses",
-            "loads",
-            "generators",
-            "stores",
-            "storage_units",
-            "links",
-            "lines",
-            "transformers",
-        ]
-        self._pypsa_network_assertion()
-        self._pypsa_network_preprocessing()
-        self._preprocess_pypsa_components("loads", False, "/")
-        self._preprocess_pypsa_components("generators", True, "p_nom")
-        self._preprocess_pypsa_components("stores", True, "e_nom")
-        self._preprocess_pypsa_components("storage_units", True, "p_nom")
-        self._preprocess_pypsa_components("links", True, "p_nom")
-
+        self.study_type = determine_pypsa_study_type(self.pypsa_network)
+        # Preprocess the network
+        self.pypsa_network = PyPSAPreprocessor(self.pypsa_network, self.study_type).network_preprocessing()
         self.pypsa_components_data: dict[str, PyPSAComponentData] = {}
         self._register_pypsa_components()
         self.pypsa_globalconstraints_data: dict[str, PyPSAGlobalConstraintData] = {}
         self._register_pypsa_globalconstraints()
-
-    def _pypsa_network_assertion(self) -> None:
-        """Assertion function to keep trace of the limitations of the converter"""
-        assert len(self.pypsa_network.investment_periods) == 0
-        assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
-        ### PyPSA components : Generators
-        if not (all((self.pypsa_network.generators["marginal_cost_quadratic"] == 0))):
-            raise ValueError("Converter supports only Generators with linear cost")
-        if not (all((self.pypsa_network.generators["active"] == 1))):
-            raise ValueError("Converter supports only Generators with active = 1")
-        if not (all((self.pypsa_network.generators["committable"] == False))):
-            raise ValueError("Converter supports only Generators with commitable = False")
-        ### PyPSA components : Loads
-        if not (all((self.pypsa_network.loads["active"] == 1))):
-            raise ValueError("Converter supports only Loads with active = 1")
-        ### PyPSA components : Links
-        if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError("Converter supports only Links with active = 1")
-        ### PyPSA components : Lines
-        if not len(self.pypsa_network.lines) == 0:
-            raise ValueError("Converter does not support Lines yet")
-        ### PyPSA components : Storage Units
-        if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError("Converter supports only Storage Units with active = 1")
-        if not (all((self.pypsa_network.storage_units["sign"] == 1))):
-            raise ValueError("Converter supports only Storage Units with sign = 1")
-        if not (all((self.pypsa_network.storage_units["cyclic_state_of_charge"] == 1))):
-            raise ValueError("Converter supports only Storage Units with cyclic_state_of_charge")
-        if not (all((self.pypsa_network.storage_units["marginal_cost_quadratic"] == 0))):
-            raise ValueError("Converter supports only Storage Units with linear cost")
-        ### PyPSA components : Stores
-        if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError("Converter supports only Stores with active = 1")
-        if not (all((self.pypsa_network.stores["sign"] == 1))):
-            raise ValueError("Converter supports only Stores with sign = 1")
-        if not (all((self.pypsa_network.stores["e_cyclic"] == 1))):
-            raise ValueError("Converter supports only Stores with e_cyclic = True")
-        if not (all((self.pypsa_network.stores["marginal_cost_quadratic"] == 0))):
-            raise ValueError("Converter supports only Stores with linear cost")
-        ### PyPSA components : GlobalConstraint
-        for pypsa_model_id in self.pypsa_network.global_constraints.index:
-            assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
-            assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"] == "co2_emissions"
-
-    def _rename_buses(self) -> None:
-        ### Rename PyPSA buses, to delete spaces
-        if len(self.pypsa_network.buses) > 0:
-            self.pypsa_network.buses.index = self.pypsa_network.buses.index.str.replace(" ", "_")
-            for _, val in self.pypsa_network.buses_t.items():
-                val.columns = val.columns.str.replace(" ", "_")
-        ### Update the 'bus' columns for the different types of PyPSA components
-        for component_type in self.pypsa_components:
-            df = getattr(self.pypsa_network, component_type)
-            if len(df) > 0:
-                for col in ["bus", "bus0", "bus1"]:
-                    if col in df.columns:
-                        df[col] = df[col].str.replace(" ", "_")
-
-    def _pypsa_network_preprocessing(self) -> None:
-        ###Add fictitious carrier
-        self.pypsa_network.add(
-            "Carrier",
-            self.null_carrier_id,
-            co2_emissions=0,
-            max_growth=any_to_float(inf),
-        )
-        self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
-        self._rename_buses()
-
-    def _rename_pypsa_components(self, component_type: str) -> None:
-        df = getattr(self.pypsa_network, component_type)
-        if len(df) == 0:
-            return
-        ### Rename PyPSA components, to make sure that the names are uniques (used as id in the Gems model)
-        prefix = component_type[:-1]
-        df.index = prefix + "_" + df.index.str.replace(" ", "_")
-        dictionnary = getattr(self.pypsa_network, component_type + "_t")
-        for _, val in dictionnary.items():
-            val.columns = prefix + "_" + val.columns.str.replace(" ", "_")
-
-    def _fix_capacities(self, component_type: str, capa_str: str) -> None:
-        df = getattr(self.pypsa_network, component_type)
-        if len(df) == 0:
-            return
-        ### Adding min and max capacities to non-extendable objects
-        for field in [capa_str + "_min", capa_str + "_max"]:
-            df.loc[df[capa_str + "_extendable"] == False, field] = df[capa_str]
-            df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
-
-    def _preprocess_pypsa_components(self, component_type: str, extendable: bool, capa_str: str) -> None:
-        ### Handling PyPSA objects without carriers
-        df = getattr(self.pypsa_network, component_type)
-        for comp in df.index:
-            if len(df.loc[comp, "carrier"]) == 0:
-                df.loc[comp, "carrier"] = self.null_carrier_id
-        setattr(
-            self.pypsa_network,
-            component_type,
-            df.join(
-                self.pypsa_network.carriers,
-                on="carrier",
-                how="left",
-                rsuffix="_carrier",
-            ),
-        )
-        self._rename_pypsa_components(component_type)
-        if extendable:
-            self._fix_capacities(component_type, capa_str)
 
     def _register_pypsa_components(self) -> None:
         ### PyPSA components : Generators
@@ -300,9 +175,7 @@ class PyPSAStudyConverter:
         self, gems_components_and_ports: list[tuple[str, str]], component_type: str
     ) -> list[tuple[str, str]]:
         df = getattr(self.pypsa_network, component_type)
-        gems_components_and_ports += [
-            (comp, "emission_port") for comp in df[df["carrier"] != self.null_carrier_id].index
-        ]
+        gems_components_and_ports += [(comp, "emission_port") for comp in df[df["carrier"] != "null"].index]
         return gems_components_and_ports
 
     def _register_pypsa_globalconstraints(self) -> None:

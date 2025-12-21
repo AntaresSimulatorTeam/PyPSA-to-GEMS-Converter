@@ -92,6 +92,7 @@ def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lin
         get_original_pypsa_study_objective(network), get_gems_study_objective(network, study_name), rel_tol=1e-6
     )
 
+
 def test_load_gen() -> None:
     # Function to test the behaviour of Generator with "p_nom_extendable = False"
     network = Network(name="Demo", snapshots=[i for i in range(10)])
