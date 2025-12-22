@@ -10,21 +10,15 @@
 #
 # This file is part of the Antares project.
 import logging
-import shutil
 from pathlib import Path
 
-import pandas as pd
 from pypsa import Network
 
 from src.gems_model_builder import GemsModelBuilder
+from src.gems_study_writer import GemsStudyWriter
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
 from src.utils import check_time_series_format, determine_pypsa_study_type
-
-from .models import (
-    GemsSystem,
-    ModelerParameters,
-)
 
 
 class PyPSAStudyConverter:
@@ -59,13 +53,8 @@ class PyPSAStudyConverter:
         self.logger.info("Study conversion started")
         list_components, list_connections = [], []
 
-        Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
-        destination_file = Path(self.study_dir / "systems" / "input" / "model-libraries" / "pypsa_models.yml")
-        destination_file.touch()
-
-        project_root = Path(__file__).parent.parent
-        source_file = project_root / "resources" / "pypsa_models" / "pypsa_models.yml"
-        shutil.copy(source_file, destination_file)
+        gems_study_writer = GemsStudyWriter(self.study_dir, self.study_type)
+        gems_study_writer.copy_library_yml()
 
         gems_model_builder = GemsModelBuilder(self.pypsalib_id, self.study_type)
 
@@ -73,13 +62,12 @@ class PyPSAStudyConverter:
             # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
             pypsa_components_data.check_params_consistency()
 
-            # List of params that may be time-dependent in the pypsa model, among those we want to keep
-            time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
-                set(pypsa_components_data.time_dependent_data.keys())
-            )
             # Save time series and memorize the time-dependent parameters
-            comp_param_to_timeseries_name = self._write_and_register_timeseries(
-                pypsa_components_data.time_dependent_data, time_dependent_params
+            comp_param_to_timeseries_name = gems_study_writer.write_and_register_timeseries(
+                pypsa_components_data.time_dependent_data,
+                pypsa_components_data,
+                self.system_name,
+                self.series_file_format,
             )
             components, connections = gems_model_builder._convert_pypsa_components_of_given_model(
                 pypsa_components_data, comp_param_to_timeseries_name
@@ -96,52 +84,6 @@ class PyPSAStudyConverter:
             list_connections.extend(connections)
 
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
-
-        gems_system = GemsSystem(
-            id=system_id,
-            nodes=[],
-            components=list_components,
-            connections=list_connections,
-            model_libraries=self.pypsalib_id,
-            area_connections=None,
-        )
-        gems_system.to_yaml(self.study_dir / "systems" / "input" / "system.yml")
-
-        modeler_parameters = ModelerParameters(
-            solver="highs",
-            solver_logs=False,
-            solver_parameters="THREADS 1",
-            no_output=False,
-            first_time_step=0,
-            last_time_step=len(self.pypsa_network.snapshots) - 1,
-        )
-        modeler_parameters.to_yaml(self.study_dir / "systems" / "parameters.yml")
-
+        gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
+        gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1)
         self.logger.info("Study conversion completed!")
-
-    def _write_and_register_timeseries(
-        self,
-        time_dependent_data: dict[str, pd.DataFrame],
-        time_dependent_params: set[str],
-    ) -> dict[tuple[str, str], str]:
-        comp_param_to_timeseries_name = dict()
-        series_dir = self.study_dir / "systems" / "input" / "data-series"
-
-        if time_dependent_params:
-            series_dir.mkdir(parents=True, exist_ok=True)
-
-        for param in time_dependent_params:
-            param_df = time_dependent_data[param]
-            for component in param_df.columns:
-                timeseries_name = self.system_name + "_" + component + "_" + param
-
-                comp_param_to_timeseries_name[(component, param)] = timeseries_name
-
-                separator = "," if self.series_file_format == ".csv" else "\t"
-                param_df[[component]].to_csv(
-                    series_dir / Path(timeseries_name + self.series_file_format),
-                    index=False,
-                    header=False,
-                    sep=separator,
-                )
-        return comp_param_to_timeseries_name

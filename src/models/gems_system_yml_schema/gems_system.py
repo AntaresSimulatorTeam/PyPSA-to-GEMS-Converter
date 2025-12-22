@@ -47,7 +47,7 @@ class GemsSystem(ModifiedBaseModel):
         self._area_connections = area_connections
         self._nodes = nodes
 
-    def to_yaml(self, output_path: Path) -> None:
+    def to_yml(self, output_path: Path) -> None:
         ordered_data = self.to_dict(by_alias=True, exclude_unset=True)
 
         with open(output_path, "w", encoding="utf-8") as yaml_file:
