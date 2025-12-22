@@ -16,18 +16,15 @@ from pathlib import Path
 import pandas as pd
 from pypsa import Network
 
+from src.gems_model_builder import GemsModelBuilder
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
-from src.utils import any_to_float, check_time_series_format, determine_pypsa_study_type
+from src.utils import check_time_series_format, determine_pypsa_study_type
 
 from .models import (
-    GemsComponent,
-    GemsComponentParameter,
-    GemsPortConnection,
     GemsSystem,
     ModelerParameters,
 )
-from .models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
 
 
 class PyPSAStudyConverter:
@@ -70,8 +67,23 @@ class PyPSAStudyConverter:
         source_file = project_root / "resources" / "pypsa_models" / "pypsa_models.yml"
         shutil.copy(source_file, destination_file)
 
+        gems_model_builder = GemsModelBuilder(self.pypsalib_id, self.study_type)
+
         for pypsa_components_data in self.pypsa_components_data.values():
-            components, connections = self._convert_pypsa_components_of_given_model(pypsa_components_data)
+            # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
+            pypsa_components_data.check_params_consistency()
+
+            # List of params that may be time-dependent in the pypsa model, among those we want to keep
+            time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
+                set(pypsa_components_data.time_dependent_data.keys())
+            )
+            # Save time series and memorize the time-dependent parameters
+            comp_param_to_timeseries_name = self._write_and_register_timeseries(
+                pypsa_components_data.time_dependent_data, time_dependent_params
+            )
+            components, connections = gems_model_builder._convert_pypsa_components_of_given_model(
+                pypsa_components_data, comp_param_to_timeseries_name
+            )
             list_components.extend(components)
             list_connections.extend(connections)
 
@@ -79,7 +91,7 @@ class PyPSAStudyConverter:
             (
                 components,
                 connections,
-            ) = self._convert_pypsa_globalconstraint_of_given_model(pypsa_global_constraint_data)
+            ) = gems_model_builder._convert_pypsa_globalconstraint(pypsa_global_constraint_data)
             list_components.extend(components)
             list_connections.extend(connections)
 
@@ -107,72 +119,6 @@ class PyPSAStudyConverter:
 
         self.logger.info("Study conversion completed!")
 
-    def _convert_pypsa_components_of_given_model(
-        self, pypsa_components_data: PyPSAComponentData
-    ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
-        """
-        Generic function to handle the different PyPSA classes
-
-        """
-
-        self.logger.info(f"Creating objects of type: {pypsa_components_data.gems_model_id}. ")
-
-        # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
-        pypsa_components_data.check_params_consistency()
-
-        # List of params that may be time-dependent in the pypsa model, among those we want to keep
-        time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
-            set(pypsa_components_data.time_dependent_data.keys())
-        )
-        # Save time series and memorize the time-dependent parameters
-        comp_param_to_timeseries_name = self._write_and_register_timeseries(
-            pypsa_components_data.time_dependent_data, time_dependent_params
-        )
-
-        connections = self._create_gems_connections(
-            pypsa_components_data.constant_data,
-            pypsa_components_data.pypsa_params_to_gems_connections,
-        )
-
-        components = self._create_gems_components(
-            pypsa_components_data.constant_data,
-            pypsa_components_data.gems_model_id,
-            pypsa_components_data.pypsa_params_to_gems_params,
-            comp_param_to_timeseries_name,
-        )
-        return components, connections
-
-    def _convert_pypsa_globalconstraint_of_given_model(
-        self, pypsa_gc_data: PyPSAGlobalConstraintData
-    ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
-        self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
-        components = [
-            GemsComponent(
-                id=pypsa_gc_data.pypsa_name,
-                model=f"{self.pypsalib_id}.{pypsa_gc_data.gems_model_id}",
-                parameters=[
-                    GemsComponentParameter(
-                        id="quota",
-                        time_dependent=False,
-                        scenario_dependent=False,
-                        value=pypsa_gc_data.pypsa_constant,
-                    )
-                ],
-            )
-        ]
-        connections = []
-        for component_id, port_id in pypsa_gc_data.gems_components_and_ports:
-            connections.append(
-                GemsPortConnection(
-                    component1=pypsa_gc_data.pypsa_name,
-                    port1=pypsa_gc_data.gems_port_id,
-                    component2=component_id,
-                    port2=port_id,
-                )
-            )
-
-        return components, connections
-
     def _write_and_register_timeseries(
         self,
         time_dependent_data: dict[str, pd.DataFrame],
@@ -199,55 +145,3 @@ class PyPSAStudyConverter:
                     sep=separator,
                 )
         return comp_param_to_timeseries_name
-
-    def _create_gems_components(
-        self,
-        constant_data: pd.DataFrame,
-        gems_model_id: str,
-        pypsa_params_to_gems_params: dict[str, str],
-        comp_param_to_timeseries_name: dict[tuple[str, str], str],
-    ) -> list[GemsComponent]:
-        components = []
-        for component in constant_data.index:
-            components.append(
-                GemsComponent(
-                    id=component,
-                    model=f"{self.pypsalib_id}.{gems_model_id}",
-                    parameters=[
-                        GemsComponentParameter(
-                            id=pypsa_params_to_gems_params[param],
-                            time_dependent=(component, param) in comp_param_to_timeseries_name,
-                            scenario_dependent=False,
-                            value=(
-                                comp_param_to_timeseries_name[(component, param)]
-                                if (component, param) in comp_param_to_timeseries_name
-                                else any_to_float(constant_data.loc[component, param])
-                            ),
-                        )
-                        for param in pypsa_params_to_gems_params
-                    ],
-                )
-            )
-        return components
-
-    def _create_gems_connections(
-        self,
-        constant_data: pd.DataFrame,
-        pypsa_params_to_gems_connections: dict[str, tuple[str, str]],
-    ) -> list[GemsPortConnection]:
-        connections = []
-        for bus_id, (
-            model_port,
-            bus_port,
-        ) in pypsa_params_to_gems_connections.items():
-            buses = constant_data[bus_id].values
-            for component_id, component in enumerate(constant_data.index):
-                connections.append(
-                    GemsPortConnection(
-                        component1=buses[component_id],
-                        port1=bus_port,
-                        component2=component,
-                        port2=model_port,
-                    )
-                )
-        return connections
