@@ -71,7 +71,7 @@ class GemsStudyWriter:
             # List of params that may be time-dependent in the pypsa model, among those we want to keep
             time_dependent_params = set(
                 pypsa_components_data.pypsa_params_to_gems_params
-            ).intersection(  # pecific for linear optimal power flow study type
+            ).intersection(  # secific for linear optimal power flow study type
                 set(pypsa_components_data.time_dependent_data.keys())
             )
 

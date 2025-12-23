@@ -69,7 +69,7 @@ class PyPSAStudyConverter:
                 self.system_name,
                 self.series_file_format,
             )
-            components, connections = gems_model_builder._convert_pypsa_components_of_given_model(
+            components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
                 pypsa_components_data, comp_param_to_timeseries_name
             )
             list_components.extend(components)

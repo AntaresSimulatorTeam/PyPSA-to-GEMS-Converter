@@ -24,14 +24,15 @@ class GemsModelBuilder:
         self.logger = logging.getLogger(__name__)
         self.study_type = study_type
 
-    """
-    Convert PyPSA GlobalConstraint
-    This function is independent of study type and process
-    """
 
     def _convert_pypsa_globalconstraint(
         self, pypsa_gc_data: PyPSAGlobalConstraintData
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
+        """
+        Convert PyPSA GlobalConstraint
+        This function is independent of study type and process
+        """
+
         self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
         components = [
             GemsComponent(
@@ -60,11 +61,6 @@ class GemsModelBuilder:
 
         return components, connections
 
-    """
-    Create GemsComponents
-    This function needs to be adapted to the different study types
-    """
-
     def _create_gems_components(
         self,
         constant_data: pd.DataFrame,
@@ -72,6 +68,10 @@ class GemsModelBuilder:
         pypsa_params_to_gems_params: dict[str, str],
         comp_param_to_timeseries_name: dict[tuple[str, str], str],
     ) -> list[GemsComponent]:
+        """
+        Create GemsComponents
+        This function needs to be adapted to the different study types
+        """
         components = []
         # This if is currently here as reminder for adaptation
         if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
@@ -119,7 +119,7 @@ class GemsModelBuilder:
                 )
         return connections
 
-    def _convert_pypsa_components_of_given_model(
+    def convert_pypsa_components_of_given_model(
         self, pypsa_components_data: PyPSAComponentData, comp_param_to_timeseries_name: dict[tuple[str, str], str]
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
         """
