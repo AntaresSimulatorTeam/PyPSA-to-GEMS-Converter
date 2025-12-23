@@ -22,7 +22,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "*.ipynb" = ["E402"]
-"src/pypsa_converter.py" = ["E712"]
+"src/pypsa_preprocessor.py" = ["E712"]
 
 [tool.ruff.format]
 quote-style = "double"

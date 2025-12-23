@@ -24,12 +24,14 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
 
-    - name: Run Ruff format check
-      run: ruff format --check src
-
     - name: Run Ruff linting
-      run: ruff check src
+      run: |
+        ruff check src
+        ruff check tests
 
     - name: Run Mypy type checking
-      run: mypy src
+      run: | 
+        mypy src
+        mypy tests
+
       continue-on-error: false

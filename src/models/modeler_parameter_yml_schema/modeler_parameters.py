@@ -55,7 +55,7 @@ class ModelerParameters(ModifiedBaseModel):
             "last-time-step": self._last_time_step,
         }
 
-    def to_yaml(self, output_path: Path) -> None:
+    def to_yml(self, output_path: Path) -> None:
         converted_data = self.to_dict(by_alias=True, exclude_unset=True)
 
         with open(output_path, "w", encoding="utf-8") as yaml_file:
