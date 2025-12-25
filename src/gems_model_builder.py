@@ -24,7 +24,6 @@ class GemsModelBuilder:
         self.logger = logging.getLogger(__name__)
         self.study_type = study_type
 
-
     def _convert_pypsa_globalconstraint(
         self, pypsa_gc_data: PyPSAGlobalConstraintData
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
