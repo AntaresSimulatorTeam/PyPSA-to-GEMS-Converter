@@ -54,6 +54,7 @@ class PyPSAStudyConverter:
         list_components, list_connections = [], []
 
         gems_study_writer = GemsStudyWriter(self.study_dir, self.study_type)
+        self.logger.info("Copying library yml file to study directory")
         gems_study_writer.copy_library_yml()
 
         gems_model_builder = GemsModelBuilder(self.pypsalib_id, self.study_type)

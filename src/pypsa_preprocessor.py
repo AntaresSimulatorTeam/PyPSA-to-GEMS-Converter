@@ -13,6 +13,7 @@ from math import inf
 
 from pypsa import Network
 
+import pandas as pd
 from src.utils import StudyType, any_to_float
 
 
@@ -94,14 +95,13 @@ class PyPSAPreprocessor:
     def _rename_buses(self) -> None:
         if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
             self._rename_buses_linear_optimal_power_flow()
+        elif self.study_type == StudyType.TWO_STAGE_STOCHASTIC:
+            self._rename_buses_two_stage_stochastic_optimization()
         else:
             raise ValueError(f"Study type {self.study_type} not supported")
 
     def _rename_buses_linear_optimal_power_flow(self) -> None:
         """Rename buses for linear optimal power flow"""
-        # #TODO: This function needs to be adapted to the study type
-        # #Current: implementation is only for linear optimal power flow
-        #
         ### Rename PyPSA buses, to delete spaces
         if len(self.pypsa_network.buses) > 0:
             self.pypsa_network.buses.index = self.pypsa_network.buses.index.str.replace(" ", "_")
@@ -115,9 +115,53 @@ class PyPSAPreprocessor:
                     if col in df.columns:
                         df[col] = df[col].str.replace(" ", "_")
 
+        self._rename_buses_in_components()
+
+    def _rename_buses_two_stage_stochastic_optimization(self) -> None:
+        """Rename buses for two-stage stochastic optimization studies.
+        Handles MultiIndex cases (with scenarios).
+        """
+        ### Rename PyPSA buses, to delete spaces
+        if len(self.pypsa_network.buses) > 0:
+        # For MultiIndex: network.buses.index is a MultiIndex (e.g. (scenario, name))
+            levels = list(self.pypsa_network.buses.index.levels)
+            if len(levels) > 1:
+                levels[1] = levels[1].str.replace(" ", "_")
+                self.pypsa_network.buses.index = pd.MultiIndex.from_arrays(
+                    [
+                        self.pypsa_network.buses.index.get_level_values(0), #scenario name
+                        self.pypsa_network.buses.index.get_level_values(1).str.replace(" ", "_"), #bus name
+                    ],
+                    names=self.pypsa_network.buses.index.names,
+                )
+
+        # Rename columns in network.buses_t (values are always regular Index)
+        for _, val in self.pypsa_network.buses_t.items():
+            if isinstance(val.columns, pd.MultiIndex):
+                level_0 = val.columns.get_level_values(0)
+                level_1 = val.columns.get_level_values(1).str.replace(" ", "_")
+                val.columns = pd.MultiIndex.from_arrays(
+                    [level_0, level_1], 
+                    names=val.columns.names
+                )
+
+        self._rename_buses_in_components()
+
+    def _rename_buses_in_components(self) -> None:
+        """Rename buses in all components"""
+        for component_type in self.pypsa_components:
+            df = getattr(self.pypsa_network, component_type)
+            if len(df) > 0:
+                for col in ["bus", "bus0", "bus1"]:
+                    if col in df.columns:
+                        df[col] = df[col].str.replace(" ", "_")
+
+
     def _rename_pypsa_component(self, component_type: str) -> None:
         if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
             self._rename_pypsa_components_linear_optimal_power_flow(component_type)
+        elif self.study_type == StudyType.TWO_STAGE_STOCHASTIC:
+            self._rename_pypsa_components_two_stage_stochastic_optimization(component_type)
         else:
             raise ValueError(f"Study type {self.study_type} not supported")
 
@@ -132,6 +176,34 @@ class PyPSAPreprocessor:
         for _, val in dictionnary.items():
             val.columns = prefix + "_" + val.columns.str.replace(" ", "_")
 
+    def _rename_pypsa_components_two_stage_stochastic_optimization(self, component_type: str) -> None:
+        df = getattr(self.pypsa_network, component_type)
+        if len(df) == 0:
+            return
+        ### Rename PyPSA components, to make sure that the names are uniques (used as id in the Gems model)
+        prefix = component_type[:-1]
+        
+        # Handle df.index - MultiIndex case (scenario, component_name)
+        level_0 = df.index.get_level_values(0)
+        level_1_renamed = level_0 + "_" + prefix + "_" + df.index.get_level_values(1).str.replace(" ", "_")
+        df.index = pd.MultiIndex.from_arrays(
+            [level_0, level_1_renamed],
+            names=df.index.names
+        )
+        """
+        TODO: Bug is here
+        """
+        # Handle component_t columns - MultiIndex case (scenario, component_name)
+        dictionnary = getattr(self.pypsa_network, component_type + "_t")
+        for _, val in dictionnary.items():
+            if isinstance(val.columns, pd.MultiIndex):
+                level_0_cols = val.columns.get_level_values(0)
+                level_1_cols_renamed = level_0_cols + "_" + prefix + "_" + val.columns.get_level_values(1).str.replace(" ", "_")
+                val.columns = pd.MultiIndex.from_arrays(
+                    [level_0_cols, level_1_cols_renamed],
+                    names=val.columns.names
+                )
+        
     def _fix_capacity_non_extendable_attribute(self, component_type: str, capa_str: str) -> None:
         df = getattr(self.pypsa_network, component_type)
         if len(df) == 0:
