@@ -26,16 +26,16 @@ def test_rename_buses_2_stage_stochastic_optimization() -> None:
     # Add a bus
     # Add the carrier before creating the bus
     network.add("Carrier", "carrier", co2_emissions=0)
-    network.add("Bus", "bus1", v_nom=1, carrier="carrier")
+    network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
 
     # Add a load
-    network.add("Load", "load1", bus="bus1", p_set=100, q_set=0)
+    network.add("Load", "load 1", bus="bus 1", p_set=100, q_set=0)
 
     # Add generators with initial p_max_pu values
     network.add(
         "Generator",
-        "gen1",
-        bus="bus1",  # intentional
+        "gen 1",
+        bus="bus 1",  # intentional
         p_nom_extendable=False,
         marginal_cost=50,  # €/MWh
         p_nom=200,  # MW
@@ -44,8 +44,8 @@ def test_rename_buses_2_stage_stochastic_optimization() -> None:
 
     network.add(
         "Generator",
-        "gen2",
-        bus="bus1",  # intentional
+        "gen 2",
+        bus="bus 1",  # intentional
         p_nom_extendable=False,
         marginal_cost=10,  # €/MWh
         p_nom=100,  # MW
