@@ -155,15 +155,14 @@ class PyPSARegister:
         if pypsa_model_id in self.pypsa_components_data:
             raise ValueError(f"{pypsa_model_id} already registered !")
 
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
-            self.pypsa_components_data[pypsa_model_id] = PyPSAComponentData(
-                pypsa_model_id,
-                constant_data,
-                time_dependent_data,
-                gems_model_id,
-                pypsa_params_to_gems_params,
-                pypsa_params_to_gems_connections,
-            )
+        self.pypsa_components_data[pypsa_model_id] = PyPSAComponentData(
+            pypsa_model_id,
+            constant_data,
+            time_dependent_data,
+            gems_model_id,
+            pypsa_params_to_gems_params,
+            pypsa_params_to_gems_connections,
+        )
 
     def _add_contributors_to_globalconstraints(
         self, gems_components_and_ports: list[tuple[str, str]], component_type: str

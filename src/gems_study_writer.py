@@ -63,42 +63,129 @@ class GemsStudyWriter:
     def write_and_register_timeseries(
         self,
         time_dependent_data: dict[str, pd.DataFrame],
+        constant_data: pd.DataFrame,
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
         series_file_format: str,
-    ) -> dict[tuple[str, str], str]:
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:  # TODO: add two-stage stochastic study type
-            # List of params that may be time-dependent in the pypsa model, among those we want to keep
-            time_dependent_params = set(
-                pypsa_components_data.pypsa_params_to_gems_params
-            ).intersection(  # specific for linear optimal power flow study type
-                set(pypsa_components_data.time_dependent_data.keys())
+    ) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str] | None]:
+        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
+            return self.write_and_register_timeseries_linear_optimal_power_flow(
+                time_dependent_data, pypsa_components_data, system_name, series_file_format
             )
+        elif self.study_type == StudyType.TWO_STAGE_STOCHASTIC:
+            return self.write_and_register_time_series_two_stage_stochastic(
+                time_dependent_data, constant_data, pypsa_components_data, system_name, series_file_format
+            )
+        else:
+            raise ValueError(f"Study type {self.study_type} not supported")
 
-            comp_param_to_timeseries_name = dict()
-            series_dir = self.study_dir / "systems" / "input" / "data-series"
+    def write_and_register_time_series_two_stage_stochastic(
+        self,
+        time_dependent_data: dict[str, pd.DataFrame],
+        constant_data: pd.DataFrame,
+        pypsa_components_data: PyPSAComponentData,
+        system_name: str,
+        series_file_format: str,
+    ) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str]]:
+        scenarized_time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
+            set(pypsa_components_data.time_dependent_data.keys())
+        )
 
-            if time_dependent_params:
-                series_dir.mkdir(parents=True, exist_ok=True)
+        comp_param_to_scenario_dependent_timeseries_name = dict()
+        comp_param_static_scenarized_indicator = set()
 
-            for param in time_dependent_params:
-                param_df = time_dependent_data[param]
-                for component in param_df.columns:
-                    timeseries_name = system_name + "_" + component + "_" + param
+        series_dir = self.study_dir / "systems" / "input" / "data-series"
 
-                    comp_param_to_timeseries_name[(component, param)] = timeseries_name
+        if scenarized_time_dependent_params:
+            series_dir.mkdir(parents=True, exist_ok=True)
+
+        for param in scenarized_time_dependent_params:
+            param_df = time_dependent_data[param]
+            component_names = param_df.columns.get_level_values(1).unique()
+            for component in component_names:
+                component_data = param_df.loc[:, (slice(None), component)]
+
+                comp_param_static_scenarized_indicator.add((component, param))
+
+                timeseries_name = f"{system_name}_{component}_{param}"
+
+                comp_param_to_scenario_dependent_timeseries_name[(component, param)] = timeseries_name
+
+                separator = "," if series_file_format == ".csv" else "\t"
+
+                component_data.to_csv(
+                    series_dir / Path(f"{timeseries_name}{series_file_format}"),
+                    index=False,
+                    header=False,
+                    sep=separator,
+                )
+
+        scenarized_static_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
+            set(constant_data.keys())
+        )
+        comp_param_to_scenario_dependent_static_name = dict()
+
+        for param in scenarized_static_params:
+            param_series = constant_data[param]
+            component_names = param_series.index.get_level_values(1).unique()
+            for component in component_names:
+                if (component, param) not in comp_param_static_scenarized_indicator:
+                    component_values = param_series.loc[(slice(None), component)]
+
+                    scenario_data = pd.DataFrame(
+                        [component_values.values], columns=component_values.index.get_level_values(0)
+                    )
+
+                    timeseries_name = f"{system_name}_{component}_{param}"
+
+                    comp_param_to_scenario_dependent_static_name[(component, param)] = timeseries_name
 
                     separator = "," if series_file_format == ".csv" else "\t"
-                    param_df[[component]].to_csv(
-                        series_dir / Path(timeseries_name + series_file_format),
+
+                    scenario_data.to_csv(
+                        series_dir / Path(f"{timeseries_name}{series_file_format}"),
                         index=False,
                         header=False,
                         sep=separator,
                     )
-            return comp_param_to_timeseries_name
-        return dict[
-            tuple[str, str], str
-        ]()  # default because of mypy,for now until we adopt 2 stage stochastic study type
+
+        return comp_param_to_scenario_dependent_timeseries_name, comp_param_to_scenario_dependent_static_name
+
+    def write_and_register_timeseries_linear_optimal_power_flow(
+        self,
+        time_dependent_data: dict[str, pd.DataFrame],
+        pypsa_components_data: PyPSAComponentData,
+        system_name: str,
+        series_file_format: str,
+    ) -> tuple[dict[tuple[str, str], str], None]:
+        # List of params that may be time-dependent in the pypsa model, among those we want to keep
+        time_dependent_params = set(
+            pypsa_components_data.pypsa_params_to_gems_params
+        ).intersection(  # specific for linear optimal power flow study type
+            set(pypsa_components_data.time_dependent_data.keys())
+        )
+
+        comp_param_to_timeseries_name = dict()
+        series_dir = self.study_dir / "systems" / "input" / "data-series"
+
+        if time_dependent_params:
+            series_dir.mkdir(parents=True, exist_ok=True)
+
+        for param in time_dependent_params:
+            param_df = time_dependent_data[param]
+            for component in param_df.columns:
+                timeseries_name = system_name + "_" + component + "_" + param
+
+                comp_param_to_timeseries_name[(component, param)] = timeseries_name
+
+                separator = "," if series_file_format == ".csv" else "\t"
+                param_df[[component]].to_csv(
+                    series_dir / Path(timeseries_name + series_file_format),
+                    index=False,
+                    header=False,
+                    sep=separator,
+                )
+        return comp_param_to_timeseries_name, None
 
     def write_optim_config_yml(self) -> None:
         pass

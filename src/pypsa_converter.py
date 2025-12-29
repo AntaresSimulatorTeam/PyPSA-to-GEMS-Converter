@@ -63,15 +63,16 @@ class PyPSAStudyConverter:
             # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
             pypsa_components_data.check_params_consistency()
 
-            # Save time series and memorize the time-dependent parameters
-            comp_param_to_timeseries_name = gems_study_writer.write_and_register_timeseries(
+            # Save time series and memorize the time-dependent parameters, also save static scenarized parameters
+            comp_param_to_timeseries_name, comp_param_to_static_name = gems_study_writer.write_and_register_timeseries(
                 pypsa_components_data.time_dependent_data,
+                pypsa_components_data.constant_data,
                 pypsa_components_data,
                 self.system_name,
                 self.series_file_format,
             )
             components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
-                pypsa_components_data, comp_param_to_timeseries_name
+                pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name or {}
             )
             list_components.extend(components)
             list_connections.extend(connections)

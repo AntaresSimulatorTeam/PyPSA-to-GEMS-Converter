@@ -201,6 +201,50 @@ def test_load_model_libraries() -> None:
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
 
+def test_load_model_libraries_linear_optimal_power_flow() -> None:
+    # Create a simple network with 10 time steps
+    network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
+
+    # Add the carrier before creating the bus
+    network.add("Carrier", "carrier", co2_emissions=0)
+    network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
+
+    # Add one load with static p_set and q_set (constant values)
+    network.add("Load", "static_load", bus="bus 1", p_set=100, q_set=10)
+
+    # Add one load with time-series p_set and q_set (varying across snapshots)
+    time_series_p_set = [100 + 10 * i for i in range(10)]  # e.g., [100, 110, ..., 190]
+    time_series_q_set = [20 + 5 * i for i in range(10)]  # e.g., [20, 25, ..., 65]
+    network.add("Load", "timeseries_load", bus="bus 1", p_set=time_series_p_set, q_set=time_series_q_set)
+
+    # Add a generator for completeness
+    network.add(
+        "Generator",
+        "gen1",
+        bus="bus 1",  # intentional
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=200,  # MW
+        p_max_pu=[0.9 + 0.01 * i for i in range(10)],  # Base value
+    )
+
+    network.add(
+        "Generator",
+        "gen2",
+        bus="bus 1",  # intentional
+        p_nom_extendable=False,
+        marginal_cost=10,  # €/MWh
+        p_nom=100,  # MW
+        p_min_pu=0.0,
+        p_max_pu=[0.7 + 0.01 * i for i in range(10)],
+    )
+
+    PyPSAPreprocessor(network, StudyType.LINEAR_OPTIMAL_POWER_FLOW).network_preprocessing()  # call preprocessor
+    PyPSARegister(network, StudyType.LINEAR_OPTIMAL_POWER_FLOW).register()
+
+    network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
+
+
 def test_generator_model_libraries() -> None:
     # Create a simple network with 10 time steps
     network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
