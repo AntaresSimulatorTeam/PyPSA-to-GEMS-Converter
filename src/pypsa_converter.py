@@ -18,8 +18,8 @@ from src.gems_model_builder import GemsModelBuilder
 from src.gems_study_writer import GemsStudyWriter
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
-from src.utils import check_time_series_format, determine_pypsa_study_type
-from src.utils import StudyType
+from src.utils import StudyType, check_time_series_format, determine_pypsa_study_type
+
 
 class PyPSAStudyConverter:
     def __init__(
