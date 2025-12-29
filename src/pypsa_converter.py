@@ -19,7 +19,7 @@ from src.gems_study_writer import GemsStudyWriter
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
 from src.utils import check_time_series_format, determine_pypsa_study_type
-
+from src.utils import StudyType
 
 class PyPSAStudyConverter:
     def __init__(
@@ -88,4 +88,6 @@ class PyPSAStudyConverter:
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
         gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1)
+        if self.study_type == StudyType.TWO_STAGE_STOCHASTIC:
+            gems_study_writer.write_optim_config_yml()
         self.logger.info("Study conversion completed!")

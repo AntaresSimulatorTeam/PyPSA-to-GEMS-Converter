@@ -188,4 +188,10 @@ class GemsStudyWriter:
         return comp_param_to_timeseries_name, None
 
     def write_optim_config_yml(self) -> None:
-        pass
+        Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
+        destination_file = Path(self.study_dir / "systems" / "input" / "optim-config.yml")
+        destination_file.touch()
+
+        project_root = Path(__file__).parent.parent
+        source_file = project_root / "resources" / "optim-config.yml"
+        shutil.copy(source_file, destination_file)
