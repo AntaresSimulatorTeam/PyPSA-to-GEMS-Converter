@@ -102,7 +102,7 @@ def test_link_model_libraries() -> None:
     print("network.components.generators.static.p_nom_min: ", network.components.generators.static.p_nom_min)
     for key, value in network.components.generators.static.p_nom_min.items():
         if key == ("low", "gen3"):
-            network.components.generators.static.p_max_pu.loc[key] = value * 0.2
+            network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore[call-overload]
     print("================================================")
 
     PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
