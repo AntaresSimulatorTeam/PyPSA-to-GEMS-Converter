@@ -10,7 +10,7 @@
 #
 # This file is part of the Antares project.
 
-
+import pytest
 from pypsa import Network
 
 from src.pypsa_preprocessor import PyPSAPreprocessor
@@ -19,93 +19,131 @@ from src.utils import StudyType
 from tests.utils import replace_lines_by_links
 
 
-def test_link_model_libraries() -> None:
-    # Create a simple network with 10 time steps
-    network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
+@pytest.fixture()
+def base_network() -> Network:
+    net = Network(name="Unit_Network", snapshots=[0, 1])
 
-    # Add the carrier before creating the buses
+    net.add("Carrier", "carrier", co2_emissions=0)
+
+    net.add("Bus", "bus 1", v_nom=1, carrier="carrier")
+    net.add("Bus", "bus 2", v_nom=1, carrier="carrier")
+
+    net.add("Load", "load 1", bus="bus 1", p_set=100, q_set=0, active=1)
+
+    net.add(
+        "Generator",
+        "gen 1",
+        bus="bus 1",
+        p_nom_extendable=False,
+        p_nom=10,
+        p_nom_min=0,
+        marginal_cost=5,
+        marginal_cost_quadratic=0,
+        active=1,
+        committable=False,
+    )
+
+    net.add(
+        "Link",
+        "link 1",
+        bus0="bus 1",
+        bus1="bus 2",
+        p_nom_extendable=False,
+        p_nom=20,
+        p_min_pu=-1,
+        p_max_pu=1,
+        efficiency=1,
+        active=1,
+        marginal_cost=0,
+        capital_cost=0,
+    )
+
+    net.add(
+        "GlobalConstraint",
+        "co2",
+        type="primary_energy",
+        sense="<=",
+        carrier_attribute="co2_emissions",
+        constant=100.0,
+    )
+
+    return net
+
+
+@pytest.fixture()
+def scenario_network(base_network: Network) -> Network:
+    base_network.set_scenarios({"low": 0.3, "medium": 0.5, "high": 0.2})
+    return base_network
+
+
+def test_preprocessor_raises_on_lines(base_network: Network) -> None:
+    base_network.add(
+        "Line",
+        "line 1",
+        bus0="bus 1",
+        bus1="bus 2",
+        s_nom_extendable=False,
+        s_nom=100,
+        x=0.1,
+        r=0.01,
+    )
+
+    with pytest.raises(ValueError, match="does not support Lines"):
+        PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
+
+
+def test_preprocessor_adds_fictitious_carrier(base_network: Network) -> None:
+    PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
+    assert "null" in base_network.carriers.index
+
+
+def test_preprocessor_renames_buses_deterministic(base_network: Network) -> None:
+    PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
+    assert "bus_1" in base_network.buses.index
+    assert all(" " not in bus for bus in base_network.buses.index)
+
+
+def test_preprocessor_renames_buses_scenarios(scenario_network: Network) -> None:
+    PyPSAPreprocessor(scenario_network, StudyType.WITH_SCENARIOS).network_preprocessing()
+    assert "bus_1" in scenario_network.buses.index.get_level_values(1)
+    assert all(" " not in b for b in scenario_network.buses.index.get_level_values(1))
+
+
+def test_components_without_carrier_get_null(base_network: Network) -> None:
+    PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
+    assert base_network.loads.loc["load_load_1", "carrier"] == "null"
+
+
+def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> None:
+    PyPSAPreprocessor(scenario_network, StudyType.WITH_SCENARIOS).network_preprocessing()
+    components, global_constraints = PyPSARegister(scenario_network, StudyType.WITH_SCENARIOS).register()
+
+    assert {"generators", "loads", "buses", "links"} <= set(components.keys())
+
+    # global constraint keys are (scenario, name)
+    assert {k[0] for k in global_constraints if k[1] == "co2"} == {"low", "medium", "high"}
+
+
+def test_replace_lines_by_links_creates_links_and_removes_lines() -> None:
+    network = Network(name="Line_Network", snapshots=[0, 1])
+
     network.add("Carrier", "carrier", co2_emissions=0)
     network.add("Bus", "bus1", v_nom=1, carrier="carrier")
     network.add("Bus", "bus2", v_nom=1, carrier="carrier")
 
-    # Add loads for completeness
-    network.add("Load", "load1", bus="bus1", p_set=100, q_set=0)
-    network.add("Load", "load2", bus="bus2", p_set=50, q_set=0)
-
-    # Add generators for completeness
-    network.add(
-        "Generator",
-        "gen1",
-        bus="bus1",
-        p_nom_extendable=False,
-        p_nom=200,
-        marginal_cost=50,
-        p_nom_min=100,
-    )
-    network.add(
-        "Generator",
-        "gen2",
-        bus="bus2",
-        p_nom_extendable=False,
-        p_nom=100,
-        marginal_cost=10,
-    )
-
-    # Add one line with static s_nom (constant value)
     network.add(
         "Line",
-        "static_line",
+        "line1",
         bus0="bus1",
         bus1="bus2",
         s_nom_extendable=False,
-        s_nom=150,  # MVA - Static value
-        x=0.1,  # Reactance
-        r=0.01,  # Resistance
+        s_nom=100,
+        x=0.1,
+        r=0.01,
     )
 
-    # Add one line with time-series s_nom (varying across snapshots)
-    time_series_s_nom = [120 + 5 * i for i in range(10)]  # e.g., [120, 125, ..., 165] MVA
-
-    network.add(
-        "Line",
-        "timeseries_line",
-        bus0="bus1",
-        bus1="bus2",
-        s_nom_extendable=False,
-        s_nom=time_series_s_nom,  # MVA - Time-series value
-        x=0.15,  # Reactance
-        r=0.02,  # Resistance
-    )
-
-    # Replace lines with links
     network = replace_lines_by_links(network)
 
-    scenarios = {
-        "low": 0.3,
-        "medium": 0.5,
-        "high": 0.2,
-    }
-
-    # test do we have scenarios (check if attribute exists)
-    if hasattr(network, "has_scenarios"):
-        assert not network.has_scenarios
-
-    # Set scenarios in the network
-    network.set_scenarios(scenarios)
-
-    # test do we have scenarios
-    assert hasattr(network, "has_scenarios")
-    if hasattr(network, "has_scenarios"):
-        assert network.has_scenarios
-
-    print("================================================")
-    print("network.components.generators.static.p_nom_min: ", network.components.generators.static.p_nom_min)
-    for key, value in network.components.generators.static.p_nom_min.items():
-        if key == ("low", "gen3"):
-            network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore[call-overload]
-    print("================================================")
-
-    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
-    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
-
-    network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
+    assert len(network.lines) == 0
+    assert len(network.links) == 1
+    assert "line1-link-bus1-bus2" in network.links.index
