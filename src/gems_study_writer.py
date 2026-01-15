@@ -138,9 +138,8 @@ class GemsStudyWriter:
                             [component_values.values], columns=component_values.index.get_level_values(0)
                         )
 
-                        comp_param_to_scenario_dependent_static_name[(component, param)] = (
-                            f"{system_name}_{component}_{param}"  # ts-name
-                        )
+                        timeseries_name = f"{system_name}_{component}_{param}"
+                        comp_param_to_scenario_dependent_static_name[(component, param)] = timeseries_name
 
                         separator = "," if series_file_format == ".csv" else "\t"
                         scenario_data.to_csv(
