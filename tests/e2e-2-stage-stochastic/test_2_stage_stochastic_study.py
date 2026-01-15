@@ -1,11 +1,14 @@
 import logging
 from pathlib import Path
+
 from pypsa import Network
+
 from src.pypsa_converter import PyPSAStudyConverter
 
 logger = logging.getLogger(__name__)
 
-def test_2_stage_stochastic_study() -> Network:
+
+def test_2_stage_stochastic_study() -> None:
     network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
 
     network.add("Carrier", "carrier", co2_emissions=0)
@@ -51,17 +54,15 @@ def test_2_stage_stochastic_study() -> Network:
 
     scenarios = {
         "low": 1,
-        #"medium": 1,
-        #"high": 1,
-    } # this sum needs to be equal to 1, so current solution is that we only have one scenario
-
+        # "medium": 1,
+        # "high": 1,
+    }  # this sum needs to be equal to 1, so current solution is that we only have one scenario
 
     network.set_scenarios(scenarios)
 
     for key, value in network.components.generators.static.p_max_pu.items():
         if key == ("low", "gen3"):
-            network.components.generators.static.p_max_pu.loc[key] = value * 0.2 
-
+            network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore
 
     PyPSAStudyConverter(
         network,
