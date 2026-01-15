@@ -19,7 +19,6 @@ from src.utils import StudyType
 from tests.utils import replace_lines_by_links
 
 
-
 def test_link_model_libraries() -> None:
     # Create a simple network with 10 time steps
     network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
@@ -94,8 +93,6 @@ def test_link_model_libraries() -> None:
     # Set scenarios in the network
     network.set_scenarios(scenarios)
 
-
-
     # test do we have scenarios
     assert hasattr(network, "has_scenarios")
     if hasattr(network, "has_scenarios"):
@@ -108,10 +105,7 @@ def test_link_model_libraries() -> None:
             network.components.generators.static.p_max_pu.loc[key] = value * 0.2
     print("================================================")
 
-
     PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
     PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
-
-

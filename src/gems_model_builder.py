@@ -97,12 +97,17 @@ class GemsModelBuilder:
         constant_data: pd.DataFrame,
         gems_model_id: str,
         pypsa_param_to_gems_param_id: dict[str, str],
-        time_dependent_comp_param_to_timeseries_file_name: dict[tuple[str, str], str], 
-        static_comp_param_to_data_reference: dict[tuple[str, str], str], # reference because datum could be pure value or ts-filename
+        time_dependent_comp_param_to_timeseries_file_name: dict[tuple[str, str], str],
+        static_comp_param_to_data_reference: dict[
+            tuple[str, str], str
+        ],  # reference because datum could be pure value or ts-filename
     ) -> list[GemsComponent]:
         if self.study_type == StudyType.DETERMINISTIC:
             return self._create_gems_components_linear_optimal_power_flow(
-                constant_data, gems_model_id, pypsa_param_to_gems_param_id, time_dependent_comp_param_to_timeseries_file_name
+                constant_data,
+                gems_model_id,
+                pypsa_param_to_gems_param_id,
+                time_dependent_comp_param_to_timeseries_file_name,
             )
         elif self.study_type == StudyType.WITH_SCENARIOS:
             return self._create_gems_components_two_stage_stochastic(
