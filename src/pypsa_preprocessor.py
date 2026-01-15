@@ -93,9 +93,9 @@ class PyPSAPreprocessor:
         self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
 
     def _rename_buses(self) -> None:
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
+        if self.study_type == StudyType.DETERMINISTIC:
             self._rename_buses_linear_optimal_power_flow()
-        elif self.study_type == StudyType.TWO_STAGE_STOCHASTIC:
+        elif self.study_type == StudyType.WITH_SCENARIOS:
             self._rename_buses_two_stage_stochastic_optimization()
         else:
             raise ValueError(f"Study type {self.study_type} not supported")
@@ -154,9 +154,9 @@ class PyPSAPreprocessor:
                         df[col] = df[col].str.replace(" ", "_")
 
     def _rename_pypsa_component(self, component_type: str) -> None:
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
+        if self.study_type == StudyType.DETERMINISTIC:
             self._rename_pypsa_components_linear_optimal_power_flow(component_type)
-        elif self.study_type == StudyType.TWO_STAGE_STOCHASTIC:
+        elif self.study_type == StudyType.WITH_SCENARIOS:
             self._rename_pypsa_components_two_stage_stochastic_optimization(component_type)
         else:
             raise ValueError(f"Study type {self.study_type} not supported")

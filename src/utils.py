@@ -45,14 +45,14 @@ def convert_pypsa_version_to_integer(pypsa_version: str) -> int:
 
 
 class StudyType(Enum):
-    LINEAR_OPTIMAL_POWER_FLOW = 1
-    TWO_STAGE_STOCHASTIC = 2
+    DETERMINISTIC = 1
+    WITH_SCENARIOS = 2
 
 
 def determine_pypsa_study_type(pypsa_network: Network) -> StudyType:
     study_version = convert_pypsa_version_to_integer(pypsa_network.pypsa_version)
 
     if study_version >= 100 and hasattr(pypsa_network, "has_scenarios") and pypsa_network.has_scenarios:
-        return StudyType.TWO_STAGE_STOCHASTIC
+        return StudyType.WITH_SCENARIOS
 
-    return StudyType.LINEAR_OPTIMAL_POWER_FLOW
+    return StudyType.DETERMINISTIC

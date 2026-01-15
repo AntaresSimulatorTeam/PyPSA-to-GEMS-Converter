@@ -73,7 +73,7 @@ def test_rename_buses_2_stage_stochastic_optimization() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()  # call preprocessor
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
@@ -132,9 +132,9 @@ def test_rename_buses_2_stage_stochastic_optimization_two() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()  # call preprocessor
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
     # PyPSAStudyConverter(pypsa_network=network, logger=logging.getLogger(__name__), study_dir=Path("test_study"), series_file_format=".tsv").to_gems_study()
-    PyPSARegister(network, StudyType.TWO_STAGE_STOCHASTIC).register()
+    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
@@ -195,8 +195,8 @@ def test_load_model_libraries() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()  # call preprocessor
-    PyPSARegister(network, StudyType.TWO_STAGE_STOCHASTIC).register()
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
+    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
@@ -239,8 +239,8 @@ def test_load_model_libraries_linear_optimal_power_flow() -> None:
         p_max_pu=[0.7 + 0.01 * i for i in range(10)],
     )
 
-    PyPSAPreprocessor(network, StudyType.LINEAR_OPTIMAL_POWER_FLOW).network_preprocessing()  # call preprocessor
-    PyPSARegister(network, StudyType.LINEAR_OPTIMAL_POWER_FLOW).register()
+    PyPSAPreprocessor(network, StudyType.DETERMINISTIC).network_preprocessing()  # call preprocessor
+    PyPSARegister(network, StudyType.DETERMINISTIC).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
@@ -306,8 +306,8 @@ def test_generator_model_libraries() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()
-    PyPSARegister(network, StudyType.TWO_STAGE_STOCHASTIC).register()
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()
+    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     # check e_sum_min and e_sum_max are set correctly
     generators = network.components.generators
@@ -394,8 +394,8 @@ def test_link_model_libraries() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()  # call preprocessor
-    PyPSARegister(network, StudyType.TWO_STAGE_STOCHASTIC).register()
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
+    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
@@ -489,8 +489,8 @@ def test_storage_unit_model_libraries() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()  # call preprocessor
-    PyPSARegister(network, StudyType.TWO_STAGE_STOCHASTIC).register()
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
+    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
 
@@ -570,7 +570,7 @@ def test_store_model_libraries() -> None:
     if hasattr(network, "has_scenarios"):
         assert network.has_scenarios
 
-    PyPSAPreprocessor(network, StudyType.TWO_STAGE_STOCHASTIC).network_preprocessing()  # call preprocessor
-    PyPSARegister(network, StudyType.TWO_STAGE_STOCHASTIC).register()
+    PyPSAPreprocessor(network, StudyType.WITH_SCENARIOS).network_preprocessing()  # call preprocessor
+    PyPSARegister(network, StudyType.WITH_SCENARIOS).register()
 
     network.optimize()  # check if pypsa can optimize the network,if everything is correctly renamed
