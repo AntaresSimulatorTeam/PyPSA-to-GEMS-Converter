@@ -104,10 +104,10 @@ library:
         #- id: p_nom_extendable #Parameter that is not used in Gems model: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
         - id: p_nom_min
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: true 
         - id: p_nom_max
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: true 
         - id: p_min_pu
           time-dependent: true
           scenario-dependent: true
@@ -135,7 +135,7 @@ library:
         #- id: lifetime #Parameter not instantiated for now
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: efficiency
           time-dependent: true
           scenario-dependent: true
@@ -295,10 +295,10 @@ library:
         #- id: p_nom_extendable #Parameter that is not instantiated: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
         - id: p_nom_min
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: p_nom_max
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: p_min_pu
           time-dependent: true
           scenario-dependent: true
@@ -309,7 +309,7 @@ library:
         #- id: q_set #Parameter not instantiated for now
         - id: sign #default value = 1
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: carrier # This parameter is not used in the Gems model
         - id: spill_cost #Parameter not instantiated for now
           time-dependent: true
@@ -323,7 +323,7 @@ library:
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: true 
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
         #- id: lifetime #Parameter not instantiated for now
@@ -334,7 +334,7 @@ library:
         #- id: cyclic_state_of_charge_per_period #Parameter not instantiated for now
         - id: max_hours
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: efficiency_store
           time-dependent: true
           scenario-dependent: true
@@ -350,7 +350,7 @@ library:
       ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
       variables:
         - id: p_nom
           time-dependent: false
@@ -404,10 +404,10 @@ library:
         #- id: e_nom_extendable #Parameter that is not instantiated: e_nom_min and e_nom_max are used to possibly fix the value of e_nom
         - id: e_nom_min
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: e_nom_max
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: e_min_pu
           time-dependent: true
           scenario-dependent: true
@@ -422,7 +422,7 @@ library:
         #- id: q_set #Parameter not instantiated for now
         - id: sign #default value = 1
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
@@ -432,7 +432,7 @@ library:
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: true 
         - id: standing_loss
           time-dependent: true
           scenario-dependent: true
@@ -442,7 +442,7 @@ library:
       ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
       variables:
         - id: e_nom
           time-dependent: false
