@@ -1,0 +1,6 @@
+1-1	generator_gen1.p_nom	0
+1-1	generator_gen2.p_nom	11
+1-1	generator_gen3.p_nom	22
+master	generator_gen1.p_nom	0
+master	generator_gen2.p_nom	1
+master	generator_gen3.p_nom	2
