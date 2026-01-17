@@ -26,23 +26,23 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-dev.txt
     
-    - name: Download Antares v9.3.2 release
+    - name: Download Antares v9.3.5 release
       run: |
-        echo "Downloading Antares v9.3.2..."
-        curl -L -f -o antares-9.3.2-Ubuntu-22.04.tar.gz \
-          https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v9.3.2/antares-9.3.2-Ubuntu-22.04.tar.gz
+        echo "Downloading Antares v9.3.5..."
+        curl -L -f -o antares-9.3.5-Ubuntu-22.04.tar.gz \
+          https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v9.3.5/antares-9.3.5-Ubuntu-22.04.tar.gz
         
-        if [ ! -f "antares-9.3.2-Ubuntu-22.04.tar.gz" ]; then
+        if [ ! -f "antares-9.3.5-Ubuntu-22.04.tar.gz" ]; then
           echo "Error: Download failed"
           exit 1
         fi
         
-        echo "Download successful. File size: $(ls -lh antares-9.3.2-Ubuntu-22.04.tar.gz | awk '{print $5}')"
+        echo "Download successful. File size: $(ls -lh antares-9.3.5-Ubuntu-22.04.tar.gz | awk '{print $5}')"
     
     - name: Extract Antares binaries
       run: |
         echo "Extracting archive..."
-        tar -xzf antares-9.3.2-Ubuntu-22.04.tar.gz
+        tar -xzf antares-9.3.5-Ubuntu-22.04.tar.gz
     
     - name: Run end-to-end tests
       run: |
@@ -51,6 +51,6 @@ jobs:
     - name: Cleanup
       if: always()
       run: |
-        rm -f antares-9.3.2-Ubuntu-22.04.tar.gz
-        rm -rf antares-9.3.2-Ubuntu-22.04
+        rm -f antares-9.3.5-Ubuntu-22.04.tar.gz
+        rm -rf antares-9.3.5-Ubuntu-22.04
         echo "Cleanup completed"

@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -56,9 +56,9 @@ current_dir = Path(__file__).resolve().parents[2]
     ],
 )
 def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -> None:
-    if not Path(current_dir / "antares-9.3.2-Ubuntu-22.04").is_dir():
+    if not Path(current_dir / "antares-9.3.5-Ubuntu-22.04").is_dir():
         pytest.skip(
-            "Antares binaries not found. Please download version 9.3.2 from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
+            "Antares binaries not found. Please download version 9.3.5 from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
         )
 
     benchmark_data_frame = pd.DataFrame()
@@ -94,7 +94,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     end_time_conversion = time.time() - start_time_conversion
     benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = end_time_conversion
 
-    modeler_bin = current_dir / "antares-9.3.2-Ubuntu-22.04" / "bin" / "antares-modeler"
+    modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     logger.info(f"Running Antares modeler with study directory: {current_dir / 'tmp' / study_name / 'systems'}")
 

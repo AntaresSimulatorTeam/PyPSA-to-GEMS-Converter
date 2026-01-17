@@ -7,198 +7,198 @@ system:
     parameters:
     - id: p_nom_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 200.0
     - id: p_nom_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 200.0
     - id: p_min_pu
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: p_max_pu
       time-dependent: true
-      scenario-dependent: true
+      scenario-dependent: false
       value: Simple_Network_generator_gen1_p_max_pu
     - id: marginal_cost
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 50.0
     - id: capital_cost
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: e_sum_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: -1.0e+20
     - id: e_sum_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0e+20
     - id: sign
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: efficiency
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: emission_factor
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
   - id: generator_gen2
     model: pypsa_models.generator
     parameters:
     - id: p_nom_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 100.0
     - id: p_nom_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 100.0
     - id: p_min_pu
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: p_max_pu
       time-dependent: true
-      scenario-dependent: true
+      scenario-dependent: false
       value: Simple_Network_generator_gen2_p_max_pu
     - id: marginal_cost
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 10.0
     - id: capital_cost
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: e_sum_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: -1.0e+20
     - id: e_sum_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0e+20
     - id: sign
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: efficiency
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: emission_factor
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
   - id: generator_gen3
     model: pypsa_models.generator
     parameters:
     - id: p_nom_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 100.0
     - id: p_nom_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 100.0
     - id: p_min_pu
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: p_max_pu
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.18000000000000002
     - id: marginal_cost
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 10.0
     - id: capital_cost
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: e_sum_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: -1.0e+20
     - id: e_sum_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0e+20
     - id: sign
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: efficiency
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: emission_factor
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
   - id: load_static_load
     model: pypsa_models.load
     parameters:
     - id: p_set
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 100.0
     - id: q_set
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 10.0
     - id: sign
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: -1.0
   - id: load_timeseries_load
     model: pypsa_models.load
     parameters:
     - id: p_set
       time-dependent: true
-      scenario-dependent: true
+      scenario-dependent: false
       value: Simple_Network_load_timeseries_load_p_set
     - id: q_set
       time-dependent: true
-      scenario-dependent: true
+      scenario-dependent: false
       value: Simple_Network_load_timeseries_load_q_set
     - id: sign
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: -1.0
   - id: bus_1
     model: pypsa_models.bus
     parameters:
     - id: v_nom
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: x
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: y
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: v_mag_pu_set
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0
     - id: v_mag_pu_min
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 0.0
     - id: v_mag_pu_max
       time-dependent: false
-      scenario-dependent: true
+      scenario-dependent: false
       value: 1.0e+20
   connections:
   - component1: bus_1

@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -30,7 +30,7 @@ current_dir = Path(__file__).resolve().parents[2]
 @pytest.fixture(scope="function", autouse=True)
 def check_antares_binaries() -> None:
     """Check if Antares binaries are available before running tests."""
-    antares_dir = current_dir / "antares-9.3.2-Ubuntu-22.04"
+    antares_dir = current_dir / "antares-9.3.5-Ubuntu-22.04"
     if not antares_dir.is_dir():
         pytest.skip(
             "Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
@@ -50,7 +50,7 @@ def get_gems_study_objective(network: Network, study_name: str) -> float:
         pypsa_network=network, logger=logger, study_dir=study_dir, series_file_format=".tsv"
     ).to_gems_study()
 
-    modeler_bin = current_dir / "antares-9.3.2-Ubuntu-22.04" / "bin" / "antares-modeler"
+    modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
 

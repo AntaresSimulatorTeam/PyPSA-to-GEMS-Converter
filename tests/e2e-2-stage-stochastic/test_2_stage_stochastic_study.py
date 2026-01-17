@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -12,14 +12,12 @@
 
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
-import subprocess
-import shutil
-
 
 logger = logging.getLogger(__name__)
 current_dir = Path(__file__).resolve().parents[2]
@@ -71,8 +69,7 @@ def test_2_stage_stochastic_study() -> None:
 
     scenarios = {
         "low": 1,
-        # "medium": 1,
-        # "high": 1,
+        # "medium": 0.2,
     }  # this sum needs to be equal to 1, so current solution is that we only have one scenario
 
     network.set_scenarios(scenarios)
@@ -81,23 +78,19 @@ def test_2_stage_stochastic_study() -> None:
         if key == ("low", "gen3"):
             network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore
 
-
     PyPSAStudyConverter(
         network,
         logger,
         Path("tmp") / "test_2_stage_stochastic_study",
-        "csv",
+        ".tsv",
     ).to_gems_study()
-    
+
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
 
-    modeler_bin = current_dir / "antares-9.3.2-Ubuntu-22.04" / "bin" / "antares-modeler"
-
-    benders_bin = current_dir / "antaresXpansion-1.7.1-ubuntu-22.04" / "bin" / "benders"
-
+    modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             [str(modeler_bin), str(study_dir / "systems")],
             capture_output=True,
             text=True,
@@ -105,6 +98,9 @@ def test_2_stage_stochastic_study() -> None:
             cwd=str(modeler_bin.parent),
         )
 
+        print("returncode:", result.returncode)
+        print("stdout:", result.stdout)
+        print("stderr:", result.stderr)
         output_dir = study_dir / "systems" / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -125,7 +121,7 @@ def test_2_stage_stochastic_study() -> None:
             "BOUND_ALPHA": True,
             "SOLVER_NAME": "COIN",
             "JSON_FILE": "./expansion/out.json",
-            "LAST_ITERATION_JSON_FILE": "./expansion/last_iteration.json"
+            "LAST_ITERATION_JSON_FILE": "./expansion/last_iteration.json",
         }
 
         options_path = output_dir / "option.json"
@@ -133,7 +129,6 @@ def test_2_stage_stochastic_study() -> None:
         options_path.write_text(json.dumps(option_json, indent=2), encoding="utf-8")
 
         (output_dir / "area.txt").touch(exist_ok=True)
-
         """
         result = subprocess.run(
             [str(benders_bin), str(options_path)],
@@ -149,7 +144,5 @@ def test_2_stage_stochastic_study() -> None:
     except Exception as e:
         print(e)
         raise e
-
-    
 
     network.optimize()

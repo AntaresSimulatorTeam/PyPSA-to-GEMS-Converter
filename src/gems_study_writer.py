@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -67,7 +67,10 @@ class GemsStudyWriter:
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
         series_file_format: str,
-    ) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str] | None]:
+    ) -> tuple[
+        dict[tuple[str, str], str | list[str | bool]],
+        dict[tuple[str, str], str | float] | None,
+    ]:
         if self.study_type == StudyType.DETERMINISTIC:
             return self.write_and_register_timeseries_linear_optimal_power_flow(
                 time_dependent_data, pypsa_components_data, system_name, series_file_format
@@ -86,13 +89,13 @@ class GemsStudyWriter:
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
         series_file_format: str,
-    ) -> tuple[dict[tuple[str, str], str], dict[tuple[str, str], str]]:
+    ) -> tuple[dict[tuple[str, str], str | list[str | bool]], dict[tuple[str, str], str | float]]:
         scenarized_time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
             set(pypsa_components_data.time_dependent_data.keys())
         )
 
-        comp_param_to_scenario_dependent_timeseries_name = dict()
-        comp_param_static_scenarized_indicator = set()
+        comp_param_to_scenario_dependent_timeseries_name: dict[tuple[str, str], str | list[str | bool]] = {}
+        comp_param_static_scenarized_indicator: set[tuple[str, str]] = set()
 
         series_dir = self.study_dir / "systems" / "input" / "data-series"
 
@@ -104,12 +107,16 @@ class GemsStudyWriter:
             component_names = param_df.columns.get_level_values(1).unique()
             for component in component_names:
                 component_data = param_df.loc[:, (slice(None), component)]
+                multiple_scenario_indicator = len(component_data.columns) > 1
 
                 comp_param_static_scenarized_indicator.add((component, param))
 
                 timeseries_name = f"{system_name}_{component}_{param}"
 
-                comp_param_to_scenario_dependent_timeseries_name[(component, param)] = timeseries_name
+                comp_param_to_scenario_dependent_timeseries_name[(component, param)] = [
+                    timeseries_name,
+                    multiple_scenario_indicator,
+                ]
 
                 separator = "," if series_file_format == ".csv" else "\t"
 
@@ -123,7 +130,7 @@ class GemsStudyWriter:
         scenarized_static_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
             set(constant_data.keys())
         )
-        comp_param_to_scenario_dependent_static_name = dict()
+        comp_param_to_scenario_dependent_static_name: dict[tuple[str, str], str | float] = {}
 
         for param in scenarized_static_params:
             param_series = constant_data[param]
@@ -165,7 +172,7 @@ class GemsStudyWriter:
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
         series_file_format: str,
-    ) -> tuple[dict[tuple[str, str], str], None]:
+    ) -> tuple[dict[tuple[str, str], str | list[str | bool]], None]:
         # List of params that may be time-dependent in the pypsa model, among those we want to keep
         time_dependent_params = set(
             pypsa_components_data.pypsa_params_to_gems_params
@@ -173,7 +180,7 @@ class GemsStudyWriter:
             set(pypsa_components_data.time_dependent_data.keys())
         )
 
-        comp_param_to_timeseries_name = dict()
+        comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]] = {}
         series_dir = self.study_dir / "systems" / "input" / "data-series"
 
         if time_dependent_params:

@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -36,26 +36,26 @@ library:
       parameters:
         - id: v_nom
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: type # This parameter is not used in the Gems model
         - id: x
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: y
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         #- id : carrier # This parameter is not used in the Gems model
         #- id : unit # This parameter is not used in the Gems model
         #- id : location # This parameter is not used in the Gems model
         - id: v_mag_pu_set
           time-dependent: true
-          scenario-dependent: false
+          scenario-dependent: true
         - id: v_mag_pu_min
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: v_mag_pu_max
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
       ports:
         - id: p_balance_port
           type: flow
@@ -80,7 +80,7 @@ library:
           scenario-dependent: true
         - id: sign #default value = -1
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
       ports:
         - id: p_balance_port
@@ -124,7 +124,7 @@ library:
           scenario-dependent: true
         - id: sign #default value = 1
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: carrier # This parameter is not used in the Gems model
         - id: marginal_cost
           time-dependent: true
@@ -212,10 +212,10 @@ library:
         #- id: p_nom_extendable #Parameter that is not instantiated: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
         - id: p_nom_min
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: p_nom_max
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         #- id: p_set #Parameter not instantiated for now
         - id: p_min_pu
           time-dependent: true
@@ -225,7 +225,7 @@ library:
           scenario-dependent: true
         - id: capital_cost 
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
@@ -350,7 +350,7 @@ library:
       ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
       variables:
         - id: p_nom
           time-dependent: false
@@ -442,7 +442,7 @@ library:
       ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
       variables:
         - id: e_nom
           time-dependent: false

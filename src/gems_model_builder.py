@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -10,6 +10,7 @@
 #
 # This file is part of the Antares project.
 import logging
+from typing import cast
 
 import pandas as pd
 
@@ -97,24 +98,22 @@ class GemsModelBuilder:
         constant_data: pd.DataFrame,
         gems_model_id: str,
         pypsa_param_to_gems_param_id: dict[str, str],
-        time_dependent_comp_param_to_timeseries_file_name: dict[tuple[str, str], str],
-        static_comp_param_to_data_reference: dict[
-            tuple[str, str], str
-        ],  # reference because datum could be pure value or ts-filename
+        time_dependent_comp_param_to_timeseries_file_name: dict[tuple[str, str], str | list[str | bool]],
+        static_comp_param_to_data_reference: dict[tuple[str, str], str | float],
     ) -> list[GemsComponent]:
         if self.study_type == StudyType.DETERMINISTIC:
             return self._create_gems_components_linear_optimal_power_flow(
                 constant_data,
                 gems_model_id,
                 pypsa_param_to_gems_param_id,
-                time_dependent_comp_param_to_timeseries_file_name,
+                cast(dict[tuple[str, str], str], time_dependent_comp_param_to_timeseries_file_name),
             )
         elif self.study_type == StudyType.WITH_SCENARIOS:
             return self._create_gems_components_two_stage_stochastic(
                 constant_data,
                 gems_model_id,
                 pypsa_param_to_gems_param_id,
-                time_dependent_comp_param_to_timeseries_file_name,
+                cast(dict[tuple[str, str], list[str | bool]], time_dependent_comp_param_to_timeseries_file_name),
                 static_comp_param_to_data_reference,
             )
         else:
@@ -125,8 +124,8 @@ class GemsModelBuilder:
         constant_data: pd.DataFrame,
         gems_model_id: str,
         pypsa_params_to_gems_params: dict[str, str],
-        comp_param_to_timeseries_name: dict[tuple[str, str], str],
-        comp_param_to_static_name: dict[tuple[str, str], str],
+        comp_param_to_timeseries_name: dict[tuple[str, str], list[str | bool]],
+        comp_param_to_static_name: dict[tuple[str, str], str | float],
     ) -> list[GemsComponent]:
         # Check if index is MultiIndex (should be for TWO_STAGE_STOCHASTIC)
         components = []
@@ -136,17 +135,29 @@ class GemsModelBuilder:
         for component in component_names:
             components.append(
                 GemsComponent(
-                    id=component,  # Just the component name, not the tuple
+                    id=component,
                     model=f"{self.pypsalib_id}.{gems_model_id}",
                     parameters=[
                         GemsComponentParameter(
                             id=pypsa_params_to_gems_params[param],
                             time_dependent=(component, param) in comp_param_to_timeseries_name,
-                            scenario_dependent=True,
+                            scenario_dependent=(
+                                (
+                                    (component, param) in comp_param_to_static_name
+                                    and isinstance(
+                                        comp_param_to_static_name[(component, param)],
+                                        str,
+                                    )
+                                )
+                                or (
+                                    (component, param) in comp_param_to_timeseries_name
+                                    and comp_param_to_timeseries_name[(component, param)][1]
+                                )
+                            ),
                             value=(
-                                comp_param_to_timeseries_name[(component, param)]
+                                comp_param_to_timeseries_name[(component, param)][0]
                                 if (component, param) in comp_param_to_timeseries_name
-                                else comp_param_to_static_name[(component, param)]
+                                else comp_param_to_static_name.get((component, param))
                             ),
                         )
                         for param in pypsa_params_to_gems_params
@@ -214,8 +225,8 @@ class GemsModelBuilder:
     def convert_pypsa_components_of_given_model(
         self,
         pypsa_components_data: PyPSAComponentData,
-        comp_param_to_timeseries_name: dict[tuple[str, str], str],
-        comp_param_to_static_name: dict[tuple[str, str], str],
+        comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]],
+        comp_param_to_static_name: dict[tuple[str, str], str | float],
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
         """
         Generic function to handle the different PyPSA classes
