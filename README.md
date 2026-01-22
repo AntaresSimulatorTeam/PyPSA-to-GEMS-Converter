@@ -111,3 +111,40 @@ The directory layout follows the conventions expected by the GEMS modeler: <br/>
 - **`type = primary_energy`** - Only primary energy constraints are supported.
 - **`carrier.co2_emissions`** - CO₂ accounting must be defined at the carrier level.
 - **Supported senses:** `<=`, `==`
+## Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler
+- Build or load a PyPSA network 
+```python
+# Setup
+logger = logging.getLogger(__name__)
+study_dir = Path("tmp/my_study")  # Absolute path to the GEMS study directory
+
+# Option A: build the network in code
+network = Network()
+network.add("Bus", "bus1", v_nom=1)
+network.add("Load", "load1", bus="bus1", p_set=[10, 20, 30])
+network.add("Generator", "gen1", bus="bus1", p_nom=100, marginal_cost=50)
+
+# Option B: load the network from a file
+network = Network("simple_network.nc")  # Absolute path to the PyPSA file
+```
+- Convert the PyPSA network to a GEMS study
+```python
+# Convert PyPSA network to GEMS
+converter = PyPSAStudyConverter(
+    pypsa_network=network,
+    logger=logger,
+    study_dir=study_dir,
+    series_file_format=".tsv",  # Supported formats: .tsv, .csv
+).to_gems_study()
+```
+- Run the GEMS(Antares) optimization 
+```python
+# Path to the Antares modeler binary
+modeler_bin = Path("antares-9.3.5-Ubuntu-22.04/bin/antares-modeler")
+
+# Run the optimization
+subprocess.run([
+    str(modeler_bin),
+    str(study_dir / "systems")
+])
+```
