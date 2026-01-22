@@ -200,7 +200,7 @@ class PyPSAPreprocessor:
         ### Adding min and max capacities to non-extendable objects
         for field in [capa_str + "_min", capa_str + "_max"]:
             df.loc[df[capa_str + "_extendable"] == False, field] = df[capa_str]
-            df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
+            df.loc[(df[capa_str + "_extendable"] == False) & (df["capital_cost"].isna()), "capital_cost"] = 0.0
 
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
         ### Handling PyPSA objects without carriers

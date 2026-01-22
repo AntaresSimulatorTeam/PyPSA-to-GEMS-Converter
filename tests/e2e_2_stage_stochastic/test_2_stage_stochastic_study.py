@@ -43,6 +43,7 @@ def test_2_stage_stochastic_study() -> None:
         marginal_cost=50,
         p_nom=200,
         p_max_pu=[0.9 + 0.01 * i for i in range(10)],
+        capital_cost=1000,
     )
 
     network.add(
@@ -54,6 +55,7 @@ def test_2_stage_stochastic_study() -> None:
         p_nom=100,
         p_min_pu=0.0,
         p_max_pu=[0.7 + 0.01 * i for i in range(10)],
+        capital_cost=1000,
     )
 
     network.add(
@@ -65,6 +67,7 @@ def test_2_stage_stochastic_study() -> None:
         p_nom=100,
         p_min_pu=0.0,
         p_max_pu=0.9,
+        capital_cost=1000,
     )
 
     scenarios = {

@@ -28,6 +28,7 @@ class PyPSAStudyConverter:
         logger: logging.Logger,
         study_dir: Path,
         series_file_format: str,
+        solver_name: str = "highs",
     ):
         """
         Initialize processor
@@ -39,6 +40,7 @@ class PyPSAStudyConverter:
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
         self.study_type = determine_pypsa_study_type(self.pypsa_network)
+        self.solver_name = solver_name
 
         # Preprocess the network
         self.pypsa_network = PyPSAPreprocessor(self.pypsa_network, self.study_type).network_preprocessing()
@@ -87,7 +89,7 @@ class PyPSAStudyConverter:
 
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
-        gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1)
+        gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
         if self.study_type == StudyType.WITH_SCENARIOS:
             gems_study_writer.write_optim_config_yml()
         self.logger.info("Study conversion completed!")

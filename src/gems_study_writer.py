@@ -50,9 +50,9 @@ class GemsStudyWriter:
             area_connections=None,
         ).to_yml(self.study_dir / "systems" / "input" / "system.yml")
 
-    def write_modeler_parameters_yml(self, last_time_step: int) -> None:
+    def write_modeler_parameters_yml(self, last_time_step: int, solver_name: str) -> None:
         ModelerParameters(
-            solver="highs",
+            solver=solver_name,
             solver_logs=False,
             solver_parameters="THREADS 1",
             no_output=False,
