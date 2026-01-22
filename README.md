@@ -13,7 +13,6 @@ The PyPSA to GEMS Converter is an open-source tool that enables the conversion o
 ## Table of Contents
 - [How the Converter Works](#how-the-converter-works)
 - [Input and Output of the Converter](#input-and-output-of-the-converter)
-- [Structure of Generated Files](#structure-of-generated-files)
 - [Current Limitations of the Converter](#current-limitations-of-the-converter)
 - [Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler](#step-by-step-guide-manually-executing-a-simulation-in-gems-modeler)
 - [Example: Comparing Results Between GEMS Modeler and PyPSA](#example-comparing-results-between-gems-modeler-and-pysa)
@@ -83,11 +82,6 @@ The directory layout follows the conventions expected by the GEMS modeler: <br/>
 ### Unsupported Components
 - Lines (not implemented)
 - Transformers (not implemented)
-
-### Unsupported Components
-- Lines (not implemented)
-- Transformers (not implemented)
-
 ## Component Restrictions
 
 ### Generators
