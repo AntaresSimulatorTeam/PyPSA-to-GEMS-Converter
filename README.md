@@ -148,7 +148,7 @@ subprocess.run([
     str(study_dir / "systems")
 ])
 ```
-- [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results)
+## Comparing Results Between GEMS Modeler and PyPSA {#comparing-results-between-gems-modeler-and-pysa}
 
 If you want to see detailed statistics and a comparison between **Antares Modeler** and **PyPSA study optimization**, you can check the full analysis here:  
 
