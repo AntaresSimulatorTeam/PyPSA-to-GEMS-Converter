@@ -15,7 +15,7 @@ The PyPSA to GEMS Converter is an open-source tool that enables the conversion o
 - [Input and Output of the Converter](#input-and-output-of-the-converter)
 - [Current Limitations of the Converter](#current-limitations-of-the-converter)
 - [Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler](#step-by-step-guide-manually-executing-a-simulation-in-gems-modeler)
-- [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results-between-gems-modeler-and-pysa)
+- [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results-between-gems-modeler-and-pyspa)
 - [Pros and Cons of the PyPSA → GEMS Converter](#pros-and-cons-of-the-pysa--gems-converter)
 
 
@@ -148,7 +148,7 @@ subprocess.run([
     str(study_dir / "systems")
 ])
 ```
-## Comparing Results Between GEMS Modeler and PyPSA
+- [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results)
 
 If you want to see detailed statistics and a comparison between **Antares Modeler** and **PyPSA study optimization**, you can check the full analysis here:  
 
