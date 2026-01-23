@@ -16,9 +16,7 @@ The PyPSA to GEMS Converter is an open-source tool that enables the conversion o
 - [Current Limitations of the Converter](#current-limitations-of-the-converter)
 - [Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler](#step-by-step-guide-manually-executing-a-simulation-in-gems-modeler)
 - [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results-between-gems-modeler-and-pypsa)
-- [Pros and Cons](#pros-and-cons-of-the-pysa-to-gems-converter)
-
-
+- [Pros and Cons of the PyPSA to GEMS Converter](#pros-and-cons-of-the-pysa-to-gems-converter)
 
 ## How the Converter Works
 
