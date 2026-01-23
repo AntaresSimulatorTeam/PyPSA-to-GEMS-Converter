@@ -52,7 +52,7 @@ library:
           scenario-dependent: false
         - id: v_mag_pu_min
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: v_mag_pu_max
           time-dependent: false
           scenario-dependent: true
