@@ -107,7 +107,7 @@ library:
           scenario-dependent: false 
         - id: p_nom_max
           time-dependent: false
-          scenario-dependent: true 
+          scenario-dependent: false
         - id: p_min_pu
           time-dependent: true
           scenario-dependent: true
