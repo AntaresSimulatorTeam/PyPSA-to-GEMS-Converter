@@ -3,7 +3,7 @@
 </div>
 
 ## About 
-The PyPSA to GEMS Converter is an open-source tool that enables the conversion of studies conducted in PyPSA into the GEMS format.
+The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/) folder.
 
 
 ### Key Features 
