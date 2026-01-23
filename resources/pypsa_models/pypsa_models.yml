@@ -40,7 +40,7 @@ library:
         #- id: type # This parameter is not used in the Gems model
         - id: x
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: y
           time-dependent: false
           scenario-dependent: true
