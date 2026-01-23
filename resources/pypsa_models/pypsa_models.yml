@@ -43,7 +43,7 @@ library:
           scenario-dependent: false
         - id: y
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         #- id : carrier # This parameter is not used in the Gems model
         #- id : unit # This parameter is not used in the Gems model
         #- id : location # This parameter is not used in the Gems model
