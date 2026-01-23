@@ -55,7 +55,7 @@ library:
           scenario-dependent: false
         - id: v_mag_pu_max
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
       ports:
         - id: p_balance_port
           type: flow
