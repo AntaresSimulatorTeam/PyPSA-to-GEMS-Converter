@@ -404,7 +404,7 @@ library:
         #- id: e_nom_extendable #Parameter that is not instantiated: e_nom_min and e_nom_max are used to possibly fix the value of e_nom
         - id: e_nom_min
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: e_nom_max
           time-dependent: false
           scenario-dependent: true
