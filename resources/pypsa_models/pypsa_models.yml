@@ -432,7 +432,7 @@ library:
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: true 
+          scenario-dependent: false
         - id: standing_loss
           time-dependent: true
           scenario-dependent: true
