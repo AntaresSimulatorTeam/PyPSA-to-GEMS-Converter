@@ -323,7 +323,7 @@ library:
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: true 
+          scenario-dependent: false
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
         #- id: lifetime #Parameter not instantiated for now
