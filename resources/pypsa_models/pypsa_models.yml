@@ -334,7 +334,7 @@ library:
         #- id: cyclic_state_of_charge_per_period #Parameter not instantiated for now
         - id: max_hours
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: efficiency_store
           time-dependent: true
           scenario-dependent: true
