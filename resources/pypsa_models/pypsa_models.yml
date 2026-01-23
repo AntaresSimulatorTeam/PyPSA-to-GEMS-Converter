@@ -49,7 +49,7 @@ library:
         #- id : location # This parameter is not used in the Gems model
         - id: v_mag_pu_set
           time-dependent: true
-          scenario-dependent: true
+          scenario-dependent: false
         - id: v_mag_pu_min
           time-dependent: false
           scenario-dependent: true
