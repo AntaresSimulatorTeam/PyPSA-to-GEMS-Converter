@@ -124,7 +124,7 @@ library:
           scenario-dependent: true
         - id: sign #default value = 1
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         #- id: carrier # This parameter is not used in the Gems model
         - id: marginal_cost
           time-dependent: true
