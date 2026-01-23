@@ -20,7 +20,7 @@ This converter is based on the representation of the PyPSA models of components 
 
 ## How the Converter Works
 
-The PyPSA to GEMS Converter transforms PyPSA network models into GEMS-compatible studies through a multi-stage conversion pipeline. 
+The PyPSA to GEMS Converter transforms [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) into a [GEMS study folder](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/), through the following steps.
 ### 1. **Input Validation and Preprocessing**
 The converter first validates that the PyPSA network meets the requirements for conversion.<br/>
 It performs necessary preprocessing steps such as normalizing component names, handling missing attributes, and ensuring data consistency.<br/>
