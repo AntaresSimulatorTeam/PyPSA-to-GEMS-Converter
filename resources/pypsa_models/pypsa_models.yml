@@ -225,7 +225,7 @@ library:
           scenario-dependent: true
         - id: capital_cost 
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
