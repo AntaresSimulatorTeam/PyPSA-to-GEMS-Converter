@@ -86,10 +86,11 @@ def test_2_stage_stochastic_study() -> None:
         logger,
         Path("tmp") / "test_2_stage_stochastic_study",
         ".tsv",
+        "coin",
     ).to_gems_study()
 
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
-
+    benders_bin = current_dir / "antaresXpansion-1.7.2-ubuntu-22.04" / "bin" / "benders"
     modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     try:
@@ -117,7 +118,7 @@ def test_2_stage_stochastic_study() -> None:
             "SLAVE_WEIGHT": "CONSTANT",
             "SLAVE_WEIGHT_VALUE": 1,
             "MASTER_NAME": "master",
-            "LAST_MASTER_MPS": "master",
+            "LAST_MASTER_MPS": "master_last_iteration",
             "STRUCTURE_FILE": "structure.txt",
             "INPUTROOT": ".",
             "CSV_NAME": "benders_output_trace",
@@ -132,7 +133,7 @@ def test_2_stage_stochastic_study() -> None:
         options_path.write_text(json.dumps(option_json, indent=2), encoding="utf-8")
 
         (output_dir / "area.txt").touch(exist_ok=True)
-        """
+        
         result = subprocess.run(
             [str(benders_bin), str(options_path)],
             capture_output=True,
@@ -143,9 +144,10 @@ def test_2_stage_stochastic_study() -> None:
         print("returncode:", result.returncode)
         print("stdout:", result.stdout)
         print("stderr:", result.stderr)
-        """
+        
     except Exception as e:
         print(e)
         raise e
 
     network.optimize()
+    print(f"PyPSA objective: {network.objective + network.objective_constant}")
