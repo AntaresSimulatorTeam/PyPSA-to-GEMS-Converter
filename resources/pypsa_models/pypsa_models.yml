@@ -215,7 +215,7 @@ library:
           scenario-dependent: false
         - id: p_nom_max
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         #- id: p_set #Parameter not instantiated for now
         - id: p_min_pu
           time-dependent: true
