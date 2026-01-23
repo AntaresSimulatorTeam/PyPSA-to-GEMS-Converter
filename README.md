@@ -16,7 +16,6 @@ The PyPSA to GEMS Converter is an open-source tool that enables the conversion o
 - [Current Limitations of the Converter](#current-limitations-of-the-converter)
 - [Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler](#step-by-step-guide-manually-executing-a-simulation-in-gems-modeler)
 - [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results-between-gems-modeler-and-pypsa)
-- [Pros and Cons](#pros-and-cons)
 
 
 ## How the Converter Works
@@ -152,14 +151,3 @@ subprocess.run([
 If you want to see detailed statistics and a comparison between **Antares Modeler** and **PyPSA study optimization**, you can check the full analysis here:  
 
 👉 [View benchmark analysis](https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter/blob/converter-docs/src/tests/local_benchmark/benchmark_analysis.ipynb)
-
-## Pros and Cons
-
-### Pros:
-  - Converts PyPSA networks to GEMS (LOPF and two-stage stochastic)
-  - Simple API, flexible time series, input validation, automatic preprocessing
-### Cons:
-  - Limited components: no lines/transformers, no unit commitment, only linear costs
-  - Limited constraints: no investment periods, uniform snapshot weights, few global constraints
-  - Execution: no Python API to directly run Antares Modeler or Xpansion refactor
-
