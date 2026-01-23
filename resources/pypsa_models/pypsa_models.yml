@@ -407,7 +407,7 @@ library:
           scenario-dependent: false
         - id: e_nom_max
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: e_min_pu
           time-dependent: true
           scenario-dependent: true
