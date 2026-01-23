@@ -78,7 +78,7 @@ The directory layout follows the conventions expected by the GEMS modeler: <br/>
 
 ## Current Limitations of the Converter
 
-### Unsupported Components
+### Unsupported PyPSA Components
 - Lines (not implemented)
 - Transformers (not implemented)
 ## Component Restrictions
