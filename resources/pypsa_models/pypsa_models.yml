@@ -295,7 +295,7 @@ library:
         #- id: p_nom_extendable #Parameter that is not instantiated: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
         - id: p_nom_min
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: p_nom_max
           time-dependent: false
           scenario-dependent: true
