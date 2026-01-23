@@ -7,7 +7,7 @@ The PyPSA to GEMS Converter is an open-source tool that enables the conversion o
 
 
 ### Key Features 
-- **Conversion of linear optimal power flow studies**
+- **Conversion of linear optimal power flow & economical dispatch studies**
 - **Conversion of two-stage stochastic optimization studies**
 
 ## Table of Contents
