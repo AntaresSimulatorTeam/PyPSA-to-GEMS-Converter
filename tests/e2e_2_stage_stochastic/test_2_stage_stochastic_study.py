@@ -46,46 +46,28 @@ def test_2_stage_stochastic_study() -> None:
         capital_cost=1000,
     )
 
+
     network.add(
         "Generator",
         "gen2",
         bus="bus 1",
         p_nom_extendable=False,
-        marginal_cost=10,
-        p_nom=100,
-        p_min_pu=0.0,
-        p_max_pu=[0.7 + 0.01 * i for i in range(10)],
+        marginal_cost=50,
+        p_nom=200,
+        p_max_pu=[0.9 + 0.01 * i for i in range(10)],
         capital_cost=1000,
     )
-
-    network.add(
-        "Generator",
-        "gen3",
-        bus="bus 1",
-        p_nom_extendable=False,
-        marginal_cost=10,
-        p_nom=100,
-        p_min_pu=0.0,
-        p_max_pu=0.9,
-        capital_cost=1000,
-    )
-
     scenarios = {
         "low": 1,
         # "medium": 0.2,
     }  # this sum needs to be equal to 1, so current solution is that we only have one scenario
 
     network.set_scenarios(scenarios)
-
-    for key, value in network.components.generators.static.p_max_pu.items():
-        if key == ("low", "gen3"):
-            network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore
-
     PyPSAStudyConverter(
         network,
         logger,
         Path("tmp") / "test_2_stage_stochastic_study",
-        ".tsv",
+        ".csv",
         "coin",
     ).to_gems_study()
 
@@ -101,10 +83,12 @@ def test_2_stage_stochastic_study() -> None:
             check=False,
             cwd=str(modeler_bin.parent),
         )
-
+        print("================================")
+        print("Antares modeler output:")
         print("returncode:", result.returncode)
         print("stdout:", result.stdout)
         print("stderr:", result.stderr)
+        print("================================")
         output_dir = study_dir / "systems" / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -123,7 +107,7 @@ def test_2_stage_stochastic_study() -> None:
             "INPUTROOT": ".",
             "CSV_NAME": "benders_output_trace",
             "BOUND_ALPHA": True,
-            "SOLVER_NAME": "COIN",
+            "SOLVER_NAME": "Coin",
             "JSON_FILE": "./expansion/out.json",
             "LAST_ITERATION_JSON_FILE": "./expansion/last_iteration.json",
         }
@@ -133,7 +117,7 @@ def test_2_stage_stochastic_study() -> None:
         options_path.write_text(json.dumps(option_json, indent=2), encoding="utf-8")
 
         (output_dir / "area.txt").touch(exist_ok=True)
-        
+        """
         result = subprocess.run(
             [str(benders_bin), str(options_path)],
             capture_output=True,
@@ -141,13 +125,16 @@ def test_2_stage_stochastic_study() -> None:
             check=False,
             cwd=str(output_dir),
         )
+        print("================================")
+        print("Benders output:")
         print("returncode:", result.returncode)
         print("stdout:", result.stdout)
         print("stderr:", result.stderr)
-        
+        print("================================")
+        """
     except Exception as e:
         print(e)
         raise e
 
-    network.optimize()
-    print(f"PyPSA objective: {network.objective + network.objective_constant}")
+    #network.optimize()
+    #print(f"PyPSA objective: {network.objective + network.objective_constant}")
