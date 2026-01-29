@@ -46,7 +46,6 @@ def test_2_stage_stochastic_study() -> None:
         capital_cost=1000,
     )
 
-
     network.add(
         "Generator",
         "gen2",
@@ -72,7 +71,7 @@ def test_2_stage_stochastic_study() -> None:
     ).to_gems_study()
 
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
-    benders_bin = current_dir / "antaresXpansion-1.7.2-ubuntu-22.04" / "bin" / "benders"
+    # benders_bin = current_dir / "antaresXpansion-1.7.2-ubuntu-22.04" / "bin" / "benders"
     modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     try:
@@ -136,5 +135,5 @@ def test_2_stage_stochastic_study() -> None:
         print(e)
         raise e
 
-    #network.optimize()
-    #print(f"PyPSA objective: {network.objective + network.objective_constant}")
+    # network.optimize()
+    # print(f"PyPSA objective: {network.objective + network.objective_constant}")
