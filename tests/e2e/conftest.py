@@ -21,9 +21,11 @@ tmp_dir = current_dir / "tmp"
 def pytest_sessionfinish() -> None:
     """Cleanup tmp folder after all tests, including xdist workers."""
     # Get worker_id - it's None or not set when on master node
+    """
     worker_id = os.environ.get("PYTEST_XDIST_WORKER")
     if worker_id is None:
         # This is the master node or not using xdist
         if tmp_dir.exists():
             shutil.rmtree(tmp_dir)
             print(f"Tmp folder cleaned up at {tmp_dir}")
+    """

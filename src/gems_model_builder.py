@@ -10,13 +10,44 @@
 #
 # This file is part of the Antares project.
 import logging
-from typing import cast
+import math
+from typing import Any, cast
 
 import pandas as pd
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
 from src.utils import StudyType, any_to_float
+
+
+def _sanitize_parameter_value(gems_param_id: str, value: Any) -> Any:
+    """Replace NaN/None numeric values with 0 (e.g. emission_factor with no carrier, or missing optional params)."""
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return 0.0
+    if isinstance(value, float) and math.isnan(value):
+        return 0.0
+    try:
+        if pd.isna(value):
+            return 0.0
+    except (TypeError, ValueError):
+        pass
+    return value
+
+
+def _to_gems_constraint_id(pypsa_name: str | tuple) -> str:
+    """Convert global constraint name to string id (WITH_SCENARIOS uses MultiIndex tuples). Use name only, no scenario prefix."""
+    if isinstance(pypsa_name, tuple):
+        return str(pypsa_name[1])
+    return str(pypsa_name)
+
+
+def _to_gems_component_id(comp_id: str | tuple) -> str:
+    """Convert component id to string; with scenarios use name part only to match system components."""
+    if isinstance(comp_id, tuple):
+        return str(comp_id[1])
+    return str(comp_id)
 
 
 class GemsModelBuilder:
@@ -34,16 +65,17 @@ class GemsModelBuilder:
         """
 
         self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
+        constraint_id = _to_gems_constraint_id(pypsa_gc_data.pypsa_name)
         components = [
             GemsComponent(
-                id=pypsa_gc_data.pypsa_name,
+                id=constraint_id,
                 model=f"{self.pypsalib_id}.{pypsa_gc_data.gems_model_id}",
                 parameters=[
                     GemsComponentParameter(
                         id="quota",
                         time_dependent=False,
                         scenario_dependent=False,
-                        value=pypsa_gc_data.pypsa_constant,
+                        value=_sanitize_parameter_value("quota", pypsa_gc_data.pypsa_constant),
                     )
                 ],
             )
@@ -52,9 +84,9 @@ class GemsModelBuilder:
         for component_id, port_id in pypsa_gc_data.gems_components_and_ports:
             connections.append(
                 GemsPortConnection(
-                    component1=pypsa_gc_data.pypsa_name,
+                    component1=constraint_id,
                     port1=pypsa_gc_data.gems_port_id,
-                    component2=component_id,
+                    component2=_to_gems_component_id(component_id),
                     port2=port_id,
                 )
             )
@@ -79,12 +111,11 @@ class GemsModelBuilder:
                             id=pypsa_params_to_gems_params[param],
                             time_dependent=(component, param) in comp_param_to_timeseries_name,
                             scenario_dependent=False,
-                            value=(
-                                comp_param_to_timeseries_name[
-                                    (component, param)
-                                ]  # set time-series file name as values for that component parameter
+                            value=_sanitize_parameter_value(
+                                pypsa_params_to_gems_params[param],
+                                comp_param_to_timeseries_name[(component, param)]
                                 if (component, param) in comp_param_to_timeseries_name
-                                else any_to_float(constant_data.loc[component, param])
+                                else any_to_float(constant_data.loc[component, param]),
                             ),
                         )
                         for param in pypsa_params_to_gems_params
@@ -133,6 +164,11 @@ class GemsModelBuilder:
         component_names = constant_data.index.get_level_values(1).unique()
 
         for component in component_names:
+            # [E2E emission_factor] 3. What model builder looks up and writes for emission_factor
+            if "co2_emissions" in pypsa_params_to_gems_params:
+                raw_val = comp_param_to_static_name.get((component, "co2_emissions"))
+                final_val = _sanitize_parameter_value("emission_factor", raw_val)
+                print("[GemsModelBuilder] 3. (component, co2_emissions) =", (component, "co2_emissions"), "-> raw =", raw_val, "-> emission_factor value =", final_val)
             components.append(
                 GemsComponent(
                     id=component,
@@ -154,10 +190,11 @@ class GemsModelBuilder:
                                     and comp_param_to_timeseries_name[(component, param)][1]
                                 )
                             ),
-                            value=(
+                            value=_sanitize_parameter_value(
+                                pypsa_params_to_gems_params[param],
                                 comp_param_to_timeseries_name[(component, param)][0]
                                 if (component, param) in comp_param_to_timeseries_name
-                                else comp_param_to_static_name.get((component, param))
+                                else comp_param_to_static_name.get((component, param)),
                             ),
                         )
                         for param in pypsa_params_to_gems_params

@@ -39,7 +39,7 @@ class PyPSAStudyConverter:
         self.pypsalib_id = "pypsa_models"
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
-        self.study_type = determine_pypsa_study_type(self.pypsa_network)
+        self.study_type, self.pypsa_network, self.scenario_weightings = determine_pypsa_study_type(self.pypsa_network)
         self.solver_name = solver_name
 
         # Preprocess the network
@@ -65,6 +65,11 @@ class PyPSAStudyConverter:
             # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
             pypsa_components_data.check_params_consistency()
 
+            # [E2E emission_factor] 1. What the converter passes into the writer (constant_data = preprocessed network)
+            if pypsa_components_data.pypsa_model_id == "generators" and "co2_emissions" in pypsa_components_data.constant_data.columns:
+                cd = pypsa_components_data.constant_data
+                print("[Converter] 1. constant_data (generators) passed to writer: co2_emissions =", cd["co2_emissions"].tolist(), "| index =", cd.index.tolist())
+
             # Save time series and memorize the time-dependent parameters, also save static scenarized parameters
             comp_param_to_timeseries_name, comp_param_to_static_name = gems_study_writer.write_and_register_timeseries(
                 pypsa_components_data.time_dependent_data,
@@ -73,6 +78,12 @@ class PyPSAStudyConverter:
                 self.system_name,
                 self.series_file_format,
             )
+
+            # [E2E emission_factor] 2. What the writer returned for co2_emissions -> emission_factor
+            if pypsa_components_data.pypsa_model_id == "generators" and comp_param_to_static_name:
+                co2_entries = [(k, v) for k, v in comp_param_to_static_name.items() if k[1] == "co2_emissions"]
+                print("[Converter] 2. comp_param_to_static_name (co2_emissions) returned by writer:", co2_entries)
+
             components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
                 pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name or {}
             )
@@ -90,6 +101,6 @@ class PyPSAStudyConverter:
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
         gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
-        if self.study_type == StudyType.WITH_SCENARIOS:
-            gems_study_writer.write_optim_config_yml()
+        #if self.study_type == StudyType.WITH_SCENARIOS:
+        #    gems_study_writer.write_optim_config_yml()
         self.logger.info("Study conversion completed!")

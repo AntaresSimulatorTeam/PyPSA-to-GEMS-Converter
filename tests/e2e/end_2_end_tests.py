@@ -10,6 +10,7 @@
 #
 # This file is part of the Antares project.
 
+import copy
 import logging
 import math
 import subprocess
@@ -45,9 +46,10 @@ def get_original_pypsa_study_objective(network: Network) -> float:
 
 
 def get_gems_study_objective(network: Network, study_name: str) -> float:
+    """Convert a copy of the network to GEMS (original unchanged for network.optimize())."""
     study_dir = current_dir / "tmp" / study_name
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=study_dir, series_file_format=".tsv"
+        pypsa_network=copy.deepcopy(network), logger=logger, study_dir=study_dir, series_file_format=".tsv"
     ).to_gems_study()
 
     modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
@@ -88,8 +90,9 @@ def get_gems_study_objective(network: Network, study_name: str) -> float:
 def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lines: bool, study_name: str) -> None:
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
     network = preprocess_network(network, quota, replace_lines)
+    network_copy = copy.deepcopy(network)
     assert math.isclose(
-        get_original_pypsa_study_objective(network), get_gems_study_objective(network, study_name), rel_tol=1e-6
+        get_original_pypsa_study_objective(network), get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -116,8 +119,9 @@ def test_load_gen() -> None:
         p_nom=50,  # MW
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network,
+        pypsa_network=network_copy,
         logger=logger,
         study_dir=current_dir / "tmp" / "test_two_study_one",
         series_file_format=".tsv",
@@ -126,7 +130,7 @@ def test_load_gen() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_two_study_one"),
+        get_gems_study_objective(network_copy, "test_two_study_one"),
         rel_tol=1e-6,
     )
 
@@ -166,13 +170,14 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
         p_nom_max=p_nom_max,  # MW
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network_copy, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
 
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -227,12 +232,13 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
     quota = (ratio * min_emissions + (1 - ratio) * max_emissions) * (sum(load1) + sum(load2))
     network.add("GlobalConstraint", name="co2_budget", sense=sense, constant=quota)
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network_copy, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -261,8 +267,9 @@ def test_load_gen_pmin() -> None:
         marginal_cost=10,  # €/MWh
         p_nom=50,  # MW
     )
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network,
+        pypsa_network=network_copy,
         logger=logger,
         study_dir=current_dir / "tmp" / "test_five_study_one",
         series_file_format=".tsv",
@@ -270,7 +277,7 @@ def test_load_gen_pmin() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_five_study_one"),
+        get_gems_study_objective(network_copy, "test_five_study_one"),
         rel_tol=1e-6,
     )
 
@@ -301,8 +308,9 @@ def test_load_gen_sum() -> None:
         p_nom=50,  # MW
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network,
+        pypsa_network=network_copy,
         logger=logger,
         study_dir=current_dir / "tmp" / "test_six_study_one",
         series_file_format=".tsv",
@@ -310,7 +318,7 @@ def test_load_gen_sum() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_six_study_one"),
+        get_gems_study_objective(network_copy, "test_six_study_one"),
         rel_tol=1e-6,
     )
 
@@ -358,8 +366,9 @@ def test_load_gen_link() -> None:
         p_max_pu=1,
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network,
+        pypsa_network=network_copy,
         logger=logger,
         study_dir=current_dir / "tmp" / "test_seven_study_one",
         series_file_format=".tsv",
@@ -367,7 +376,7 @@ def test_load_gen_link() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_seven_study_one"),
+        get_gems_study_objective(network_copy, "test_seven_study_one"),
         rel_tol=1e-6,
     )
 
@@ -429,12 +438,13 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
         p_max_pu=1,
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network_copy, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -513,12 +523,13 @@ def test_storage_unit(
         cyclic_state_of_charge_per_period=True,
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network_copy, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -601,13 +612,14 @@ def test_storage_unit_ext(
         cyclic_state_of_charge=True,
         cyclic_state_of_charge_per_period=True,
     )
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network_copy, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
 
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -669,12 +681,13 @@ def test_store(e_initial: float, standing_loss: float, study_name: str) -> None:
         marginal_cost_storage=1.5,  # €/MWh
         e_cyclic=True,
     )
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network_copy, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(network_copy, study_name), rel_tol=1e-6
     )
 
 
@@ -732,8 +745,9 @@ def test_store_ext() -> None:
         e_cyclic=True,
     )
 
+    network_copy = copy.deepcopy(network)
     PyPSAStudyConverter(
-        pypsa_network=network,
+        pypsa_network=network_copy,
         logger=logger,
         study_dir=current_dir / "tmp" / "store_test_case_ext",
         series_file_format=".tsv",
@@ -741,6 +755,6 @@ def test_store_ext() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "store_test_case_ext"),
+        get_gems_study_objective(network_copy, "store_test_case_ext"),
         rel_tol=1e-6,
     )

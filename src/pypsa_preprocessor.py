@@ -17,6 +17,19 @@ from pypsa import Network
 from src.utils import StudyType, any_to_float
 
 
+def _carrier_scalar(val) -> str:
+    """Extract scalar carrier name; PyPSA with scenarios may store carrier as array per row."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return "null"
+    if isinstance(val, str):
+        return val
+    if hasattr(val, "__len__") and not isinstance(val, str):
+        if len(val) == 0:
+            return "null"
+        return _carrier_scalar(val[0])
+    return str(val)
+
+
 class PyPSAPreprocessor:
     def __init__(self, pypsa_network: Network, study_type: StudyType):
         self.pypsa_network = pypsa_network
@@ -204,22 +217,50 @@ class PyPSAPreprocessor:
             df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
 
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
-        ### Handling PyPSA objects without carriers
-
         df = getattr(self.pypsa_network, component_type)
-        for comp in df.index:
-            if len(df.loc[comp, "carrier"]) == 0:
-                df.loc[comp, "carrier"] = "null"
-        setattr(
-            self.pypsa_network,
-            component_type,
-            df.join(
-                self.pypsa_network.carriers,
-                on="carrier",
-                how="left",
-                rsuffix="_carrier",
-            ),
+        # Ensure scalar carrier (MultiIndex + join can misalign; map is reliable)
+        carrier_series = df["carrier"].apply(_carrier_scalar)
+        carrier_series = carrier_series.where(carrier_series != "", "null")
+        df["carrier"] = carrier_series
+
+        if component_type in ("generators", "stores", "storage_units") and len(df) > 0:
+            print("[Preprocessor]", component_type, "before join: carrier =", df["carrier"].tolist())
+        joined = df.join(
+            self.pypsa_network.carriers,
+            on="carrier",
+            how="left",
+            rsuffix="_carrier",
         )
+        # Set co2_emissions from scalar carrier map (join with MultiIndex left can yield NaN).
+        # Prefer snapshot taken before set_scenarios; PyPSA may overwrite carrier co2_emissions after expansion.
+        co2_map = getattr(self.pypsa_network, "_carrier_co2_snapshot", None)
+        if co2_map is None and "co2_emissions" in self.pypsa_network.carriers.columns:
+            carriers_df = self.pypsa_network.carriers
+            idx = carriers_df.index
+            if isinstance(idx, pd.MultiIndex):
+                names = idx.get_level_values(-1)
+            else:
+                names = idx
+            co2_map = {}
+            for i in range(len(carriers_df)):
+                k = str(names[i])
+                if k not in co2_map:
+                    co2_map[k] = float(carriers_df["co2_emissions"].iloc[i])
+        if co2_map is not None:
+            co2_map = dict(co2_map)
+            co2_map.setdefault("null", 0.0)
+            joined["co2_emissions"] = carrier_series.astype(str).map(co2_map).fillna(0.0)
+        elif "co2_emissions_carrier" in joined.columns:
+            joined["co2_emissions"] = joined["co2_emissions_carrier"]
+        if "co2_emissions_carrier" in joined.columns:
+            joined = joined.drop(columns=["co2_emissions_carrier"])
+
+        if component_type in ("generators", "stores", "storage_units") and len(joined) > 0:
+            if "co2_emissions" in joined.columns:
+                print("[Preprocessor]", component_type, "after join: co2_emissions =", joined["co2_emissions"].tolist())
+            else:
+                print("[Preprocessor]", component_type, "after join: no co2_emissions column, columns =", list(joined.columns))
+        setattr(self.pypsa_network, component_type, joined)
 
         self._rename_pypsa_component(component_type)
         # if component is non extendable that

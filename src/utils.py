@@ -10,9 +10,11 @@
 #
 # This file is part of the Antares project.
 
+import copy
 from enum import Enum
 from typing import Any
 
+import pandas as pd
 from pypsa import Network
 
 PYPSA_CONVERTER_MAX_FLOAT = 100_000_000_000
@@ -49,10 +51,21 @@ class StudyType(Enum):
     WITH_SCENARIOS = 2
 
 
-def determine_pypsa_study_type(pypsa_network: Network) -> StudyType:
-    study_version = convert_pypsa_version_to_integer(pypsa_network.pypsa_version)
-
-    if study_version >= 100 and hasattr(pypsa_network, "has_scenarios") and pypsa_network.has_scenarios:
-        return StudyType.WITH_SCENARIOS
-
-    return StudyType.DETERMINISTIC
+def determine_pypsa_study_type(pypsa_network: Network) -> tuple[StudyType, Network, dict[str, float]]:
+    """Determine study type; studies without scenarios get one default scenario so we always convert as WITH_SCENARIOS."""
+    if hasattr(pypsa_network, "has_scenarios") and pypsa_network.has_scenarios:
+        return StudyType.WITH_SCENARIOS, pypsa_network, pypsa_network.scenario_weightings
+    # Snapshot carrier co2_emissions before set_scenarios; PyPSA may overwrite/reset them after expansion.
+    if hasattr(pypsa_network, "carriers") and "co2_emissions" in getattr(pypsa_network.carriers, "columns", []):
+        carriers_df = pypsa_network.carriers
+        idx = carriers_df.index
+        names = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
+        pypsa_network._carrier_co2_snapshot = {
+            str(names[i]): float(carriers_df["co2_emissions"].iloc[i])
+            for i in range(len(carriers_df))
+        }
+    else:
+        pypsa_network._carrier_co2_snapshot = {}
+    # No scenarios: add single default scenario so all studies use the same multi-index path
+    pypsa_network.set_scenarios({"low": 1})
+    return StudyType.WITH_SCENARIOS, pypsa_network, pypsa_network.scenario_weightings

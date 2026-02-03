@@ -90,8 +90,9 @@ class GemsStudyWriter:
         system_name: str,
         series_file_format: str,
     ) -> tuple[dict[tuple[str, str], str | list[str | bool]], dict[tuple[str, str], str | float]]:
+        time_dep_keys = set(pypsa_components_data.time_dependent_data.keys())
         scenarized_time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
-            set(pypsa_components_data.time_dependent_data.keys())
+            time_dep_keys
         )
 
         comp_param_to_scenario_dependent_timeseries_name: dict[tuple[str, str], str | list[str | bool]] = {}
@@ -131,13 +132,29 @@ class GemsStudyWriter:
             set(constant_data.keys())
         )
         comp_param_to_scenario_dependent_static_name: dict[tuple[str, str], str | float] = {}
+        index_is_multi = isinstance(constant_data.index, pd.MultiIndex) and constant_data.index.nlevels >= 2
+
+        if "co2_emissions" in constant_data.columns:
+            print("[GemsStudyWriter] constant_data has co2_emissions:", constant_data["co2_emissions"].tolist())
+        else:
+            print("[GemsStudyWriter] constant_data has no co2_emissions column. Columns:", list(constant_data.columns))
 
         for param in scenarized_static_params:
             param_series = constant_data[param]
-            component_names = param_series.index.get_level_values(1).unique()
+            if param == "co2_emissions":
+                print("[GemsStudyWriter] param=co2_emissions param_series:", param_series.tolist(), "index:", param_series.index.tolist())
+            if index_is_multi:
+                component_names = param_series.index.get_level_values(1).unique()
+            else:
+                component_names = param_series.index.unique()
+
             for component in component_names:
                 if (component, param) not in comp_param_static_scenarized_indicator:
-                    component_values = param_series.loc[(slice(None), component)]
+                    if index_is_multi:
+                        component_values = param_series.loc[(slice(None), component)]
+                    else:
+                        cv = param_series.loc[component]
+                        component_values = cv if hasattr(cv, "index") and hasattr(cv.index, "get_level_values") else pd.Series([cv])
 
                     # prevent of making multiple unnecessary ts files
                     if len(set(component_values)) > 1:
@@ -162,7 +179,17 @@ class GemsStudyWriter:
                             component_value = 1e20
                         if component_value == float("-inf"):
                             component_value = -1e20
+                        # replace NaN with 0 (e.g. emission_factor / co2_emissions when no carrier)
+                        if pd.isna(component_value):
+                            component_value = 0.0
+                        if param == "co2_emissions":
+                            print("[GemsStudyWriter] (component, co2_emissions) =", (component, param), "-> value:", component_value, "| component_values:", component_values.tolist())
                         comp_param_to_scenario_dependent_static_name[(component, param)] = component_value
+
+        # [E2E emission_factor] Full static dict for co2_emissions returned to converter
+        co2_static = [(k, v) for k, v in comp_param_to_scenario_dependent_static_name.items() if k[1] == "co2_emissions"]
+        if co2_static:
+            print("[GemsStudyWriter] RETURN comp_param_to_static_name (co2_emissions):", co2_static)
 
         return comp_param_to_scenario_dependent_timeseries_name, comp_param_to_scenario_dependent_static_name
 
