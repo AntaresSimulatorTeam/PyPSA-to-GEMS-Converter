@@ -30,3 +30,4 @@ jobs:
       run: |
         python -m pytest -n auto tests/unit_tests/test_pypsa_preprocessor_and_register.py -v -s
         python -m pytest -n auto tests/unit_tests/test_write_and_register_time_series.py -v -s
+        python -m pytest -n auto tests/unit_tests/tests_converter.py -v -s
