@@ -27,4 +27,3 @@ def pytest_sessionfinish() -> None:
         if tmp_dir.exists():
             shutil.rmtree(tmp_dir)
             print(f"Tmp folder cleaned up at {tmp_dir}")
-    

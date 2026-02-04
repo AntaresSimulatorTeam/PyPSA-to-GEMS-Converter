@@ -1,4 +1,4 @@
-name: End-to-End Tests
+name: Tests
 
 on:
   push:
@@ -48,6 +48,12 @@ jobs:
       run: |
         python -m pytest -n auto tests/e2e/end_2_end_tests.py -v -s
     
+    - name: Run unit tests
+      run: |
+        python -m pytest -n auto tests/unit_tests/test_pypsa_preprocessor_and_register.py -v -s
+        python -m pytest -n auto tests/unit_tests/test_write_and_register_time_series.py -v -s
+        python -m pytest -n auto tests/unit_tests/tests_converter.py -v -s
+
     - name: Cleanup
       if: always()
       run: |

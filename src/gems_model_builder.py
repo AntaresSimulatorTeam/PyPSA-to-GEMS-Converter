@@ -20,7 +20,7 @@ from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstra
 
 
 def _sanitize_parameter_value(gems_param_id: str, value: Any) -> Any:
-    """Replace NaN/None numeric values with 0 (e.g. emission_factor with no carrier, or missing optional params)."""
+    ### Replace NaN/None numeric values with 0 (e.g. emission_factor with no carrier, or missing optional params). ###
     if isinstance(value, str):
         return value
     if value is None:
@@ -64,6 +64,7 @@ class GemsModelBuilder:
 
         self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
         constraint_id = _to_gems_constraint_id(pypsa_gc_data.pypsa_name)
+        
         components = [
             GemsComponent(
                 id=constraint_id,
@@ -105,11 +106,6 @@ class GemsModelBuilder:
         component_names = constant_data.index.get_level_values(1).unique()
 
         for component in component_names:
-            # [E2E emission_factor] 3. What model builder looks up and writes for emission_factor
-            if "co2_emissions" in pypsa_params_to_gems_params:
-                raw_val = comp_param_to_static_name.get((component, "co2_emissions"))
-                final_val = _sanitize_parameter_value("emission_factor", raw_val)
-                print("[GemsModelBuilder] 3. (component, co2_emissions) =", (component, "co2_emissions"), "-> raw =", raw_val, "-> emission_factor value =", final_val)
             components.append(
                 GemsComponent(
                     id=component,

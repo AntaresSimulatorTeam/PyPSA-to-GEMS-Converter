@@ -24,8 +24,8 @@ class PyPSARegister:
     def register(self) -> tuple[dict[str, PyPSAComponentData], dict[str, PyPSAGlobalConstraintData]]:
         self._register_pypsa_component(
             "generators",
-            self.pypsa_network.generators,
-            self.pypsa_network.generators_t,
+            self.pypsa_network.components.generators.static,
+            self.pypsa_network.components.generators.dynamic,
             "generator",
             {
                 "p_nom_min": "p_nom_min",
@@ -45,8 +45,8 @@ class PyPSARegister:
         ### PyPSA components : Loads
         self._register_pypsa_component(
             "loads",
-            self.pypsa_network.loads,
-            self.pypsa_network.loads_t,
+            self.pypsa_network.components.loads.static,
+            self.pypsa_network.components.loads.dynamic,
             "load",
             {
                 "p_set": "p_set",
@@ -58,8 +58,8 @@ class PyPSARegister:
         ### PyPSA components : Buses
         self._register_pypsa_component(
             "buses",
-            self.pypsa_network.buses,
-            self.pypsa_network.buses_t,
+            self.pypsa_network.components.buses.static,
+            self.pypsa_network.components.buses.dynamic,
             "bus",
             {
                 "v_nom": "v_nom",
@@ -74,8 +74,8 @@ class PyPSARegister:
         ### PyPSA components : Links
         self._register_pypsa_component(
             "links",
-            self.pypsa_network.links,
-            self.pypsa_network.links_t,
+            self.pypsa_network.components.links.static,
+            self.pypsa_network.components.links.dynamic,
             "link",
             {
                 "efficiency": "efficiency",
@@ -94,8 +94,8 @@ class PyPSARegister:
         ### PyPSA components : Storage Units
         self._register_pypsa_component(
             "storage_units",
-            self.pypsa_network.storage_units,
-            self.pypsa_network.storage_units_t,
+            self.pypsa_network.components.storage_units.static,
+            self.pypsa_network.components.storage_units.dynamic,
             "storage_unit",
             {
                 "p_nom_min": "p_nom_min",
@@ -119,8 +119,8 @@ class PyPSARegister:
         ### PyPSA components : Stores
         self._register_pypsa_component(
             "stores",
-            self.pypsa_network.stores,
-            self.pypsa_network.stores_t,
+            self.pypsa_network.components.stores.static,
+            self.pypsa_network.components.stores.dynamic,
             "store",
             {
                 "sign": "sign",
