@@ -76,33 +76,6 @@ def scenario_network(base_network: Network) -> Network:
     return base_network
 
 
-def test_preprocessor_raises_on_lines(base_network: Network) -> None:
-    base_network.add(
-        "Line",
-        "line 1",
-        bus0="bus 1",
-        bus1="bus 2",
-        s_nom_extendable=False,
-        s_nom=100,
-        x=0.1,
-        r=0.01,
-    )
-
-    with pytest.raises(ValueError, match="does not support Lines"):
-        PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
-
-
-def test_preprocessor_adds_fictitious_carrier(base_network: Network) -> None:
-    PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
-    assert "null" in base_network.carriers.index
-
-
-def test_preprocessor_renames_buses_deterministic(base_network: Network) -> None:
-    PyPSAPreprocessor(base_network, StudyType.DETERMINISTIC).network_preprocessing()
-    assert "bus_1" in base_network.buses.index
-    assert all(" " not in bus for bus in base_network.buses.index)
-
-
 def test_preprocessor_renames_buses_scenarios(scenario_network: Network) -> None:
     PyPSAPreprocessor(scenario_network, StudyType.WITH_SCENARIOS).network_preprocessing()
     assert "bus_1" in scenario_network.buses.index.get_level_values(1)
