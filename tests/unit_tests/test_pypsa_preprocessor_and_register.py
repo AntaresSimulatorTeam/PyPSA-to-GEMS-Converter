@@ -15,7 +15,6 @@ from pypsa import Network
 
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
-from src.utils import StudyType
 from tests.utils import replace_lines_by_links
 
 
@@ -77,13 +76,13 @@ def scenario_network(base_network: Network) -> Network:
 
 
 def test_preprocessor_renames_buses_scenarios(scenario_network: Network) -> None:
-    PyPSAPreprocessor(scenario_network, StudyType.WITH_SCENARIOS).network_preprocessing()
+    PyPSAPreprocessor(scenario_network).network_preprocessing()
     assert "bus_1" in scenario_network.buses.index.get_level_values(1)
     assert all(" " not in b for b in scenario_network.buses.index.get_level_values(1))
 
 def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> None:
-    PyPSAPreprocessor(scenario_network, StudyType.WITH_SCENARIOS).network_preprocessing()
-    components, global_constraints = PyPSARegister(scenario_network, StudyType.WITH_SCENARIOS).register()
+    PyPSAPreprocessor(scenario_network).network_preprocessing()
+    components, global_constraints = PyPSARegister(scenario_network).register()
 
     assert {"generators", "loads", "buses", "links"} <= set(components.keys())
 

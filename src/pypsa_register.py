@@ -13,13 +13,11 @@ import pandas as pd
 from pypsa import Network
 
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
-from src.utils import StudyType
 
 
 class PyPSARegister:
-    def __init__(self, pypsa_network: Network, study_type: StudyType):
+    def __init__(self, pypsa_network: Network):
         self.pypsa_network = pypsa_network
-        self.study_type = study_type
         self.pypsa_components_data: dict[str, PyPSAComponentData] = {}
         self.pypsa_globalconstraints_data: dict[str, PyPSAGlobalConstraintData] = {}
 

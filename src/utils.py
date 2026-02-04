@@ -9,9 +9,6 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
-
-import copy
-from enum import Enum
 from typing import Any
 
 import pandas as pd
@@ -38,22 +35,14 @@ def check_time_series_format(series_file_format: str) -> str:
     return series_file_format
 
 
-def convert_pypsa_version_to_integer(pypsa_version: str) -> int:
-    """
-    Convert PyPSA version to integer, example: 1.0.0 -> 100
-    """
-    decomposed_version = pypsa_version.split(".")
-    return int("".join(decomposed_version))
-
-
-class StudyType(Enum):
-    WITH_SCENARIOS = 1
-
-
-def determine_pypsa_study_type(pypsa_network: Network) -> tuple[StudyType, Network, dict[str, float]]:
+def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[str, float]]:
     """Determine study type; studies without scenarios get one default scenario so we always convert as WITH_SCENARIOS."""
+
     if hasattr(pypsa_network, "has_scenarios") and pypsa_network.has_scenarios:
-        return StudyType.WITH_SCENARIOS, pypsa_network, pypsa_network.scenario_weightings
+        print("[Utils] Study is stochastic")
+        print("[Utils] Scenario weightings:", pypsa_network.scenario_weightings)
+        # Remove the weight information from scenario_weightings, just keep the keys
+        return pypsa_network, pypsa_network.scenario_weightings["weight"].to_dict()
     # Snapshot carrier co2_emissions before set_scenarios; PyPSA may overwrite/reset them after expansion.
     if hasattr(pypsa_network, "carriers") and "co2_emissions" in getattr(pypsa_network.carriers, "columns", []):
         carriers_df = pypsa_network.carriers
@@ -67,4 +56,4 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[StudyType, Netwo
         pypsa_network._carrier_co2_snapshot = {}
     # No scenarios: add single default scenario so all studies use the same multi-index path
     pypsa_network.set_scenarios({"default": 1})
-    return StudyType.WITH_SCENARIOS, pypsa_network, pypsa_network.scenario_weightings
+    return pypsa_network, pypsa_network.scenario_weightings["weight"].to_dict()

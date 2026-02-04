@@ -11,13 +11,12 @@
 # This file is part of the Antares project.
 import logging
 import math
-from typing import Any, cast
+from typing import Any
 
 import pandas as pd
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
-from src.utils import StudyType
 
 
 def _sanitize_parameter_value(gems_param_id: str, value: Any) -> Any:
@@ -51,10 +50,9 @@ def _to_gems_component_id(comp_id: str | tuple) -> str:
 
 
 class GemsModelBuilder:
-    def __init__(self, pypsalib_id: str, study_type: StudyType):
+    def __init__(self, pypsalib_id: str):
         self.pypsalib_id = pypsalib_id
         self.logger = logging.getLogger(__name__)
-        self.study_type = study_type
 
     def _convert_pypsa_globalconstraint(
         self, pypsa_gc_data: PyPSAGlobalConstraintData

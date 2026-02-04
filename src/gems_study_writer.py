@@ -17,13 +17,11 @@ import pandas as pd
 from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection, GemsSystem
 from src.models.modeler_parameter_yml_schema import ModelerParameters
 from src.models.pypsa_model_schema import PyPSAComponentData
-from src.utils import StudyType
 
 
 class GemsStudyWriter:
-    def __init__(self, study_dir: Path, study_type: StudyType):
+    def __init__(self, study_dir: Path):
         self.study_dir = study_dir
-        self.study_type = study_type
 
     def copy_library_yml(self) -> None:
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
@@ -61,7 +59,7 @@ class GemsStudyWriter:
         ).to_yml(self.study_dir / "systems" / "parameters.yml")
 
 
-    def write_and_register_timeseries(
+    def _write_and_register_timeseries(
         self,
         time_dependent_data: dict[str, pd.DataFrame],
         constant_data: pd.DataFrame,
@@ -153,12 +151,7 @@ class GemsStudyWriter:
                         )
                     else:
                         component_value = list(set(component_values))[0]
-                        # prevent all values from -inf and inf
-                        if component_value == float("inf"):
-                            component_value = 1e20
-                        if component_value == float("-inf"):
-                            component_value = -1e20
-                        # replace NaN with 0 (e.g. emission_factor / co2_emissions when no carrier)
+
                         if pd.isna(component_value):
                             component_value = 0.0
                         if param == "co2_emissions":
