@@ -151,9 +151,14 @@ class GemsStudyWriter:
                         )
                     else:
                         component_value = list(set(component_values))[0]
-
+                        # Replace infinite values with large finite numbers to prevent writing .inf or -.inf
                         if pd.isna(component_value):
                             component_value = 0.0
+                        elif component_value == float("inf"):
+                            component_value = 1e20
+                        elif component_value == float("-inf"):
+                            component_value = -1e20
+          
                         if param == "co2_emissions":
                             print("[GemsStudyWriter] (component, co2_emissions) =", (component, param), "-> value:", component_value, "| component_values:", component_values.tolist())
                         comp_param_to_scenario_dependent_static_name[(component, param)] = component_value
