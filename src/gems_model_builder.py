@@ -17,7 +17,7 @@ import pandas as pd
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
-from src.utils import StudyType, any_to_float
+from src.utils import StudyType
 
 
 def _sanitize_parameter_value(gems_param_id: str, value: Any) -> Any:
@@ -93,57 +93,7 @@ class GemsModelBuilder:
 
         return components, connections
 
-    def _create_gems_components_linear_optimal_power_flow(
-        self,
-        constant_data: pd.DataFrame,
-        gems_model_id: str,
-        pypsa_params_to_gems_params: dict[str, str],
-        comp_param_to_timeseries_name: dict[tuple[str, str], str],
-    ) -> list[GemsComponent]:
-        components = []
-        for component in constant_data.index:
-            components.append(
-                GemsComponent(
-                    id=component,
-                    model=f"{self.pypsalib_id}.{gems_model_id}",
-                    parameters=[
-                        GemsComponentParameter(
-                            id=pypsa_params_to_gems_params[param],
-                            time_dependent=(component, param) in comp_param_to_timeseries_name,
-                            scenario_dependent=False,
-                            value=_sanitize_parameter_value(
-                                pypsa_params_to_gems_params[param],
-                                comp_param_to_timeseries_name[(component, param)]
-                                if (component, param) in comp_param_to_timeseries_name
-                                else any_to_float(constant_data.loc[component, param]),
-                            ),
-                        )
-                        for param in pypsa_params_to_gems_params
-                    ],
-                )
-            )
-        return components
-
     def _create_gems_components(
-        self,
-        constant_data: pd.DataFrame,
-        gems_model_id: str,
-        pypsa_param_to_gems_param_id: dict[str, str],
-        time_dependent_comp_param_to_timeseries_file_name: dict[tuple[str, str], str | list[str | bool]],
-        static_comp_param_to_data_reference: dict[tuple[str, str], str | float],
-    ) -> list[GemsComponent]:
-        if self.study_type == StudyType.WITH_SCENARIOS:
-            return self._create_gems_components_two_stage_stochastic(
-                constant_data,
-                gems_model_id,
-                pypsa_param_to_gems_param_id,
-                cast(dict[tuple[str, str], list[str | bool]], time_dependent_comp_param_to_timeseries_file_name),
-                static_comp_param_to_data_reference,
-            )
-        else:
-            raise ValueError(f"Study type {self.study_type} not supported")
-
-    def _create_gems_components_two_stage_stochastic(
         self,
         constant_data: pd.DataFrame,
         gems_model_id: str,
@@ -197,7 +147,7 @@ class GemsModelBuilder:
         return components
 
 
-    def _create_gems_connections_two_stage_stochastic(
+    def _create_gems_connections(
         self, constant_data: pd.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
     ) -> list[GemsPortConnection]:
         connections = []
@@ -218,14 +168,6 @@ class GemsModelBuilder:
                     )
                 )
         return connections
-
-    def _create_gems_connections(
-        self, constant_data: pd.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
-    ) -> list[GemsPortConnection]:
-        if self.study_type == StudyType.WITH_SCENARIOS:
-            return self._create_gems_connections_two_stage_stochastic(constant_data, pypsa_params_to_gems_connections)
-        else:
-            raise ValueError(f"Study type {self.study_type} not supported")
 
     def convert_pypsa_components_of_given_model(
         self,

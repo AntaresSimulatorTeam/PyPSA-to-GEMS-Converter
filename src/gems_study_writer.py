@@ -60,25 +60,8 @@ class GemsStudyWriter:
             last_time_step=last_time_step,
         ).to_yml(self.study_dir / "systems" / "parameters.yml")
 
-    def write_and_register_timeseries(
-        self,
-        time_dependent_data: dict[str, pd.DataFrame],
-        constant_data: pd.DataFrame,
-        pypsa_components_data: PyPSAComponentData,
-        system_name: str,
-        series_file_format: str,
-    ) -> tuple[
-        dict[tuple[str, str], str | list[str | bool]],
-        dict[tuple[str, str], str | float] | None,
-    ]:
-        if self.study_type == StudyType.WITH_SCENARIOS:
-            return self.write_and_register_time_series_two_stage_stochastic(
-                time_dependent_data, constant_data, pypsa_components_data, system_name, series_file_format
-            )
-        else:
-            raise ValueError(f"Study type {self.study_type} not supported")
 
-    def write_and_register_time_series_two_stage_stochastic(
+    def write_and_register_timeseries(
         self,
         time_dependent_data: dict[str, pd.DataFrame],
         constant_data: pd.DataFrame,
