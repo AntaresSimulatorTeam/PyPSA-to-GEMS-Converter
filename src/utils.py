@@ -47,8 +47,7 @@ def convert_pypsa_version_to_integer(pypsa_version: str) -> int:
 
 
 class StudyType(Enum):
-    DETERMINISTIC = 1
-    WITH_SCENARIOS = 2
+    WITH_SCENARIOS = 1
 
 
 def determine_pypsa_study_type(pypsa_network: Network) -> tuple[StudyType, Network, dict[str, float]]:
@@ -67,5 +66,5 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[StudyType, Netwo
     else:
         pypsa_network._carrier_co2_snapshot = {}
     # No scenarios: add single default scenario so all studies use the same multi-index path
-    pypsa_network.set_scenarios({"low": 1})
+    pypsa_network.set_scenarios({"default": 1})
     return StudyType.WITH_SCENARIOS, pypsa_network, pypsa_network.scenario_weightings

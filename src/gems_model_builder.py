@@ -132,14 +132,7 @@ class GemsModelBuilder:
         time_dependent_comp_param_to_timeseries_file_name: dict[tuple[str, str], str | list[str | bool]],
         static_comp_param_to_data_reference: dict[tuple[str, str], str | float],
     ) -> list[GemsComponent]:
-        if self.study_type == StudyType.DETERMINISTIC:
-            return self._create_gems_components_linear_optimal_power_flow(
-                constant_data,
-                gems_model_id,
-                pypsa_param_to_gems_param_id,
-                cast(dict[tuple[str, str], str], time_dependent_comp_param_to_timeseries_file_name),
-            )
-        elif self.study_type == StudyType.WITH_SCENARIOS:
+        if self.study_type == StudyType.WITH_SCENARIOS:
             return self._create_gems_components_two_stage_stochastic(
                 constant_data,
                 gems_model_id,
@@ -203,27 +196,6 @@ class GemsModelBuilder:
             )
         return components
 
-    def _create_gems_connections_linear_optimal_power_flow(
-        self,
-        constant_data: pd.DataFrame,
-        pypsa_params_to_gems_connections: dict[str, tuple[str, str]],
-    ) -> list[GemsPortConnection]:
-        connections = []
-        for bus_id, (
-            model_port,
-            bus_port,
-        ) in pypsa_params_to_gems_connections.items():
-            buses = constant_data[bus_id].values
-            for component_id, component in enumerate(constant_data.index):
-                connections.append(
-                    GemsPortConnection(
-                        component1=buses[component_id],
-                        port1=bus_port,
-                        component2=component,
-                        port2=model_port,
-                    )
-                )
-        return connections
 
     def _create_gems_connections_two_stage_stochastic(
         self, constant_data: pd.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
@@ -250,11 +222,7 @@ class GemsModelBuilder:
     def _create_gems_connections(
         self, constant_data: pd.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
     ) -> list[GemsPortConnection]:
-        if self.study_type == StudyType.DETERMINISTIC:
-            return self._create_gems_connections_linear_optimal_power_flow(
-                constant_data, pypsa_params_to_gems_connections
-            )
-        elif self.study_type == StudyType.WITH_SCENARIOS:
+        if self.study_type == StudyType.WITH_SCENARIOS:
             return self._create_gems_connections_two_stage_stochastic(constant_data, pypsa_params_to_gems_connections)
         else:
             raise ValueError(f"Study type {self.study_type} not supported")

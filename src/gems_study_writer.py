@@ -71,11 +71,7 @@ class GemsStudyWriter:
         dict[tuple[str, str], str | list[str | bool]],
         dict[tuple[str, str], str | float] | None,
     ]:
-        if self.study_type == StudyType.DETERMINISTIC:
-            return self.write_and_register_timeseries_linear_optimal_power_flow(
-                time_dependent_data, pypsa_components_data, system_name, series_file_format
-            )
-        elif self.study_type == StudyType.WITH_SCENARIOS:
+        if self.study_type == StudyType.WITH_SCENARIOS:
             return self.write_and_register_time_series_two_stage_stochastic(
                 time_dependent_data, constant_data, pypsa_components_data, system_name, series_file_format
             )
@@ -193,41 +189,7 @@ class GemsStudyWriter:
 
         return comp_param_to_scenario_dependent_timeseries_name, comp_param_to_scenario_dependent_static_name
 
-    def write_and_register_timeseries_linear_optimal_power_flow(
-        self,
-        time_dependent_data: dict[str, pd.DataFrame],
-        pypsa_components_data: PyPSAComponentData,
-        system_name: str,
-        series_file_format: str,
-    ) -> tuple[dict[tuple[str, str], str | list[str | bool]], None]:
-        # List of params that may be time-dependent in the pypsa model, among those we want to keep
-        time_dependent_params = set(
-            pypsa_components_data.pypsa_params_to_gems_params
-        ).intersection(  # specific for linear optimal power flow study type
-            set(pypsa_components_data.time_dependent_data.keys())
-        )
 
-        comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]] = {}
-        series_dir = self.study_dir / "systems" / "input" / "data-series"
-
-        if time_dependent_params:
-            series_dir.mkdir(parents=True, exist_ok=True)
-
-        for param in time_dependent_params:
-            param_df = time_dependent_data[param]
-            for component in param_df.columns:
-                timeseries_name = system_name + "_" + component + "_" + param
-
-                comp_param_to_timeseries_name[(component, param)] = timeseries_name
-
-                separator = "," if series_file_format == ".csv" else "\t"
-                param_df[[component]].to_csv(
-                    series_dir / Path(timeseries_name + series_file_format),
-                    index=False,
-                    header=False,
-                    sep=separator,
-                )
-        return comp_param_to_timeseries_name, None
 
     def write_optim_config_yml(self) -> None:
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)

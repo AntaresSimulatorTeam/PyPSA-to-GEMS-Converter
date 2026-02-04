@@ -106,29 +106,10 @@ class PyPSAPreprocessor:
         self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
 
     def _rename_buses(self) -> None:
-        if self.study_type == StudyType.DETERMINISTIC:
-            self._rename_buses_linear_optimal_power_flow()
-        elif self.study_type == StudyType.WITH_SCENARIOS:
+        if self.study_type == StudyType.WITH_SCENARIOS:
             self._rename_buses_two_stage_stochastic_optimization()
         else:
             raise ValueError(f"Study type {self.study_type} not supported")
-
-    def _rename_buses_linear_optimal_power_flow(self) -> None:
-        """Rename buses for linear optimal power flow"""
-        ### Rename PyPSA buses, to delete spaces
-        if len(self.pypsa_network.buses) > 0:
-            self.pypsa_network.buses.index = self.pypsa_network.buses.index.str.replace(" ", "_")
-            for _, val in self.pypsa_network.buses_t.items():
-                val.columns = val.columns.str.replace(" ", "_")
-        ### Update the 'bus' columns for the different types of PyPSA components
-        for component_type in self.pypsa_components:
-            df = getattr(self.pypsa_network, component_type)
-            if len(df) > 0:
-                for col in ["bus", "bus0", "bus1"]:
-                    if col in df.columns:
-                        df[col] = df[col].str.replace(" ", "_")
-
-        self._rename_buses_in_components()
 
     def _rename_buses_two_stage_stochastic_optimization(self) -> None:
         """Rename buses for two-stage stochastic optimization studies.
@@ -167,23 +148,10 @@ class PyPSAPreprocessor:
                         df[col] = df[col].str.replace(" ", "_")
 
     def _rename_pypsa_component(self, component_type: str) -> None:
-        if self.study_type == StudyType.DETERMINISTIC:
-            self._rename_pypsa_components_linear_optimal_power_flow(component_type)
-        elif self.study_type == StudyType.WITH_SCENARIOS:
+        if self.study_type == StudyType.WITH_SCENARIOS:
             self._rename_pypsa_components_two_stage_stochastic_optimization(component_type)
         else:
             raise ValueError(f"Study type {self.study_type} not supported")
-
-    def _rename_pypsa_components_linear_optimal_power_flow(self, component_type: str) -> None:
-        df = getattr(self.pypsa_network, component_type)
-        if len(df) == 0:
-            return
-        ### Rename PyPSA components, to make sure that the names are uniques (used as id in the Gems model)
-        prefix = component_type[:-1]
-        df.index = prefix + "_" + df.index.str.replace(" ", "_")
-        dictionnary = getattr(self.pypsa_network, component_type + "_t")
-        for _, val in dictionnary.items():
-            val.columns = prefix + "_" + val.columns.str.replace(" ", "_")
 
     def _rename_pypsa_components_two_stage_stochastic_optimization(self, component_type: str) -> None:
         df = getattr(self.pypsa_network, component_type)
