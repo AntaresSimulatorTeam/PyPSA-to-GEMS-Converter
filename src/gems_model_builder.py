@@ -10,24 +10,11 @@
 #
 # This file is part of the Antares project.
 import logging
-import math
-from typing import Any
 
 import pandas as pd
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
-
-
-def _sanitize_parameter_value(value: Any) -> Any:
-    """Replace NaN/None numeric values with 0, leave strings unchanged."""
-    if isinstance(value, str):
-        return value
-    if value is None or (isinstance(value, float) and math.isnan(value)):
-        return 0.0
-    if pd.isna(value):
-        return 0.0
-    return value
 
 
 class GemsModelBuilder:
@@ -54,7 +41,7 @@ class GemsModelBuilder:
                         id="quota",
                         time_dependent=False,
                         scenario_dependent=False,
-                        value=_sanitize_parameter_value(pypsa_gc_data.pypsa_constant),
+                        value=pypsa_gc_data.pypsa_constant,
                     )
                 ],
             )
