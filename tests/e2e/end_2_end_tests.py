@@ -92,9 +92,7 @@ def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lin
         pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
 
-    assert math.isclose(
-        get_original_pypsa_study_objective(network), get_gems_study_objective(study_name), rel_tol=1e-6
-    )
+    assert math.isclose(get_original_pypsa_study_objective(network), get_gems_study_objective(study_name), rel_tol=1e-6)
 
 
 def test_load_gen() -> None:

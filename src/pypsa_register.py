@@ -9,6 +9,8 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
+from typing import cast
+
 import pandas as pd
 from pypsa import Network
 
@@ -177,17 +179,18 @@ class PyPSARegister:
             )
 
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
-            name, sense, carrier_attribute = (
-                pypsa_model_id,
-                self.pypsa_network.global_constraints.loc[pypsa_model_id, "sense"],
-                self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"],
+            name = str(pypsa_model_id)
+            sense = cast(str, self.pypsa_network.global_constraints.loc[pypsa_model_id, "sense"])
+            carrier_attribute = cast(
+                str, self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"]
             )
+            constant = cast(float, self.pypsa_network.global_constraints.loc[pypsa_model_id, "constant"])
             if carrier_attribute == "co2_emissions" and sense == "<=":
                 self.pypsa_globalconstraints_data[pypsa_model_id] = PyPSAGlobalConstraintData(
                     name,
                     carrier_attribute,
                     sense,
-                    self.pypsa_network.global_constraints.loc[pypsa_model_id, "constant"],
+                    constant,
                     "global_constraint_co2_max",
                     "emission_port",
                     gems_components_and_ports,
@@ -197,7 +200,7 @@ class PyPSARegister:
                     name,
                     carrier_attribute,
                     sense,
-                    self.pypsa_network.global_constraints.loc[pypsa_model_id, "constant"],
+                    constant,
                     "global_constraint_co2_eq",
                     "emission_port",
                     gems_components_and_ports,

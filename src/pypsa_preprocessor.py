@@ -10,6 +10,7 @@
 #
 # This file is part of the Antares project.
 from math import inf
+from typing import Any
 
 import pandas as pd
 from pypsa import Network
@@ -17,17 +18,18 @@ from pypsa import Network
 from src.utils import any_to_float
 
 
-def _carrier_scalar(val) -> str:
-    """Extract scalar carrier name; PyPSA with scenarios may store carrier as array per row."""
+def _carrier_scalar(val: Any) -> str:
+    """Extract scalar carrier name (PyPSA with scenarios store carrier as array per row)."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return "null"
     if isinstance(val, str):
         return val
-    if hasattr(val, "__len__") and not isinstance(val, str):
+    try:
         if len(val) == 0:
             return "null"
         return _carrier_scalar(val[0])
-    return str(val)
+    except Exception:
+        return str(val)
 
 
 class PyPSAPreprocessor:
@@ -56,18 +58,18 @@ class PyPSAPreprocessor:
         assert len(self.pypsa_network.investment_periods) == 0
         assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
         checks = [
-        ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
-        ("generators", "active", 1, "Generators", "active = 1"),
-        ("generators", "committable", False, "Generators", "commitable = False"),
-        ("loads", "active", 1, "Loads", "active = 1"),
-        ("links", "active", 1, "Links", "active = 1"),
-        ("storage_units", "sign", 1, "Storage Units", "sign = 1"),
-        ("storage_units", "cyclic_state_of_charge", 1, "Storage Units", "cyclic_state_of_charge"),
-        ("storage_units", "marginal_cost_quadratic", 0, "Storage Units", "linear cost"),
-        ("stores", "sign", 1, "Stores", "sign = 1"),
-        ("stores", "e_cyclic", 1, "Stores", "e_cyclic = True"),
-        ("stores", "marginal_cost_quadratic", 0, "Stores", "linear cost"),
-    ]
+            ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
+            ("generators", "active", 1, "Generators", "active = 1"),
+            ("generators", "committable", False, "Generators", "commitable = False"),
+            ("loads", "active", 1, "Loads", "active = 1"),
+            ("links", "active", 1, "Links", "active = 1"),
+            ("storage_units", "sign", 1, "Storage Units", "sign = 1"),
+            ("storage_units", "cyclic_state_of_charge", 1, "Storage Units", "cyclic_state_of_charge"),
+            ("storage_units", "marginal_cost_quadratic", 0, "Storage Units", "linear cost"),
+            ("stores", "sign", 1, "Stores", "sign = 1"),
+            ("stores", "e_cyclic", 1, "Stores", "e_cyclic = True"),
+            ("stores", "marginal_cost_quadratic", 0, "Stores", "linear cost"),
+        ]
 
         for component_type, col, expected, type_label, desc in checks:
             c = getattr(self.pypsa_network.components, component_type)
@@ -78,7 +80,7 @@ class PyPSAPreprocessor:
 
         if len(self.pypsa_network.components.lines.static) != 0:
             raise ValueError("Converter does not support Lines yet")
-        
+
         ### PyPSA components : GlobalConstraint
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
@@ -123,7 +125,7 @@ class PyPSAPreprocessor:
 
         # Build old_name -> new_name mapping
         index = component.static.index
-        names = index.get_level_values(-1) #if isinstance(index, pd.MultiIndex) else index
+        names = index.get_level_values(-1)  # if isinstance(index, pd.MultiIndex) else index
         rename_map = {name: f"{prefix}_{str(name).replace(' ', '_')}" for name in names}
 
         if not rename_map:
@@ -138,12 +140,10 @@ class PyPSAPreprocessor:
             level_vals = df.columns.get_level_values(-1)
             new_vals = level_vals.map(lambda x: rename_map.get(x, x))
             new_columns = pd.MultiIndex.from_arrays(
-                [df.columns.get_level_values(i) for i in range(df.columns.nlevels - 1)]
-                + [new_vals],
+                [df.columns.get_level_values(i) for i in range(df.columns.nlevels - 1)] + [new_vals],
                 names=df.columns.names,
             )
             component.dynamic[key].columns = new_columns
-
 
     def _fix_capacity_non_extendable_attribute(self, component_type: str, capa_str: str) -> None:
         df = getattr(self.pypsa_network, component_type)
@@ -169,15 +169,12 @@ class PyPSAPreprocessor:
             rsuffix="_carrier",
         )
         # Set co2_emissions from scalar carrier map (join with MultiIndex left can yield NaN).
-        # Prefer snapshot taken before set_scenarios; PyPSA may overwrite carrier co2_emissions after expansion.
+        # Prefer snapshot taken before set_scenarios;
+        # PyPSA overwrite carrier co2_emissions after expansion.
         co2_map = getattr(self.pypsa_network, "_carrier_co2_snapshot", None)
         if co2_map is None and "co2_emissions" in self.pypsa_network.carriers.columns:
             carriers_df = self.pypsa_network.carriers
-            idx = carriers_df.index
-            if isinstance(idx, pd.MultiIndex):
-                names = idx.get_level_values(-1)
-            else:
-                names = idx
+            names = carriers_df.index
             co2_map = {}
             for i in range(len(carriers_df)):
                 k = str(names[i])
@@ -195,7 +192,7 @@ class PyPSAPreprocessor:
         setattr(self.pypsa_network, component_type, joined)
 
         self._rename_pypsa_component(component_type)
-        
+
         if non_extendable:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 

@@ -58,7 +58,6 @@ class GemsStudyWriter:
             last_time_step=last_time_step,
         ).to_yml(self.study_dir / "systems" / "parameters.yml")
 
-
     def _write_and_register_timeseries(
         self,
         time_dependent_data: dict[str, pd.DataFrame],
@@ -109,24 +108,14 @@ class GemsStudyWriter:
             set(constant_data.keys())
         )
         comp_param_to_scenario_dependent_static_name: dict[tuple[str, str], str | float] = {}
-        index_is_multi = isinstance(constant_data.index, pd.MultiIndex) and constant_data.index.nlevels >= 2
 
         for param in scenarized_static_params:
             param_series = constant_data[param]
-
-
-            if index_is_multi:
-                component_names = param_series.index.get_level_values(1).unique()
-            else:
-                component_names = param_series.index.unique()
+            component_names = param_series.index.get_level_values(1).unique()
 
             for component in component_names:
                 if (component, param) not in comp_param_static_scenarized_indicator:
-                    if index_is_multi:
-                        component_values = param_series.loc[(slice(None), component)]
-                    else:
-                        cv = param_series.loc[component]
-                        component_values = cv if hasattr(cv, "index") and hasattr(cv.index, "get_level_values") else pd.Series([cv])
+                    component_values = param_series.loc[(slice(None), component)]
 
                     # prevent of making multiple unnecessary ts files
                     if len(set(component_values)) > 1:
@@ -146,7 +135,6 @@ class GemsStudyWriter:
                         )
                     else:
                         component_value = list(set(component_values))[0]
-                        
 
                         if pd.isna(component_value):
                             component_value = 0.0

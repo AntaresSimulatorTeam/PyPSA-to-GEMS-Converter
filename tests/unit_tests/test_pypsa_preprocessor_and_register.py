@@ -80,6 +80,7 @@ def test_preprocessor_renames_buses_scenarios(scenario_network: Network) -> None
     assert "bus_1" in scenario_network.buses.index.get_level_values(1)
     assert all(" " not in b for b in scenario_network.buses.index.get_level_values(1))
 
+
 def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> None:
     PyPSAPreprocessor(scenario_network).network_preprocessing()
     components, global_constraints = PyPSARegister(scenario_network).register()

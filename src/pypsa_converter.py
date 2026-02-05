@@ -48,9 +48,7 @@ class PyPSAStudyConverter:
         # Preprocess the network
         self.pypsa_network = PyPSAPreprocessor(self.pypsa_network).network_preprocessing()
         # Register the PyPSA components and global constraints
-        self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(
-            self.pypsa_network
-        ).register()
+        self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(self.pypsa_network).register()
 
     def to_gems_study(self) -> None:
         """Main function, to export PyPSA as Gems study"""
@@ -95,7 +93,7 @@ class PyPSAStudyConverter:
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
         gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
         # Write optim_config.yml if there are scenarios
-        # One scenario -> deterministic study 
+        # One scenario -> deterministic study
         if len(self.scenario_weightings.keys()) > 1:
             gems_study_writer.write_optim_config_yml()
         self.logger.info("Study conversion completed!")
