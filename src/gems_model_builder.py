@@ -11,7 +11,7 @@
 # This file is part of the Antares project.
 import logging
 
-import pandas as pd
+import polars as pl
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
@@ -61,15 +61,17 @@ class GemsModelBuilder:
 
     def _create_gems_components(
         self,
-        constant_data: pd.DataFrame,
+        constant_data: pl.DataFrame,
         gems_model_id: str,
         pypsa_params_to_gems_params: dict[str, str],
         comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]],
         comp_param_to_static_name: dict[tuple[str, str], str | float],
     ) -> list[GemsComponent]:
-        components = []
-        # Get unique component names from level 1 (component name level)
-        component_names = constant_data.index.get_level_values(1).unique()
+        components: list[GemsComponent] = []
+        if len(constant_data) == 0 or "component" not in constant_data.columns:
+            return components
+        # Get unique component names (order of first appearance)
+        component_names = constant_data["component"].unique(maintain_order=True)
 
         for component in component_names:
             components.append(
@@ -104,20 +106,24 @@ class GemsModelBuilder:
         return components
 
     def _create_gems_connections(
-        self, constant_data: pd.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
+        self, constant_data: pl.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
     ) -> list[GemsPortConnection]:
-        connections = []
-        for bus_id, (model_port, bus_port) in pypsa_params_to_gems_connections.items():
-            buses = constant_data[bus_id].values
+        connections: list[GemsPortConnection] = []
+        if len(constant_data) == 0 or "component" not in constant_data.columns:
+            return connections
+        component_names = constant_data["component"].unique(maintain_order=True)
+        # First bus per component (by scenario order) for each bus_id we need
+        first_per_component = constant_data.sort("scenario").group_by("component").first()
 
-            component_names = constant_data.index.get_level_values(1).unique()
-            for component in component_names:
-                # Get the first index position for this component (use first scenario)
-                component_indices = constant_data.index.get_level_values(1) == component
-                first_idx = component_indices.argmax()
+        for bus_id, (model_port, bus_port) in pypsa_params_to_gems_connections.items():
+            order_df = pl.DataFrame({"component": component_names})
+            buses_df = order_df.join(first_per_component.select(["component", bus_id]), on="component", how="left")
+            buses = buses_df[bus_id].to_list()
+
+            for i, component in enumerate(component_names):
                 connections.append(
                     GemsPortConnection(
-                        component1=buses[first_idx],
+                        component1=buses[i],
                         port1=bus_port,
                         component2=component,
                         port2=model_port,

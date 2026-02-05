@@ -15,6 +15,7 @@ import pandas as pd
 from pypsa import Network
 
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
+from src.utils import dynamic_dict_pypsa_to_polars, static_pypsa_to_polars
 
 
 class PyPSARegister:
@@ -155,10 +156,14 @@ class PyPSARegister:
         if pypsa_model_id in self.pypsa_components_data:
             raise ValueError(f"{pypsa_model_id} already registered !")
 
+        # Convert PyPSA pandas DataFrames to Polars for internal use
+        constant_data_pl = static_pypsa_to_polars(constant_data)
+        time_dependent_data_pl = dynamic_dict_pypsa_to_polars(time_dependent_data)
+
         self.pypsa_components_data[pypsa_model_id] = PyPSAComponentData(
             pypsa_model_id,
-            constant_data,
-            time_dependent_data,
+            constant_data_pl,
+            time_dependent_data_pl,
             gems_model_id,
             pypsa_params_to_gems_params,
             pypsa_params_to_gems_connections,

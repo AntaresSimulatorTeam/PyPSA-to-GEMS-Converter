@@ -9,9 +9,12 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
+from __future__ import annotations
+
 from typing import Any, cast
 
 import pandas as pd
+import polars as pl
 from pypsa import Network
 
 PYPSA_CONVERTER_MAX_FLOAT = 100_000_000_000
@@ -56,3 +59,66 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[st
     # No scenarios: add single default scenario so all studies use the same multi-index path
     pypsa_network.set_scenarios({"default": 1})
     return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
+
+
+# --- PyPSA pandas to Polars conversion (PyPSA objects stay as pandas) ---
+
+
+def _flatten_multiindex_columns(cols: pd.MultiIndex, sep: str = "__") -> list[str]:
+    """Convert MultiIndex columns to flat names: (scenario, component) -> 'scenario__component'."""
+    return [sep.join(str(c) for c in level_vals) for level_vals in cols]
+
+
+def _make_columns_unique(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure column names are unique; Polars requires unique string names."""
+    cols = df.columns.astype(str)
+    if len(cols) == len(set(cols)):
+        return df
+    seen: dict[str, int] = {}
+    new_names: list[str] = []
+    for c in cols:
+        count = seen.get(c, 0)
+        seen[c] = count + 1
+        new_names.append(f"{c}_{count}" if count else c)
+    return df.set_axis(new_names, axis="columns")
+
+
+def static_pypsa_to_polars(static_df: pd.DataFrame) -> pl.DataFrame:
+    """
+    Convert PyPSA static DataFrame (MultiIndex index = (scenario, component), columns = params)
+    to Polars with columns [scenario, component, ...param_names].
+    """
+    if static_df.empty:
+        return pl.DataFrame()
+    df = static_df.reset_index()
+    # Normalize first two columns to scenario, component for internal use
+    rename = {df.columns[0]: "scenario", df.columns[1]: "component"}
+    df = df.rename(columns=rename)
+    df = _make_columns_unique(df)
+    return pl.from_pandas(df)
+
+
+def dynamic_pypsa_to_polars(dynamic_df: pd.DataFrame, column_sep: str = "__") -> pl.DataFrame:
+    """
+    Convert PyPSA dynamic DataFrame (index = time/snapshots, columns = MultiIndex (scenario, component))
+    to Polars with columns [time_step, scenario__component_1, scenario__component_2, ...].
+    """
+    if dynamic_df.empty:
+        return pl.DataFrame()
+    df = dynamic_df.copy()
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df.set_axis(_flatten_multiindex_columns(df.columns, sep=column_sep), axis=1)
+    df = df.reset_index()
+    if df.columns[0] != "time_step" and df.columns[0] != "index":
+        df = df.rename(columns={df.columns[0]: "time_step"})
+    elif df.columns[0] == "index":
+        df = df.rename(columns={"index": "time_step"})
+    df = _make_columns_unique(df)
+    return pl.from_pandas(df)
+
+
+def dynamic_dict_pypsa_to_polars(
+    dynamic_dict: dict[str, pd.DataFrame], column_sep: str = "__"
+) -> dict[str, pl.DataFrame]:
+    """Convert dict of PyPSA dynamic DataFrames to dict of Polars DataFrames."""
+    return {key: dynamic_pypsa_to_polars(df, column_sep=column_sep) for key, df in dynamic_dict.items()}

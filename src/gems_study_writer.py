@@ -9,10 +9,11 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
+import math
 import shutil
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection, GemsSystem
 from src.models.modeler_parameter_yml_schema import ModelerParameters
@@ -60,8 +61,8 @@ class GemsStudyWriter:
 
     def _write_and_register_timeseries(
         self,
-        time_dependent_data: dict[str, pd.DataFrame],
-        constant_data: pd.DataFrame,
+        time_dependent_data: dict[str, pl.DataFrame],
+        constant_data: pl.DataFrame,
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
         series_file_format: str,
@@ -79,12 +80,18 @@ class GemsStudyWriter:
         if scenarized_time_dependent_params:
             series_dir.mkdir(parents=True, exist_ok=True)
 
+        _COLUMN_SEP = "__"
+
         for param in scenarized_time_dependent_params:
             param_df = time_dependent_data[param]
-            component_names = param_df.columns.get_level_values(1).unique()
+            # Columns are time_step + "scenario__component"; get unique component names (order preserved)
+            data_cols = [c for c in param_df.columns if c != "time_step"]
+            component_names = list(dict.fromkeys(c.split(_COLUMN_SEP, 1)[-1] for c in data_cols))
+
             for component in component_names:
-                component_data = param_df.loc[:, (slice(None), component)]
-                multiple_scenario_indicator = len(component_data.columns) > 1
+                comp_cols = [c for c in data_cols if c.split(_COLUMN_SEP, 1)[-1] == component]
+                component_data = param_df.select(comp_cols)
+                multiple_scenario_indicator = len(comp_cols) > 1
 
                 comp_param_static_scenarized_indicator.add((component, param))
 
@@ -97,46 +104,45 @@ class GemsStudyWriter:
 
                 separator = "," if series_file_format == ".csv" else "\t"
 
-                component_data.to_csv(
+                component_data.write_csv(
                     series_dir / Path(f"{timeseries_name}{series_file_format}"),
-                    index=False,
-                    header=False,
-                    sep=separator,
+                    include_header=False,
+                    separator=separator,
                 )
 
         scenarized_static_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
-            set(constant_data.keys())
+            set(constant_data.columns)
         )
         comp_param_to_scenario_dependent_static_name: dict[tuple[str, str], str | float] = {}
 
         for param in scenarized_static_params:
-            param_series = constant_data[param]
-            component_names = param_series.index.get_level_values(1).unique()
+            static_component_names = constant_data["component"].unique(maintain_order=True).to_list()
 
-            for component in component_names:
+            for component in static_component_names:
                 if (component, param) not in comp_param_static_scenarized_indicator:
-                    component_values = param_series.loc[(slice(None), component)]
+                    comp_df = constant_data.filter(pl.col("component") == component)
+                    component_values = comp_df[param].to_list()
 
                     # prevent of making multiple unnecessary ts files
                     if len(set(component_values)) > 1:
-                        scenario_data = pd.DataFrame(
-                            [component_values.values], columns=component_values.index.get_level_values(0)
-                        )
+                        scenario_names = comp_df["scenario"].to_list()
+                        scenario_data = pl.DataFrame({str(s): [v] for s, v in zip(scenario_names, component_values)})
 
                         timeseries_name = f"{system_name}_{component}_{param}"
                         comp_param_to_scenario_dependent_static_name[(component, param)] = timeseries_name
 
                         separator = "," if series_file_format == ".csv" else "\t"
-                        scenario_data.to_csv(
+                        scenario_data.write_csv(
                             series_dir / Path(f"{timeseries_name}{series_file_format}"),
-                            index=False,
-                            header=False,
-                            sep=separator,
+                            include_header=False,
+                            separator=separator,
                         )
                     else:
                         component_value = list(set(component_values))[0]
 
-                        if pd.isna(component_value):
+                        if component_value is None or (
+                            isinstance(component_value, float) and math.isnan(component_value)
+                        ):
                             component_value = 0.0
                         elif component_value == float("inf"):
                             component_value = 1e20

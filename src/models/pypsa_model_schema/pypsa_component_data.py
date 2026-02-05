@@ -12,14 +12,14 @@
 
 from dataclasses import dataclass
 
-import pandas as pd
+import polars as pl
 
 
 @dataclass
 class PyPSAComponentData:
     pypsa_model_id: str
-    constant_data: pd.DataFrame
-    time_dependent_data: dict[str, pd.DataFrame]
+    constant_data: pl.DataFrame
+    time_dependent_data: dict[str, pl.DataFrame]
     gems_model_id: str
     pypsa_params_to_gems_params: dict[str, str]
     pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
@@ -31,6 +31,8 @@ class PyPSAComponentData:
             self._check_key_in_constant_data(key)
 
     def _check_key_in_constant_data(self, key: str) -> None:
+        if len(self.constant_data) == 0:
+            return
         if key not in self.constant_data.columns:
             raise ValueError(
                 f"Parameter {key} not available in constant data, defining all available parameters for model {self.pypsa_model_id}"
