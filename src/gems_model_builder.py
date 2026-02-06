@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -11,19 +11,16 @@
 # This file is part of the Antares project.
 import logging
 
-import pandas as pd
+import polars as pl
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection
 from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstraintData
-from src.utils import StudyType, any_to_float
 
 
 class GemsModelBuilder:
-    def __init__(self, pypsalib_id: str, study_type: StudyType):
+    def __init__(self, pypsalib_id: str):
         self.pypsalib_id = pypsalib_id
         self.logger = logging.getLogger(__name__)
-        self.study_type = study_type
-
 
     def _convert_pypsa_globalconstraint(
         self, pypsa_gc_data: PyPSAGlobalConstraintData
@@ -34,9 +31,10 @@ class GemsModelBuilder:
         """
 
         self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
+
         components = [
             GemsComponent(
-                id=pypsa_gc_data.pypsa_name,
+                id=pypsa_gc_data.pypsa_name[1],
                 model=f"{self.pypsalib_id}.{pypsa_gc_data.gems_model_id}",
                 parameters=[
                     GemsComponentParameter(
@@ -52,9 +50,9 @@ class GemsModelBuilder:
         for component_id, port_id in pypsa_gc_data.gems_components_and_ports:
             connections.append(
                 GemsPortConnection(
-                    component1=pypsa_gc_data.pypsa_name,
+                    component1=pypsa_gc_data.pypsa_name[1],
                     port1=pypsa_gc_data.gems_port_id,
-                    component2=component_id,
+                    component2=component_id[1],
                     port2=port_id,
                 )
             )
@@ -63,55 +61,69 @@ class GemsModelBuilder:
 
     def _create_gems_components(
         self,
-        constant_data: pd.DataFrame,
+        constant_data: pl.DataFrame,
         gems_model_id: str,
         pypsa_params_to_gems_params: dict[str, str],
-        comp_param_to_timeseries_name: dict[tuple[str, str], str],
+        comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]],
+        comp_param_to_static_name: dict[tuple[str, str], str | float],
     ) -> list[GemsComponent]:
-        """
-        Create GemsComponents
-        This function needs to be adapted to the different study types
-        """
-        components = []
-        # This if is currently here as reminder for adaptation
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
-            for component in constant_data.index:
-                components.append(
-                    GemsComponent(
-                        id=component,
-                        model=f"{self.pypsalib_id}.{gems_model_id}",
-                        parameters=[
-                            GemsComponentParameter(
-                                id=pypsa_params_to_gems_params[param],
-                                time_dependent=(component, param) in comp_param_to_timeseries_name,
-                                scenario_dependent=False,  # TODO: Add scenario dependent
-                                value=(
-                                    comp_param_to_timeseries_name[(component, param)]
-                                    if (component, param) in comp_param_to_timeseries_name
-                                    else any_to_float(constant_data.loc[component, param])
-                                ),
-                            )
-                            for param in pypsa_params_to_gems_params
-                        ],
-                    )
+        components: list[GemsComponent] = []
+        if len(constant_data) == 0 or "component" not in constant_data.columns:
+            return components
+        # Get unique component names (order of first appearance)
+        component_names = constant_data["component"].unique(maintain_order=True)
+
+        for component in component_names:
+            components.append(
+                GemsComponent(
+                    id=component,
+                    model=f"{self.pypsalib_id}.{gems_model_id}",
+                    parameters=[
+                        GemsComponentParameter(
+                            id=pypsa_params_to_gems_params[param],
+                            time_dependent=(component, param) in comp_param_to_timeseries_name,
+                            scenario_dependent=(
+                                (
+                                    (component, param) in comp_param_to_static_name
+                                    and isinstance(
+                                        comp_param_to_static_name[(component, param)],
+                                        str,
+                                    )
+                                )
+                                or (
+                                    (component, param) in comp_param_to_timeseries_name
+                                    and comp_param_to_timeseries_name[(component, param)][1]
+                                )
+                            ),
+                            value=comp_param_to_timeseries_name[(component, param)][0]
+                            if (component, param) in comp_param_to_timeseries_name
+                            else comp_param_to_static_name.get((component, param)),
+                        )
+                        for param in pypsa_params_to_gems_params
+                    ],
                 )
+            )
         return components
 
     def _create_gems_connections(
-        self,
-        constant_data: pd.DataFrame,
-        pypsa_params_to_gems_connections: dict[str, tuple[str, str]],
+        self, constant_data: pl.DataFrame, pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
     ) -> list[GemsPortConnection]:
-        connections = []
-        for bus_id, (
-            model_port,
-            bus_port,
-        ) in pypsa_params_to_gems_connections.items():
-            buses = constant_data[bus_id].values
-            for component_id, component in enumerate(constant_data.index):
+        connections: list[GemsPortConnection] = []
+        if len(constant_data) == 0 or "component" not in constant_data.columns:
+            return connections
+        component_names = constant_data["component"].unique(maintain_order=True)
+        # First bus per component (by scenario order) for each bus_id we need
+        first_per_component = constant_data.sort("scenario").group_by("component").first()
+
+        for bus_id, (model_port, bus_port) in pypsa_params_to_gems_connections.items():
+            order_df = pl.DataFrame({"component": component_names})
+            buses_df = order_df.join(first_per_component.select(["component", bus_id]), on="component", how="left")
+            buses = buses_df[bus_id].to_list()
+
+            for i, component in enumerate(component_names):
                 connections.append(
                     GemsPortConnection(
-                        component1=buses[component_id],
+                        component1=buses[i],
                         port1=bus_port,
                         component2=component,
                         port2=model_port,
@@ -120,7 +132,10 @@ class GemsModelBuilder:
         return connections
 
     def convert_pypsa_components_of_given_model(
-        self, pypsa_components_data: PyPSAComponentData, comp_param_to_timeseries_name: dict[tuple[str, str], str]
+        self,
+        pypsa_components_data: PyPSAComponentData,
+        comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]],
+        comp_param_to_static_name: dict[tuple[str, str], str | float],
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
         """
         Generic function to handle the different PyPSA classes
@@ -137,5 +152,6 @@ class GemsModelBuilder:
             pypsa_components_data.gems_model_id,
             pypsa_components_data.pypsa_params_to_gems_params,
             comp_param_to_timeseries_name,
+            comp_param_to_static_name,
         )
         return components, connections

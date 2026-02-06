@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -10,16 +10,31 @@
 #
 # This file is part of the Antares project.
 from math import inf
+from typing import Any
 
+import pandas as pd
 from pypsa import Network
 
-from src.utils import StudyType, any_to_float
+from src.utils import any_to_float
+
+
+def _carrier_scalar(val: Any) -> str:
+    """Extract scalar carrier name (PyPSA with scenarios store carrier as array per row)."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return "null"
+    if isinstance(val, str):
+        return val
+    try:
+        if len(val) == 0:
+            return "null"
+        return _carrier_scalar(val[0])
+    except Exception:
+        return str(val)
 
 
 class PyPSAPreprocessor:
-    def __init__(self, pypsa_network: Network, study_type: StudyType):
+    def __init__(self, pypsa_network: Network):
         self.pypsa_network = pypsa_network
-        self.study_type = study_type
         self.pypsa_components = [
             "buses",
             "loads",
@@ -32,50 +47,40 @@ class PyPSAPreprocessor:
         ]
 
     def network_preprocessing(self) -> Network:
-        self._pypsa_network_assertion()
+        self._check_converter_limitations()
         self._add_fictitious_carrier()
         self._rename_buses()
         self._preprocess_pypsa_components()
         return self.pypsa_network
 
-    def _pypsa_network_assertion(self) -> None:
+    def _check_converter_limitations(self) -> None:
         """Assertion function to keep trace of the limitations of the converter"""
         assert len(self.pypsa_network.investment_periods) == 0
         assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
-        ### PyPSA components : Generators
-        if not (all((self.pypsa_network.generators["marginal_cost_quadratic"] == 0))):
-            raise ValueError("Converter supports only Generators with linear cost")
-        if not (all((self.pypsa_network.generators["active"] == 1))):
-            raise ValueError("Converter supports only Generators with active = 1")
-        if not (all((self.pypsa_network.generators["committable"] == False))):
-            raise ValueError("Converter supports only Generators with commitable = False")
-        ### PyPSA components : Loads
-        if not (all((self.pypsa_network.loads["active"] == 1))):
-            raise ValueError("Converter supports only Loads with active = 1")
-        ### PyPSA components : Links
-        if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError("Converter supports only Links with active = 1")
-        ### PyPSA components : Lines
-        if not len(self.pypsa_network.lines) == 0:
+        checks = [
+            ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
+            ("generators", "active", 1, "Generators", "active = 1"),
+            ("generators", "committable", False, "Generators", "commitable = False"),
+            ("loads", "active", 1, "Loads", "active = 1"),
+            ("links", "active", 1, "Links", "active = 1"),
+            ("storage_units", "sign", 1, "Storage Units", "sign = 1"),
+            ("storage_units", "cyclic_state_of_charge", 1, "Storage Units", "cyclic_state_of_charge"),
+            ("storage_units", "marginal_cost_quadratic", 0, "Storage Units", "linear cost"),
+            ("stores", "sign", 1, "Stores", "sign = 1"),
+            ("stores", "e_cyclic", 1, "Stores", "e_cyclic = True"),
+            ("stores", "marginal_cost_quadratic", 0, "Stores", "linear cost"),
+        ]
+
+        for component_type, col, expected, type_label, desc in checks:
+            c = getattr(self.pypsa_network.components, component_type)
+            if len(c.static) == 0:
+                continue
+            if not all(c.static[col] == expected):
+                raise ValueError(f"Converter supports only {type_label} with {desc}")
+
+        if len(self.pypsa_network.components.lines.static) != 0:
             raise ValueError("Converter does not support Lines yet")
-        ### PyPSA components : Storage Units
-        if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError("Converter supports only Storage Units with active = 1")
-        if not (all((self.pypsa_network.storage_units["sign"] == 1))):
-            raise ValueError("Converter supports only Storage Units with sign = 1")
-        if not (all((self.pypsa_network.storage_units["cyclic_state_of_charge"] == 1))):
-            raise ValueError("Converter supports only Storage Units with cyclic_state_of_charge")
-        if not (all((self.pypsa_network.storage_units["marginal_cost_quadratic"] == 0))):
-            raise ValueError("Converter supports only Storage Units with linear cost")
-        ### PyPSA components : Stores
-        if not (all((self.pypsa_network.links["active"] == 1))):
-            raise ValueError("Converter supports only Stores with active = 1")
-        if not (all((self.pypsa_network.stores["sign"] == 1))):
-            raise ValueError("Converter supports only Stores with sign = 1")
-        if not (all((self.pypsa_network.stores["e_cyclic"] == 1))):
-            raise ValueError("Converter supports only Stores with e_cyclic = True")
-        if not (all((self.pypsa_network.stores["marginal_cost_quadratic"] == 0))):
-            raise ValueError("Converter supports only Stores with linear cost")
+
         ### PyPSA components : GlobalConstraint
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
@@ -92,45 +97,53 @@ class PyPSAPreprocessor:
         self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
 
     def _rename_buses(self) -> None:
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
-            self._rename_buses_linear_optimal_power_flow()
-        else:
-            raise ValueError(f"Study type {self.study_type} not supported")
+        """
+        Rename buses Handles MultiIndex cases (with scenarios).
+        """
+        c = self.pypsa_network.components.buses
+        if len(c.static) == 0:
+            return
 
-    def _rename_buses_linear_optimal_power_flow(self) -> None:
-        """Rename buses for linear optimal power flow"""
-        # #TODO: This function needs to be adapted to the study type
-        # #Current: implementation is only for linear optimal power flow
-        #
-        ### Rename PyPSA buses, to delete spaces
-        if len(self.pypsa_network.buses) > 0:
-            self.pypsa_network.buses.index = self.pypsa_network.buses.index.str.replace(" ", "_")
-            for _, val in self.pypsa_network.buses_t.items():
-                val.columns = val.columns.str.replace(" ", "_")
-        ### Update the 'bus' columns for the different types of PyPSA components
-        for component_type in self.pypsa_components:
-            df = getattr(self.pypsa_network, component_type)
-            if len(df) > 0:
-                for col in ["bus", "bus0", "bus1"]:
-                    if col in df.columns:
-                        df[col] = df[col].str.replace(" ", "_")
+        index = c.static.index
+        names = index.get_level_values(-1) if isinstance(index, pd.MultiIndex) else index
+        rename_map = {name: str(name).replace(" ", "_") for name in names if " " in str(name)}
+
+        if rename_map:
+            c.rename_component_names(**rename_map)
 
     def _rename_pypsa_component(self, component_type: str) -> None:
-        if self.study_type == StudyType.LINEAR_OPTIMAL_POWER_FLOW:
-            self._rename_pypsa_components_linear_optimal_power_flow(component_type)
-        else:
-            raise ValueError(f"Study type {self.study_type} not supported")
+        """
+        Rename PyPSA components to ensure unique names (used as id in the GEMS model)
+        by adding prefix and replacing spaces with underscores.
+        """
+        component = getattr(self.pypsa_network.components, component_type)
 
-    def _rename_pypsa_components_linear_optimal_power_flow(self, component_type: str) -> None:
-        df = getattr(self.pypsa_network, component_type)
-        if len(df) == 0:
+        if len(component.static) == 0:
             return
-        ### Rename PyPSA components, to make sure that the names are uniques (used as id in the Gems model)
-        prefix = component_type[:-1]
-        df.index = prefix + "_" + df.index.str.replace(" ", "_")
-        dictionnary = getattr(self.pypsa_network, component_type + "_t")
-        for _, val in dictionnary.items():
-            val.columns = prefix + "_" + val.columns.str.replace(" ", "_")
+
+        prefix = component_type[:-1]  # generators->generator, storage_units->storage_unit
+
+        # Build old_name -> new_name mapping
+        index = component.static.index
+        names = index.get_level_values(-1)  # if isinstance(index, pd.MultiIndex) else index
+        rename_map = {name: f"{prefix}_{str(name).replace(' ', '_')}" for name in names}
+
+        if not rename_map:
+            return
+
+        # Rename static index
+        component.static.rename(index=rename_map, inplace=True)
+
+        # Rename dynamic columns (each key in dynamic is an attribute, value is DataFrame)
+        for key in component.dynamic:
+            df = component.dynamic[key]
+            level_vals = df.columns.get_level_values(-1)
+            new_vals = level_vals.map(lambda x: rename_map.get(x, x))
+            new_columns = pd.MultiIndex.from_arrays(
+                [df.columns.get_level_values(i) for i in range(df.columns.nlevels - 1)] + [new_vals],
+                names=df.columns.names,
+            )
+            component.dynamic[key].columns = new_columns
 
     def _fix_capacity_non_extendable_attribute(self, component_type: str, capa_str: str) -> None:
         df = getattr(self.pypsa_network, component_type)
@@ -144,20 +157,42 @@ class PyPSAPreprocessor:
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
         ### Handling PyPSA objects without carriers
         df = getattr(self.pypsa_network, component_type)
-        for comp in df.index:
-            if len(df.loc[comp, "carrier"]) == 0:
-                df.loc[comp, "carrier"] = "null"
-        setattr(
-            self.pypsa_network,
-            component_type,
-            df.join(
-                self.pypsa_network.carriers,
-                on="carrier",
-                how="left",
-                rsuffix="_carrier",
-            ),
+        # Ensure scalar carrier (MultiIndex + join can misalign; map is reliable)
+        carrier_series = df["carrier"].apply(_carrier_scalar)
+        carrier_series = carrier_series.where(carrier_series != "", "null")
+        df["carrier"] = carrier_series
+
+        joined = df.join(
+            self.pypsa_network.carriers,
+            on="carrier",
+            how="left",
+            rsuffix="_carrier",
         )
+        # Set co2_emissions from scalar carrier map (join with MultiIndex left can yield NaN).
+        # Prefer snapshot taken before set_scenarios;
+        # PyPSA overwrite carrier co2_emissions after expansion.
+        co2_map = getattr(self.pypsa_network, "_carrier_co2_snapshot", None)
+        if co2_map is None and "co2_emissions" in self.pypsa_network.carriers.columns:
+            carriers_df = self.pypsa_network.carriers
+            names = carriers_df.index
+            co2_map = {}
+            for i in range(len(carriers_df)):
+                k = str(names[i])
+                if k not in co2_map:
+                    co2_map[k] = float(carriers_df["co2_emissions"].iloc[i])
+        if co2_map is not None:
+            co2_map = dict(co2_map)
+            co2_map.setdefault("null", 0.0)
+            joined["co2_emissions"] = carrier_series.astype(str).map(co2_map).fillna(0.0)
+        elif "co2_emissions_carrier" in joined.columns:
+            joined["co2_emissions"] = joined["co2_emissions_carrier"]
+        if "co2_emissions_carrier" in joined.columns:
+            joined = joined.drop(columns=["co2_emissions_carrier"])
+
+        setattr(self.pypsa_network, component_type, joined)
+
         self._rename_pypsa_component(component_type)
+
         if non_extendable:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 

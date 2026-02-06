@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -107,7 +107,7 @@ library:
           scenario-dependent: false 
         - id: p_nom_max
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: false
         - id: p_min_pu
           time-dependent: true
           scenario-dependent: true
@@ -323,7 +323,7 @@ library:
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: false
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
         #- id: lifetime #Parameter not instantiated for now
@@ -432,7 +432,7 @@ library:
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: false
         - id: standing_loss
           time-dependent: true
           scenario-dependent: true

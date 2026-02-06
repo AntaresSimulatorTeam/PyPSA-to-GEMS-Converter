@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -59,7 +59,8 @@ def scale_load(network: Network, factor: float) -> Network:
 def extend_quota(network: Network) -> Network:
     # Temporary function, used while the GlobalConstraint model is not implemented yet.
     # Set the CO2 bound to very large value
-    network.global_constraints["constant"][0] = 10000000000
+    if len(network.global_constraints) > 0 and "constant" in network.global_constraints.columns:
+        network.global_constraints["constant"][0] = 10000000000
     return network
 
 

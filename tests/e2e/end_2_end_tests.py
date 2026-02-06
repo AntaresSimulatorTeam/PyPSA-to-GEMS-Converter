@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -30,7 +30,7 @@ current_dir = Path(__file__).resolve().parents[2]
 @pytest.fixture(scope="function", autouse=True)
 def check_antares_binaries() -> None:
     """Check if Antares binaries are available before running tests."""
-    antares_dir = current_dir / "antares-9.3.2-Ubuntu-22.04"
+    antares_dir = current_dir / "antares-9.3.5-Ubuntu-22.04"
     if not antares_dir.is_dir():
         pytest.skip(
             "Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
@@ -44,27 +44,26 @@ def get_original_pypsa_study_objective(network: Network) -> float:
     return network.objective + network.objective_constant
 
 
-def get_gems_study_objective(network: Network, study_name: str) -> float:
+def get_gems_study_objective(study_name: str) -> float:
     study_dir = current_dir / "tmp" / study_name
-    PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=study_dir, series_file_format=".tsv"
-    ).to_gems_study()
 
-    modeler_bin = current_dir / "antares-9.3.2-Ubuntu-22.04" / "bin" / "antares-modeler"
+    modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
 
     logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
 
-    try:
-        subprocess.run(
-            [str(modeler_bin), str(study_dir / "systems")],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=str(modeler_bin.parent),
-        )
-
-    except subprocess.CalledProcessError as e:
-        raise Exception(f"Antares modeler failed with error: {e}")
+    result = subprocess.run(
+        [str(modeler_bin), str(study_dir / "systems")],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(modeler_bin.parent),
+    )
+    logger.info("================================")
+    logger.info("Antares modeler output:")
+    logger.info("returncode:", result.returncode)
+    logger.info("stdout:", result.stdout)
+    logger.info("stderr:", result.stderr)
+    logger.info("================================")
 
     logger.info("Getting Antares study objective")
 
@@ -88,9 +87,12 @@ def get_gems_study_objective(network: Network, study_name: str) -> float:
 def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lines: bool, study_name: str) -> None:
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
     network = preprocess_network(network, quota, replace_lines)
-    assert math.isclose(
-        get_original_pypsa_study_objective(network), get_gems_study_objective(network, study_name), rel_tol=1e-6
-    )
+    # Copy before optimize(): get_gems_study_objective needs an un-optimized network (no HiGHS state).
+    PyPSAStudyConverter(
+        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
+
+    assert math.isclose(get_original_pypsa_study_objective(network), get_gems_study_objective(study_name), rel_tol=1e-6)
 
 
 def test_load_gen() -> None:
@@ -126,7 +128,7 @@ def test_load_gen() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_two_study_one"),
+        get_gems_study_objective("test_two_study_one"),
         rel_tol=1e-6,
     )
 
@@ -172,7 +174,7 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
 
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
 
 
@@ -232,7 +234,7 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
 
 
@@ -270,7 +272,7 @@ def test_load_gen_pmin() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_five_study_one"),
+        get_gems_study_objective("test_five_study_one"),
         rel_tol=1e-6,
     )
 
@@ -310,7 +312,7 @@ def test_load_gen_sum() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_six_study_one"),
+        get_gems_study_objective("test_six_study_one"),
         rel_tol=1e-6,
     )
 
@@ -367,7 +369,7 @@ def test_load_gen_link() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "test_seven_study_one"),
+        get_gems_study_objective("test_seven_study_one"),
         rel_tol=1e-6,
     )
 
@@ -434,7 +436,7 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
 
 
@@ -518,7 +520,7 @@ def test_storage_unit(
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
 
 
@@ -607,7 +609,7 @@ def test_storage_unit_ext(
     network.optimize()
 
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
 
 
@@ -674,7 +676,7 @@ def test_store(e_initial: float, standing_loss: float, study_name: str) -> None:
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective(network, study_name), rel_tol=1e-6
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
 
 
@@ -741,6 +743,6 @@ def test_store_ext() -> None:
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant,
-        get_gems_study_objective(network, "store_test_case_ext"),
+        get_gems_study_objective("store_test_case_ext"),
         rel_tol=1e-6,
     )

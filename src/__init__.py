@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -11,3 +11,4 @@
 # This file is part of the Antares project.
 
 from .pypsa_converter import PyPSAStudyConverter
+from .pypsa_preprocessor import PyPSAPreprocessor

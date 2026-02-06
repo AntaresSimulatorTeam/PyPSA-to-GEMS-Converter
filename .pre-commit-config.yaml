@@ -5,7 +5,7 @@ repos:
         name: Run mypy
         entry: mypy
         language: system
-        files: ^src/
+        files: ^(src|tests)/
         types: [python]
 
   - repo: local

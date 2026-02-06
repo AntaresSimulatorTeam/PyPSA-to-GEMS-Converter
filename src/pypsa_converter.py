@@ -1,4 +1,4 @@
-# Copyright (c) 2025, RTE (https://www.rte-france.com)
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
 #
 # See AUTHORS.txt
 #
@@ -9,6 +9,7 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
+import copy
 import logging
 from pathlib import Path
 
@@ -28,24 +29,26 @@ class PyPSAStudyConverter:
         logger: logging.Logger,
         study_dir: Path,
         series_file_format: str,
+        solver_name: str = "highs",
     ):
         """
-        Initialize processor
+        Initialize processor. The network is deep-copied internally so the caller's
+        object is never mutated. Note: do not pass a network that has been optimized
+        (network.optimize()), as it contains non-copyable solver state (e.g. HiGHS).
         """
         self.logger = logger
         self.study_dir = study_dir
-        self.pypsa_network = pypsa_network
+        self.pypsa_network = copy.deepcopy(pypsa_network)
         self.pypsalib_id = "pypsa_models"
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
-        self.study_type = determine_pypsa_study_type(self.pypsa_network)
+        self.pypsa_network, self.scenario_weightings = determine_pypsa_study_type(self.pypsa_network)
+        self.solver_name = solver_name
 
         # Preprocess the network
-        self.pypsa_network = PyPSAPreprocessor(self.pypsa_network, self.study_type).network_preprocessing()
+        self.pypsa_network = PyPSAPreprocessor(self.pypsa_network).network_preprocessing()
         # Register the PyPSA components and global constraints
-        self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(
-            self.pypsa_network, self.study_type
-        ).register()
+        self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(self.pypsa_network).register()
 
     def to_gems_study(self) -> None:
         """Main function, to export PyPSA as Gems study"""
@@ -53,24 +56,26 @@ class PyPSAStudyConverter:
         self.logger.info("Study conversion started")
         list_components, list_connections = [], []
 
-        gems_study_writer = GemsStudyWriter(self.study_dir, self.study_type)
+        gems_study_writer = GemsStudyWriter(self.study_dir, self.series_file_format)
+        self.logger.info("Copying library yml file to study directory")
         gems_study_writer.copy_library_yml()
 
-        gems_model_builder = GemsModelBuilder(self.pypsalib_id, self.study_type)
+        gems_model_builder = GemsModelBuilder(self.pypsalib_id)
 
         for pypsa_components_data in self.pypsa_components_data.values():
             # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
             pypsa_components_data.check_params_consistency()
 
-            # Save time series and memorize the time-dependent parameters
-            comp_param_to_timeseries_name = gems_study_writer.write_and_register_timeseries(
+            # Save time series and memorize the time-dependent parameters, also save static scenarized parameters
+            comp_param_to_timeseries_name, comp_param_to_static_name = gems_study_writer._write_and_register_timeseries(
                 pypsa_components_data.time_dependent_data,
+                pypsa_components_data.constant_data,
                 pypsa_components_data,
                 self.system_name,
-                self.series_file_format,
             )
+
             components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
-                pypsa_components_data, comp_param_to_timeseries_name
+                pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name
             )
             list_components.extend(components)
             list_connections.extend(connections)
@@ -85,5 +90,9 @@ class PyPSAStudyConverter:
 
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
-        gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1)
+        gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
+        # Write optim_config.yml if there are scenarios
+        # One scenario -> deterministic study
+        if len(self.scenario_weightings.keys()) > 1:
+            gems_study_writer.write_optim_config_yml()
         self.logger.info("Study conversion completed!")

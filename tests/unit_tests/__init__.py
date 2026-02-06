@@ -9,6 +9,3 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
-
-from .pypsa_component_data import PyPSAComponentData
-from .pypsa_global_constraint_data import PyPSAGlobalConstraintData
