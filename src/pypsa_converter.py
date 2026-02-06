@@ -72,7 +72,6 @@ class PyPSAStudyConverter:
                 pypsa_components_data.constant_data,
                 pypsa_components_data,
                 self.system_name,
-                self.series_file_format,
             )
 
             components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
