@@ -76,7 +76,7 @@ class PyPSAStudyConverter:
             )
 
             components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
-                pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name or {}
+                pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name
             )
             list_components.extend(components)
             list_connections.extend(connections)
