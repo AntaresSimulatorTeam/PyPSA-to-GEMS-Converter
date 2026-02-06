@@ -19,11 +19,15 @@ from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection,
 from src.models.modeler_parameter_yml_schema import ModelerParameters
 from src.models.pypsa_model_schema import PyPSAComponentData
 
+_COLUMN_SEP = "__"
+
 
 class GemsStudyWriter:
-    def __init__(self, study_dir: Path):
+    def __init__(self, study_dir: Path, series_file_format: str):
         self.study_dir = study_dir
-
+        self.series_dir = study_dir / "systems" / "input" / "data-series"
+        self.series_file_format = series_file_format
+        self.separator = "," if series_file_format == ".csv" else "\t"
     def copy_library_yml(self) -> None:
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
         destination_file = Path(self.study_dir / "systems" / "input" / "model-libraries" / "pypsa_models.yml")
@@ -67,22 +71,52 @@ class GemsStudyWriter:
         system_name: str,
         series_file_format: str,
     ) -> tuple[dict[tuple[str, str], str | list[str | bool]], dict[tuple[str, str], str | float]]:
+        
+        # take all time-dependent data
         time_dep_keys = set(pypsa_components_data.time_dependent_data.keys())
-        scenarized_time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
-            time_dep_keys
+        # take all parameters that are time-dependent
+        time_dependent_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(time_dep_keys)
+        # treat time-dependent parameters
+        comp_param_to_timeseries_file_name, comp_param_to_skip_in_static_treatment = (
+            self._treat_time_dependent_parameters(
+                time_dependent_params,
+                time_dependent_data,
+                system_name,
+                series_file_format,
+                self.separator,
+            )
         )
 
-        comp_param_to_scenario_dependent_timeseries_name: dict[tuple[str, str], str | list[str | bool]] = {}
-        comp_param_static_scenarized_indicator: set[tuple[str, str]] = set()
+        # Treat static parameters
+        static_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(set(constant_data.columns))
+        comp_param_to_static_file_name = self._treat_static_parameters(
+            static_params,
+            constant_data,
+            system_name,
+            series_file_format,
+            comp_param_to_skip_in_static_treatment,
+            self.separator,
+        )
+        return comp_param_to_timeseries_file_name, comp_param_to_static_file_name
 
-        series_dir = self.study_dir / "systems" / "input" / "data-series"
+    def _treat_time_dependent_parameters(
+        self,
+        time_dependent_params: set[str],
+        time_dependent_data: dict[str, pl.DataFrame],
+        system_name: str,
+        series_file_format: str,
+        separator: str,
+    ) -> tuple[dict[tuple[str, str], str | list[str | bool]], set[tuple[str, str]]]:
+        """Process time-dependent parameters: write series files and build mappings.
+        Returns (comp_param_to_timeseries_file_name,  comp_param_to_skip_in_static_treatment).
+        The latter is used by _treat_static_parameters to avoid duplicating scenarized data."""
+        comp_param_to_timeseries_file_name: dict[tuple[str, str], str | list[str | bool]] = {}
+        comp_param_to_skip_in_static_treatment: set[tuple[str, str]] = set()
 
-        if scenarized_time_dependent_params:
-            series_dir.mkdir(parents=True, exist_ok=True)
+        if time_dependent_params:
+            self.series_dir.mkdir(parents=True, exist_ok=True)
 
-        _COLUMN_SEP = "__"
-
-        for param in scenarized_time_dependent_params:
+        for param in time_dependent_params:
             param_df = time_dependent_data[param]
             # Columns are time_step + "scenario__component"; get unique component names (order preserved)
             data_cols = [c for c in param_df.columns if c != "time_step"]
@@ -93,65 +127,74 @@ class GemsStudyWriter:
                 component_data = param_df.select(comp_cols)
                 multiple_scenario_indicator = len(comp_cols) > 1
 
-                comp_param_static_scenarized_indicator.add((component, param))
+                comp_param_to_skip_in_static_treatment.add((component, param))
 
                 timeseries_name = f"{system_name}_{component}_{param}"
 
-                comp_param_to_scenario_dependent_timeseries_name[(component, param)] = [
+                comp_param_to_timeseries_file_name[(component, param)] = [
                     timeseries_name,
                     multiple_scenario_indicator,
                 ]
 
-                separator = "," if series_file_format == ".csv" else "\t"
-
-                component_data.write_csv(
-                    series_dir / Path(f"{timeseries_name}{series_file_format}"),
-                    include_header=False,
-                    separator=separator,
+                self._write_time_series_file(
+                    component_data,
+                    self.series_dir / Path(f"{timeseries_name}{series_file_format}"),
+                    self.separator,
                 )
 
-        scenarized_static_params = set(pypsa_components_data.pypsa_params_to_gems_params).intersection(
-            set(constant_data.columns)
-        )
-        comp_param_to_scenario_dependent_static_name: dict[tuple[str, str], str | float] = {}
+        return comp_param_to_timeseries_file_name, comp_param_to_skip_in_static_treatment
 
-        for param in scenarized_static_params:
+    def _treat_static_parameters(
+        self,
+        static_params: set[str],
+        constant_data: pl.DataFrame,
+        system_name: str,
+        series_file_format: str,
+        comp_param_to_skip_in_static_treatment: set[tuple[str, str]],
+        separator: str,
+    ) -> dict[tuple[str, str], str | float]:
+        comp_param_to_static_file_name: dict[tuple[str, str], str | float] = {}
+
+        for param in static_params:
             static_component_names = constant_data["component"].unique(maintain_order=True).to_list()
-
             for component in static_component_names:
-                if (component, param) not in comp_param_static_scenarized_indicator:
+                if (component, param) not in comp_param_to_skip_in_static_treatment:
                     comp_df = constant_data.filter(pl.col("component") == component)
                     component_values = comp_df[param].to_list()
 
-                    # prevent of making multiple unnecessary ts files
+                    # only if we have multiple different values for the same parameter, we need to create a time series file for static parameters
+                    # in that case we will have static scenarized parameter
+                    # if we have only one value, we can use the value directly (it will be used over all scenarios)
                     if len(set(component_values)) > 1:
                         scenario_names = comp_df["scenario"].to_list()
                         scenario_data = pl.DataFrame({str(s): [v] for s, v in zip(scenario_names, component_values)})
-
                         timeseries_name = f"{system_name}_{component}_{param}"
-                        comp_param_to_scenario_dependent_static_name[(component, param)] = timeseries_name
-
-                        separator = "," if series_file_format == ".csv" else "\t"
-                        scenario_data.write_csv(
-                            series_dir / Path(f"{timeseries_name}{series_file_format}"),
-                            include_header=False,
-                            separator=separator,
+                        comp_param_to_static_file_name[(component, param)] = timeseries_name
+                        self._write_time_series_file(
+                            scenario_data, self.series_dir / Path(f"{timeseries_name}{series_file_format}"), separator
                         )
                     else:
                         component_value = list(set(component_values))[0]
+                        comp_param_to_static_file_name[(component, param)] = self.sanitize_component_value(
+                            component_value
+                        )
+        return comp_param_to_static_file_name
 
-                        if component_value is None or (
-                            isinstance(component_value, float) and math.isnan(component_value)
-                        ):
-                            component_value = 0.0
-                        elif component_value == float("inf"):
-                            component_value = 1e20
-                        elif component_value == float("-inf"):
-                            component_value = -1e20
+    def sanitize_component_value(self, component_value: float) -> float:
+        if component_value is None or (isinstance(component_value, float) and math.isnan(component_value)):
+            component_value = 0.0
+        elif component_value == float("inf"):
+            component_value = 1e20
+        elif component_value == float("-inf"):
+            component_value = -1e20
+        return component_value
 
-                        comp_param_to_scenario_dependent_static_name[(component, param)] = component_value
-
-        return comp_param_to_scenario_dependent_timeseries_name, comp_param_to_scenario_dependent_static_name
+    def _write_time_series_file(self, data: pl.DataFrame, series_dir: Path, separator: str) -> None:
+        data.write_csv(
+            series_dir,
+            include_header=False,
+            separator=separator,
+        )
 
     def write_optim_config_yml(self) -> None:
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
