@@ -69,7 +69,6 @@ class GemsStudyWriter:
         constant_data: pl.DataFrame,
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
-        series_file_format: str,
     ) -> tuple[dict[tuple[str, str], str | list[str | bool]], dict[tuple[str, str], str | float]]:
         
         # take all time-dependent data
@@ -81,9 +80,7 @@ class GemsStudyWriter:
             self._treat_time_dependent_parameters(
                 time_dependent_params,
                 time_dependent_data,
-                system_name,
-                series_file_format,
-                self.separator,
+                system_name,    
             )
         )
 
@@ -93,9 +90,7 @@ class GemsStudyWriter:
             static_params,
             constant_data,
             system_name,
-            series_file_format,
             comp_param_to_skip_in_static_treatment,
-            self.separator,
         )
         return comp_param_to_timeseries_file_name, comp_param_to_static_file_name
 
@@ -104,8 +99,6 @@ class GemsStudyWriter:
         time_dependent_params: set[str],
         time_dependent_data: dict[str, pl.DataFrame],
         system_name: str,
-        series_file_format: str,
-        separator: str,
     ) -> tuple[dict[tuple[str, str], str | list[str | bool]], set[tuple[str, str]]]:
         """Process time-dependent parameters: write series files and build mappings.
         Returns (comp_param_to_timeseries_file_name,  comp_param_to_skip_in_static_treatment).
@@ -138,7 +131,7 @@ class GemsStudyWriter:
 
                 self._write_time_series_file(
                     component_data,
-                    self.series_dir / Path(f"{timeseries_name}{series_file_format}"),
+                    self.series_dir / Path(f"{timeseries_name}{self.series_file_format}"),
                     self.separator,
                 )
 
@@ -149,9 +142,7 @@ class GemsStudyWriter:
         static_params: set[str],
         constant_data: pl.DataFrame,
         system_name: str,
-        series_file_format: str,
         comp_param_to_skip_in_static_treatment: set[tuple[str, str]],
-        separator: str,
     ) -> dict[tuple[str, str], str | float]:
         comp_param_to_static_file_name: dict[tuple[str, str], str | float] = {}
 
@@ -171,7 +162,7 @@ class GemsStudyWriter:
                         timeseries_name = f"{system_name}_{component}_{param}"
                         comp_param_to_static_file_name[(component, param)] = timeseries_name
                         self._write_time_series_file(
-                            scenario_data, self.series_dir / Path(f"{timeseries_name}{series_file_format}"), separator
+                            scenario_data, self.series_dir / Path(f"{timeseries_name}{self.series_file_format}"), self.separator
                         )
                     else:
                         component_value = list(set(component_values))[0]
