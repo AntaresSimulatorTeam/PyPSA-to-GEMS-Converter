@@ -28,6 +28,7 @@ class GemsStudyWriter:
         self.series_dir = study_dir / "systems" / "input" / "data-series"
         self.series_file_format = series_file_format
         self.separator = "," if series_file_format == ".csv" else "\t"
+
     def copy_library_yml(self) -> None:
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
         destination_file = Path(self.study_dir / "systems" / "input" / "model-libraries" / "pypsa_models.yml")
@@ -70,7 +71,6 @@ class GemsStudyWriter:
         pypsa_components_data: PyPSAComponentData,
         system_name: str,
     ) -> tuple[dict[tuple[str, str], str | list[str | bool]], dict[tuple[str, str], str | float]]:
-        
         # take all time-dependent data
         time_dep_keys = set(pypsa_components_data.time_dependent_data.keys())
         # take all parameters that are time-dependent
@@ -80,7 +80,7 @@ class GemsStudyWriter:
             self._treat_time_dependent_parameters(
                 time_dependent_params,
                 time_dependent_data,
-                system_name,    
+                system_name,
             )
         )
 
@@ -162,7 +162,9 @@ class GemsStudyWriter:
                         timeseries_name = f"{system_name}_{component}_{param}"
                         comp_param_to_static_file_name[(component, param)] = timeseries_name
                         self._write_time_series_file(
-                            scenario_data, self.series_dir / Path(f"{timeseries_name}{self.series_file_format}"), self.separator
+                            scenario_data,
+                            self.series_dir / Path(f"{timeseries_name}{self.series_file_format}"),
+                            self.separator,
                         )
                     else:
                         component_value = list(set(component_values))[0]
