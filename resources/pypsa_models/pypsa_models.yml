@@ -135,7 +135,7 @@ library:
         #- id: lifetime #Parameter not instantiated for now
         - id: capital_cost
           time-dependent: false
-          scenario-dependent: true
+          scenario-dependent: false
         - id: efficiency
           time-dependent: true
           scenario-dependent: true
