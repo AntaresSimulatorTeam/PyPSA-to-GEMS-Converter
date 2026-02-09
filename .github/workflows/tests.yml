@@ -10,44 +10,40 @@ on:
 jobs:
   test:
     runs-on: ubuntu-22.04
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
+
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-dev.txt
-    
-    - name: Download Antares v9.3.5 release
+
+    - name: Set Antares version from dependencies.json
+      id: antares
       run: |
-        echo "Downloading Antares v9.3.5..."
-        curl -L -f -o antares-9.3.5-Ubuntu-22.04.tar.gz \
-          https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v9.3.5/antares-9.3.5-Ubuntu-22.04.tar.gz
-        
-        if [ ! -f "antares-9.3.5-Ubuntu-22.04.tar.gz" ]; then
-          echo "Error: Download failed"
-          exit 1
-        fi
-        
-        echo "Download successful. File size: $(ls -lh antares-9.3.5-Ubuntu-22.04.tar.gz | awk '{print $5}')"
-    
-    - name: Extract Antares binaries
+        v=$(python -c "import json; d=json.load(open('dependencies.json')); print(d.get('antares_version', '9.3.5'))")
+        echo "version=${v}" >> $GITHUB_OUTPUT
+        echo "dir=antares-${v}-Ubuntu-22.04" >> $GITHUB_OUTPUT
+
+    - name: Download and extract Antares
       run: |
-        echo "Extracting archive..."
-        tar -xzf antares-9.3.5-Ubuntu-22.04.tar.gz
-    
+        v="${{ steps.antares.outputs.version }}"
+        d="${{ steps.antares.outputs.dir }}"
+        curl -OLs "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${v}/${d}.tar.gz"
+        tar -xzf "${d}.tar.gz" && rm -f "${d}.tar.gz"
+
     - name: Run end-to-end tests
       run: |
         python -m pytest -n auto tests/e2e/end_2_end_tests.py -v -s
-    
+
     - name: Run unit tests
       run: |
         python -m pytest -n auto tests/unit_tests/test_pypsa_preprocessor_and_register.py -v -s
@@ -56,7 +52,4 @@ jobs:
 
     - name: Cleanup
       if: always()
-      run: |
-        rm -f antares-9.3.5-Ubuntu-22.04.tar.gz
-        rm -rf antares-9.3.5-Ubuntu-22.04
-        echo "Cleanup completed"
+      run: rm -rf ${{ steps.antares.outputs.dir }}
