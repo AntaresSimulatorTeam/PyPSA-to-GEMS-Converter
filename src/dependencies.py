@@ -45,9 +45,9 @@ def get_antares_version() -> str:
     return str(get_dependencies().get("antares_version", "9.3.5"))
 
 
-def get_antares_xpanssion_version() -> str:
-    """Return antares_xpanssion_version from dependencies.json (e.g. '1.7.2')."""
-    return str(get_dependencies().get("antares_xpanssion_version", "1.7.2"))
+def get_antares_xpansion_version() -> str:
+    """Return antares_xpansion_version from dependencies.json (e.g. '1.7.2')."""
+    return str(get_dependencies().get("antares_xpansion_version", "1.7.2"))
 
 
 def get_antares_dir_name() -> str:
@@ -57,7 +57,7 @@ def get_antares_dir_name() -> str:
 
 def get_antares_xpansion_dir_name() -> str:
     """Return Antares Xpansion archive/dir name (e.g. 'antaresXpansion-1.7.2-ubuntu-22.04')."""
-    return f"antaresXpansion-{get_antares_xpanssion_version()}-ubuntu-22.04"
+    return f"antaresXpansion-{get_antares_xpansion_version()}-ubuntu-22.04"
 
 
 def get_antares_modeler_bin(base_dir: Path) -> Path:
