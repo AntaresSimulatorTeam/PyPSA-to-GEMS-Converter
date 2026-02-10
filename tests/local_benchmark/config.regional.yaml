@@ -1,0 +1,70 @@
+# PyPSA-Eur regional, single-scenario, extendable-assets configuration
+#
+# This file overrides config.default.yaml. Use it with:
+#   snakemake -call --configfile config/config.regional.yaml
+# Or copy it to config/config.yaml to use it by default (no --configfile needed).
+#
+# What this config does:
+#   - Restricts the model to 7 countries (FR, ES, PT, IT, CH, BE, LU)
+#   - Single deterministic scenario (one weather year, one solve)
+#   - Enables capacity expansion for wind, solar, gas, battery, hydrogen
+#   - Optional transmission expansion (see electricity.transmission_limit)
+#   - Solver: HiGHS (open-source)
+#   - No scenarios / no stochastic: one run = one deterministic optimization
+
+# ---------------------------------------------------------------------------
+# Countries: only these are built; cross-border links between them are included
+# ---------------------------------------------------------------------------
+countries:
+  - FR
+
+# ---------------------------------------------------------------------------
+# Single deterministic scenario: one week of hourly snapshots
+# One solve = one deterministic capacity expansion + dispatch
+# ---------------------------------------------------------------------------
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: left
+
+# ---------------------------------------------------------------------------
+# Extendable assets (capacity expansion)
+# Only these carriers get investment variables. Structure is fixed by pypsa-eur.
+# ---------------------------------------------------------------------------
+electricity:
+  extendable_carriers:
+    Generator:
+      - solar
+      - "solar-hsat"
+      - onwind
+      - "offwind-ac"
+      - "offwind-dc"
+      - "offwind-float"
+      - OCGT
+      - CCGT
+    StorageUnit: []
+    Store:
+      - battery
+      - H2
+    Link:
+      - "H2 pipeline"
+
+  # Transmission: vopt = grid expansion allowed; use v1.0 for fixed grid only
+  transmission_limit: vopt
+
+# ---------------------------------------------------------------------------
+# Solver: HiGHS (open-source).
+# ---------------------------------------------------------------------------
+solving:
+  solver:
+    name: highs
+    options: "highs-default"
+  # Uncomment and set if you hit memory limits (value in MB):
+  # mem: 8000
+
+clustering:
+  temporal:
+    resolution_elec: 24h
+
+atlite:
+  nprocesses: 4

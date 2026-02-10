@@ -57,8 +57,11 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[st
         pypsa_network._carrier_co2_snapshot = {}
 
     # No scenarios: add single default scenario so all studies use the same multi-index path
-    pypsa_network.set_scenarios({"default": 1})
-    return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
+    # Standard PyPSA Network may not have set_scenarios (e.g. pypsa-eur extends it); use fallback
+    if hasattr(pypsa_network, "set_scenarios"):
+        pypsa_network.set_scenarios({"default": 1})
+        return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
+    return pypsa_network, {"default": 1.0}
 
 
 # --- PyPSA pandas to Polars conversion (PyPSA objects stay as pandas) ---
