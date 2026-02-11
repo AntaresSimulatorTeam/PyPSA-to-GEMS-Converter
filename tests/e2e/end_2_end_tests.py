@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from pypsa import Network
 
+from src.dependencies import get_antares_dir_name, get_antares_modeler_bin
 from src.pypsa_converter import PyPSAStudyConverter
 from tests.utils import get_objective_value, load_pypsa_study, preprocess_network
 
@@ -30,7 +31,7 @@ current_dir = Path(__file__).resolve().parents[2]
 @pytest.fixture(scope="function", autouse=True)
 def check_antares_binaries() -> None:
     """Check if Antares binaries are available before running tests."""
-    antares_dir = current_dir / "antares-9.3.5-Ubuntu-22.04"
+    antares_dir = current_dir / get_antares_dir_name()
     if not antares_dir.is_dir():
         pytest.skip(
             "Antares binaries not found. Please download them from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
@@ -47,7 +48,7 @@ def get_original_pypsa_study_objective(network: Network) -> float:
 def get_gems_study_objective(study_name: str) -> float:
     study_dir = current_dir / "tmp" / study_name
 
-    modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
+    modeler_bin = get_antares_modeler_bin(current_dir)
 
     logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
 

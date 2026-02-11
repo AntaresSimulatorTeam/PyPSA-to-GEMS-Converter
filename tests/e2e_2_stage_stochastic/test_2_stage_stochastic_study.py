@@ -17,6 +17,7 @@ from pathlib import Path
 
 from pypsa import Network
 
+from src.dependencies import get_antares_modeler_bin
 from src.pypsa_converter import PyPSAStudyConverter
 
 logger = logging.getLogger(__name__)
@@ -71,8 +72,8 @@ def test_2_stage_stochastic_study() -> None:
     ).to_gems_study()
 
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
-    # benders_bin = current_dir / "antaresXpansion-1.7.2-ubuntu-22.04" / "bin" / "benders"
-    modeler_bin = current_dir / "antares-9.3.5-Ubuntu-22.04" / "bin" / "antares-modeler"
+    # benders_bin = get_antares_xpansion_benders_bin(current_dir)
+    modeler_bin = get_antares_modeler_bin(current_dir)
 
     try:
         result = subprocess.run(
