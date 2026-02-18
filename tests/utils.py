@@ -17,14 +17,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pypsa import Network
 
+# Project root: tests/utils.py -> parents[1] = project root
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def load_pypsa_study(file: str, load_scaling: float) -> Network:
     """
     Load a PyPSA study from a NetCDF file, preparing it for analysis or manipulation.
     """
-    current_dir = Path(__file__).resolve().parents[1]
-
-    input_file = current_dir / "resources" / "test_files" / file
+    input_file = PROJECT_ROOT / "resources" / "test_files" / file
 
     network = Network(input_file)
 
@@ -38,9 +39,7 @@ def load_pypsa_study_benchmark(file: str, load_scaling: float) -> tuple[Network,
     """
     Load a PyPSA study from a NetCDF file, preparing it for analysis or manipulation.
     """
-    current_dir = Path(__file__).resolve().parents[1]
-
-    input_file = current_dir / "resources" / "test_files" / file
+    input_file = PROJECT_ROOT / "resources" / "test_files" / file
 
     start_time = time.time()
     network = Network(input_file)
@@ -133,6 +132,41 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     df = df_all.iloc[[row_number]].copy()
     row = df.iloc[0]
 
+    # Coerce numeric columns (CSV may have mixed types or strings)
+    numeric_cols = [
+        "parsing_time",
+        "number_of_time_steps",
+        "number_of_buses",
+        "number_of_generators",
+        "number_of_loads",
+        "number_of_links",
+        "number_of_storage_units",
+        "number_of_stores",
+        "number_of_lines",
+        "number_of_transformers",
+        "number_of_shunt_impedances",
+        "preprocessing_time_pypsa_network",
+        "pypsa_to_gems_conversion_time",
+        "build_optimization_problem_time_pypsa",
+        "pypsa_optimization_time",
+        "total_time_pypsa",
+        "modeler_total_time",
+        "number_of_constraints_pypsa",
+        "number_of_constraints_modeler",
+        "number_of_variables_pypsa",
+        "number_of_variables_modeler",
+        "pypsa_objective",
+        "modeler_objective_value",
+    ]
+    for col in numeric_cols:
+        if col in row.index:
+            row[col] = pd.to_numeric(row[col], errors="coerce")
+
+    def _n(val, default=0):
+        """Coerce to float for display; use default if missing/invalid."""
+        v = pd.to_numeric(val, errors="coerce")
+        return default if pd.isna(v) else float(v)
+
     # Print overview statistics
     print("=" * 80)
     print(f"BENCHMARK ANALYSIS - STUDY ROW {row_number}")
@@ -140,47 +174,55 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     print("\n📊 NETWORK INFORMATION:")
     print(f"  Network Name: {row['pypsa_network_name']}")
-    print(f"  Number of Time Steps: {int(row['number_of_time_steps'])}")
+    print(f"  Number of Time Steps: {int(_n(row['number_of_time_steps']))}")
     print(f"  PyPSA Version: {row['pypsa_version']}")
     print(f"  Antares Version: {row['antares_version']}")
 
     print("\n🔧 NETWORK COMPONENTS:")
-    print(f"  Buses: {int(row['number_of_buses'])}")
-    print(f"  Generators: {int(row['number_of_generators'])}")
-    print(f"  Loads: {int(row['number_of_loads'])}")
-    print(f"  Links: {int(row['number_of_links'])}")
-    print(f"  Storage Units: {int(row['number_of_storage_units'])}")
-    print(f"  Stores: {int(row['number_of_stores'])}")
-    print(f"  Lines: {int(row['number_of_lines'])}")
-    print(f"  Transformers: {int(row['number_of_transformers'])}")
-    print(f"  Shunt Impedances: {int(row['number_of_shunt_impedances'])}")
+    print(f"  Buses: {int(_n(row['number_of_buses']))}")
+    print(f"  Generators: {int(_n(row['number_of_generators']))}")
+    print(f"  Loads: {int(_n(row['number_of_loads']))}")
+    print(f"  Links: {int(_n(row['number_of_links']))}")
+    print(f"  Storage Units: {int(_n(row['number_of_storage_units']))}")
+    print(f"  Stores: {int(_n(row['number_of_stores']))}")
+    print(f"  Lines: {int(_n(row['number_of_lines']))}")
+    print(f"  Transformers: {int(_n(row['number_of_transformers']))}")
+    print(f"  Shunt Impedances: {int(_n(row['number_of_shunt_impedances']))}")
 
     print("\n⏱️  TIMING INFORMATION:")
-    print(f"  Parsing Time: {row['parsing_time']:.4f} s")
-    print(f"  Preprocessing Time (PyPSA): {row['preprocessing_time_pypsa_network']:.4f} s")
-    print(f"  PyPSA to GEMS Conversion Time: {row['pypsa_to_gems_conversion_time']:.4f} s")
-    print(f"  Build Optimization Problem Time (PyPSA): {row['build_optimization_problem_time_pypsa']:.4f} s")
-    print(f"  PyPSA Optimization Time: {row['pypsa_optimization_time']:.4f} s")
-    print(f"  PyPSA Total Time: {row['total_time_pypsa']:.4f} s")
-    print(f"  Modeler Total Time: {row['modeler_total_time']:.4f} s")
+    print(f"  Parsing Time: {_n(row['parsing_time']):.4f} s")
+    print(f"  Preprocessing Time (PyPSA): {_n(row['preprocessing_time_pypsa_network']):.4f} s")
+    print(f"  PyPSA to GEMS Conversion Time: {_n(row['pypsa_to_gems_conversion_time']):.4f} s")
+    print(f"  Build Optimization Problem Time (PyPSA): {_n(row['build_optimization_problem_time_pypsa']):.4f} s")
+    print(f"  PyPSA Optimization Time: {_n(row['pypsa_optimization_time']):.4f} s")
+    print(f"  PyPSA Total Time: {_n(row['total_time_pypsa']):.4f} s")
+    print(f"  Modeler Total Time: {_n(row['modeler_total_time']):.4f} s")
 
+    n_const_pypsa = _n(row["number_of_constraints_pypsa"])
+    n_const_modeler = _n(row["number_of_constraints_modeler"])
+    n_var_pypsa = _n(row["number_of_variables_pypsa"])
+    n_var_modeler = _n(row["number_of_variables_modeler"])
     print("\n📈 OPTIMIZATION PROBLEM SIZE:")
-    print(f"  PyPSA Constraints: {int(row['number_of_constraints_pypsa'])}")
-    print(f"  Modeler Constraints: {int(row['number_of_constraints_modeler'])}")
-    print(
-        f"  Constraints Ratio (PyPSA/Modeler): {row['number_of_constraints_pypsa'] / row['number_of_constraints_modeler']:.4f}"
-    )
-    print(f"  PyPSA Variables: {int(row['number_of_variables_pypsa'])}")
-    print(f"  Modeler Variables: {int(row['number_of_variables_modeler'])}")
-    print(
-        f"  Variables Ratio (PyPSA/Modeler): {row['number_of_variables_pypsa'] / row['number_of_variables_modeler']:.4f}"
-    )
+    print(f"  PyPSA Constraints: {int(n_const_pypsa)}")
+    print(f"  Modeler Constraints: {int(n_const_modeler)}")
+    if n_const_modeler:
+        print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
+    else:
+        print("  Constraints Ratio (PyPSA/Modeler): N/A")
+    print(f"  PyPSA Variables: {int(n_var_pypsa)}")
+    print(f"  Modeler Variables: {int(n_var_modeler)}")
+    if n_var_modeler:
+        print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+    else:
+        print("  Variables Ratio (PyPSA/Modeler): N/A")
 
+    pypsa_obj = _n(row["pypsa_objective"])
+    modeler_obj = _n(row["modeler_objective_value"])
     print("\n🎯 OBJECTIVE VALUES:")
-    print(f"  PyPSA Objective: {row['pypsa_objective']:.6f}")
-    print(f"  Modeler Objective: {row['modeler_objective_value']:.6f}")
-    obj_diff = row["pypsa_objective"] - row["modeler_objective_value"]
-    obj_diff_pct = (obj_diff / row["modeler_objective_value"]) * 100
+    print(f"  PyPSA Objective: {pypsa_obj:.6f}")
+    print(f"  Modeler Objective: {modeler_obj:.6f}")
+    obj_diff = pypsa_obj - modeler_obj
+    obj_diff_pct = (obj_diff / modeler_obj) * 100 if modeler_obj else 0.0
     print(f"  Difference: {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
 
     print("\n⚙️  SOLVER INFORMATION:")
@@ -188,13 +230,18 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Modeler Solver: {row['modeler_solver_name']}")
     print(f"  Modeler Solver Parameters: {row['modeler_solver_parameters']}")
 
+    total_pypsa = _n(row["total_time_pypsa"])
+    total_modeler = _n(row["modeler_total_time"])
     print("\n📊 PERFORMANCE COMPARISON:")
-    time_ratio = row["total_time_pypsa"] / row["modeler_total_time"]
+    time_ratio = total_pypsa / total_modeler if total_modeler else float("nan")
     print(f"  Time Ratio (PyPSA/Modeler): {time_ratio:.4f}x")
-    if time_ratio < 1:
-        print(f"  → PyPSA is {1 / time_ratio:.2f}x faster")
+    if pd.notna(time_ratio) and time_ratio > 0:
+        if time_ratio < 1:
+            print(f"  → PyPSA is {1 / time_ratio:.2f}x faster")
+        else:
+            print(f"  → Modeler is {time_ratio:.2f}x faster")
     else:
-        print(f"  → Modeler is {time_ratio:.2f}x faster")
+        print("  → N/A (missing or invalid times)")
 
     print("\n" + "=" * 80)
 
@@ -204,7 +251,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # 1. Objective Value Comparison
     ax1 = plt.subplot(2, 3, 1)
     categories = ["PyPSA", "Modeler"]
-    objectives = [row["pypsa_objective"], row["modeler_objective_value"]]
+    objectives = [pypsa_obj, modeler_obj]
     bars = ax1.bar(categories, objectives, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax1.set_ylabel("Objective Value", fontsize=11)
     ax1.set_title("Objective Value Comparison", fontsize=12, fontweight="bold")
@@ -216,7 +263,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 2. Time Comparison
     ax2 = plt.subplot(2, 3, 2)
-    times = [row["total_time_pypsa"], row["modeler_total_time"]]
+    times = [total_pypsa, total_modeler]
     bars = ax2.bar(categories, times, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax2.set_ylabel("Time (seconds)", fontsize=11)
     ax2.set_title("Total Time Comparison", fontsize=12, fontweight="bold")
@@ -227,7 +274,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 3. Constraints Comparison
     ax3 = plt.subplot(2, 3, 3)
-    constraints = [int(row["number_of_constraints_pypsa"]), int(row["number_of_constraints_modeler"])]
+    constraints = [int(n_const_pypsa), int(n_const_modeler)]
     bars = ax3.bar(categories, constraints, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax3.set_ylabel("Number of Constraints", fontsize=11)
     ax3.set_title("Constraints Comparison", fontsize=12, fontweight="bold")
@@ -238,7 +285,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 4. Variables Comparison
     ax4 = plt.subplot(2, 3, 4)
-    variables = [int(row["number_of_variables_pypsa"]), int(row["number_of_variables_modeler"])]
+    variables = [int(n_var_pypsa), int(n_var_modeler)]
     bars = ax4.bar(categories, variables, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax4.set_ylabel("Number of Variables", fontsize=11)
     ax4.set_title("Variables Comparison", fontsize=12, fontweight="bold")
@@ -250,10 +297,10 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # 5. Time Breakdown (PyPSA)
     ax5 = plt.subplot(2, 3, 5)
     pypsa_times = {
-        "Preprocessing": row["preprocessing_time_pypsa_network"],
-        "Conversion": row["pypsa_to_gems_conversion_time"],
-        "Build Model": row["build_optimization_problem_time_pypsa"],
-        "Optimization": row["pypsa_optimization_time"],
+        "Preprocessing": _n(row["preprocessing_time_pypsa_network"]),
+        "Conversion": _n(row["pypsa_to_gems_conversion_time"]),
+        "Build Model": _n(row["build_optimization_problem_time_pypsa"]),
+        "Optimization": _n(row["pypsa_optimization_time"]),
     }
     ax5.pie(
         list(pypsa_times.values()),
