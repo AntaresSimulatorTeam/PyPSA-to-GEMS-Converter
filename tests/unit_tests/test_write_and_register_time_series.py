@@ -78,6 +78,7 @@ def scenario_network(base_network: Network) -> Network:
 
 
 def test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides(scenario_network: Network) -> None:
+    logger.info("Running test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides")
     for key, value in scenario_network.components.generators.static.p_max_pu.items():
         if key == ("low", "gen3"):
             scenario_network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore
@@ -90,6 +91,7 @@ def test_write_and_register_time_series_two_stage_stochastic_with_scenario_overr
         Path("tmp") / "test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides",
         "csv",
     ).to_gems_study()
+    logger.info("Conversion done; checking data-series CSV count")
 
     # Expect one file per scenario-dependent time series:
     # - generators p_max_pu: gen1, gen2  -> 2

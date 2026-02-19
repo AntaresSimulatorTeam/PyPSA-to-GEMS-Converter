@@ -10,12 +10,16 @@
 #
 # This file is part of the Antares project.
 
+import logging
+
 import pytest
 from pypsa import Network
 
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
 from tests.utils import replace_lines_by_links
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture()
@@ -76,12 +80,14 @@ def scenario_network(base_network: Network) -> Network:
 
 
 def test_preprocessor_renames_buses_scenarios(scenario_network: Network) -> None:
+    logger.info("Running test_preprocessor_renames_buses_scenarios")
     PyPSAPreprocessor(scenario_network).network_preprocessing()
     assert "bus_1" in scenario_network.buses.index.get_level_values(1)
     assert all(" " not in b for b in scenario_network.buses.index.get_level_values(1))
 
 
 def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> None:
+    logger.info("Running test_register_outputs_expected_keys_scenarios")
     PyPSAPreprocessor(scenario_network).network_preprocessing()
     components, global_constraints = PyPSARegister(scenario_network).register()
 
@@ -92,6 +98,7 @@ def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> 
 
 
 def test_replace_lines_by_links_creates_links_and_removes_lines() -> None:
+    logger.info("Running test_replace_lines_by_links_creates_links_and_removes_lines")
     network = Network(name="Line_Network", snapshots=[0, 1])
 
     network.add("Carrier", "carrier", co2_emissions=0)
