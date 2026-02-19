@@ -173,6 +173,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print("=" * 80)
 
     print("\n📊 NETWORK INFORMATION:")
+    print(f"  Simulation file: {row.get('pypsa_filename', 'N/A')}")
     print(f"  Network Name: {row['pypsa_network_name']}")
     print(f"  Number of Time Steps: {int(_n(row['number_of_time_steps']))}")
     print(f"  PyPSA Version: {row['pypsa_version']}")
