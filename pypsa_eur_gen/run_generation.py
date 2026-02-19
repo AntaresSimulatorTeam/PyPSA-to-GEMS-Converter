@@ -76,12 +76,19 @@ def main() -> None:
         logger.error("Workspace directory does not exist: %s", workspace_path)
         sys.exit(1)
 
-    logger.info("Starting interactive container %s (workspace: %s). Run your commands inside.", tag_to_use, workspace_path)
+    logger.info(
+        "Starting interactive container %s (workspace: %s). Run your commands inside.", tag_to_use, workspace_path
+    )
     # Interactive run: current terminal becomes the shell inside the container.
     cmd = [
-        "docker", "run", "-it", "--rm",
-        "-v", f"{workspace_path}:/workspace",
-        "-w", "/workspace",
+        "docker",
+        "run",
+        "-it",
+        "--rm",
+        "-v",
+        f"{workspace_path}:/workspace",
+        "-w",
+        "/workspace",
         tag_to_use,
         "bash",
     ]
