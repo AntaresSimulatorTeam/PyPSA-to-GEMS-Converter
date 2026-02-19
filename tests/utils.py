@@ -12,6 +12,7 @@
 
 import time
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -162,7 +163,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         if col in row.index:
             row[col] = pd.to_numeric(row[col], errors="coerce")
 
-    def _n(val, default=0):
+    def _n(val: Any, default: float = 0) -> float:
         """Coerce to float for display; use default if missing/invalid."""
         v = pd.to_numeric(val, errors="coerce")
         return default if pd.isna(v) else float(v)

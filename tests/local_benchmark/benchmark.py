@@ -28,6 +28,7 @@ from tests.utils import PROJECT_ROOT, get_objective_value, load_pypsa_study_benc
 logger = logging.getLogger("benchmark")
 logger.setLevel(logging.INFO)
 
+
 @pytest.mark.parametrize(
     "file_name, load_scaling, study_name",
     [
@@ -52,8 +53,16 @@ logger.setLevel(logging.INFO)
         ("network_336_60_s_nl.nc", 1.0, "benchmark_study_network_336_60_s_nl"),
         ("network_672_10_s_nl.nc", 1.0, "benchmark_study_network_672_10_s_nl"),
         ("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"),
-        ("france_clusters_80_snapshots_8760_period_one_week.nc", 0.8, "benchmark_study_france_clusters_80_snapshots_8760_period_one_week"), # load is scaled 20% to get result faster
-        ("france_clusters_50_snapshots_365_period_one_year.nc", 0.8, "benchmark_study_france_clusters_50_snapshots_365_period_one_year"), # -||- 
+        (
+            "france_clusters_80_snapshots_8760_period_one_week.nc",
+            0.8,
+            "benchmark_study_france_clusters_80_snapshots_8760_period_one_week",
+        ),  # load is scaled 20% to get result faster
+        (
+            "france_clusters_50_snapshots_365_period_one_year.nc",
+            0.8,
+            "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
+        ),  # -||-
     ],
 )
 def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -> None:
@@ -84,7 +93,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     benchmark_data_frame.loc[0, "pypsa_version"] = network.pypsa_version
     # Converter requires unity snapshot weightings
     network.snapshot_weightings.loc[:] = 1.0
-    logger.info(f"Preprocessing PyPSA network")
+    logger.info("Preprocessing PyPSA network")
     start_time_preprocessing = time.time()
     network = preprocess_network(network, True, True)
     end_time_preprocessing = time.time() - start_time_preprocessing
@@ -178,6 +187,6 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     file_exists = combined_results_file.exists()
     benchmark_data_frame.to_csv(combined_results_file, mode="a", header=not file_exists, index=False)
     logger.info(f"Appended benchmark results to {combined_results_file}")
-    
+
     # Clean up temporary files
     shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
