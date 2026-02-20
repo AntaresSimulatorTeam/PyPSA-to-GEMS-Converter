@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pypsa-to-gems-converter"
 version = "0.0.1"
 license = {text = "MPL-2.0"}
-dependencies = ["pandas==2.2.3", "polars>=0.20.0", "pyarrow", "pypsa==1.0.0", "pyyaml==6.0.2", "pydantic==2.11.7"]
+dependencies = ["pandas==2.2.3", "polars>=0.20.0", "pyarrow", "pypsa==1.1.0", "pyyaml==6.0.2", "pydantic==2.11.7"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
