@@ -79,7 +79,13 @@ def main() -> None:
     logger.info(
         "Starting interactive container %s (workspace: %s). Run your commands inside.", tag_to_use, workspace_path
     )
-    # Interactive run: current terminal becomes the shell inside the container.
+    # Run: cd /workspace, clone pypsa-eur if missing (sslVerify=false for container without CA certs), cd pypsa-eur, then shell.
+    _clone_and_shell = (
+        "cd /workspace && "
+        "(test -d pypsa-eur || git -c http.sslVerify=false clone https://github.com/PyPSA/pypsa-eur.git) && "
+        "cd pypsa-eur && "
+        "exec bash"
+    )
     cmd = [
         "docker",
         "run",
@@ -91,6 +97,8 @@ def main() -> None:
         "/workspace",
         tag_to_use,
         "bash",
+        "-c",
+        _clone_and_shell,
     ]
     sys.exit(subprocess.run(cmd).returncode)
 
