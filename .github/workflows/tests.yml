@@ -42,11 +42,11 @@ jobs:
 
     - name: Run end-to-end tests
       run: |
-        python -m pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
+        pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
 
     - name: Run unit tests
       run: |
-        python -m pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
+        pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
 
     - name: Cleanup
       if: always()
