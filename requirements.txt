@@ -1,6 +1,6 @@
 pandas==2.2.3
 polars>=0.20.0
 pyarrow
-pypsa==1.0.0
+pypsa==1.1.0
 pyyaml==6.0.2
 pydantic==2.11.7
