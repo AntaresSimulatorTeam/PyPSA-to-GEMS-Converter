@@ -39,10 +39,11 @@ def check_antares_binaries() -> None:
 
 
 def get_original_pypsa_study_objective(network: Network) -> float:
-    logger.info("Optimizing the PyPSA study")
+    logger.info("Optimizing the PyPSA study (network=%s)", network.name)
     network.optimize()
-    logger.info("PyPSA study optimized")
-    return network.objective + network.objective_constant
+    obj = network.objective + network.objective_constant
+    logger.info("PyPSA study optimized; objective=%s", obj)
+    return obj
 
 
 def get_gems_study_objective(study_name: str) -> float:
@@ -60,10 +61,9 @@ def get_gems_study_objective(study_name: str) -> float:
         cwd=str(modeler_bin.parent),
     )
     logger.info("================================")
-    logger.info("Antares modeler output:")
-    logger.info("returncode:", result.returncode)
-    logger.info("stdout:", result.stdout)
-    logger.info("stderr:", result.stderr)
+    logger.info("Antares modeler output: returncode=%s", result.returncode)
+    logger.info("stdout: %s", result.stdout)
+    logger.info("stderr: %s", result.stderr)
     logger.info("================================")
 
     logger.info("Getting Antares study objective")
@@ -72,7 +72,9 @@ def get_gems_study_objective(study_name: str) -> float:
     result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
 
     if result_file:
-        return get_objective_value(result_file[-1])
+        obj = get_objective_value(result_file[-1])
+        logger.info("GEMS study objective for %s: %s", study_name, obj)
+        return obj
 
     raise FileNotFoundError(f"Result file not found in {output_dir}")
 
@@ -86,17 +88,24 @@ def get_gems_study_objective(study_name: str) -> float:
     ],
 )
 def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lines: bool, study_name: str) -> None:
+    logger.info(
+        "Starting e2e test: file=%s, study_name=%s, quota=%s, replace_lines=%s", file, study_name, quota, replace_lines
+    )
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
+    logger.info("Loaded PyPSA network from %s", file)
     network = preprocess_network(network, quota, replace_lines)
+    logger.info("Preprocessed network; converting to GEMS study %s", study_name)
     # Copy before optimize(): get_gems_study_objective needs an un-optimized network (no HiGHS state).
     PyPSAStudyConverter(
         pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
-
+    logger.info("Comparing PyPSA vs GEMS objective for %s", study_name)
     assert math.isclose(get_original_pypsa_study_objective(network), get_gems_study_objective(study_name), rel_tol=1e-6)
+    logger.info("E2E test passed: %s", study_name)
 
 
 def test_load_gen() -> None:
+    logger.info("Starting test_load_gen: Generator with p_nom_extendable=False")
     # Function to test the behaviour of Generator with "p_nom_extendable = False"
     network = Network(name="Demo", snapshots=[i for i in range(10)])
     network.add("Bus", "pypsatown", v_nom=1)
@@ -191,6 +200,7 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
     ],
 )
 def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
+    logger.info("Starting test_load_gen_emissions: study_name=%s, ratio=%s, sense=%s", study_name, ratio, sense)
     # Testing PyPSA Generators with CO2 constraints
     min_emissions, max_emissions = 10, 20
     network = Network(name="Demo", snapshots=[i for i in range(10)])
@@ -458,6 +468,11 @@ def test_storage_unit(
     inflow_factor: float,
     study_name: str,
 ) -> None:
+    logger.info(
+        "Starting test_storage_unit: study_name=%s, state_of_charge_initial=%s",
+        study_name,
+        state_of_charge_initial,
+    )
     network = Network(name="Demo3", snapshots=[i for i in range(20)])
     network.add("Bus", "pypsatown", v_nom=1)
     network.add(

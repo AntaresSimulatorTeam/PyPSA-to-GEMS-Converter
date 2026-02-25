@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def test_converter_deterministic_study() -> None:
+    logger.info("Running test_converter_deterministic_study")
     network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
     network.add("Carrier", "carrier", co2_emissions=0)
     network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
@@ -41,13 +42,14 @@ def test_converter_deterministic_study() -> None:
     network.add("Generator", "gen3", bus="bus 1", p_nom_extendable=False, marginal_cost=50, p_nom=200, p_max_pu=0.9)
 
     PyPSAStudyConverter(network, logger, Path("tmp") / "test_one", "csv").to_gems_study()
+    logger.info("Converted deterministic study to test_one")
 
     # test if optimi-config isn't generated
     assert not (Path("tmp") / "test_one" / "systems" / "input" / "optim-config.yml").exists()
 
     network.set_scenarios({"low": 0.5, "high": 0.5})
-
     PyPSAStudyConverter(network, logger, Path("tmp") / "test_two", "csv").to_gems_study()
+    logger.info("Converted scenario study to test_two")
 
     # test if optimi-config is generated
     assert (Path("tmp") / "test_two" / "systems" / "input" / "optim-config.yml").exists()
