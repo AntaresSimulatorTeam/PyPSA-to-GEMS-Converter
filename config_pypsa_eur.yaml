@@ -1,0 +1,114 @@
+# PyPSA-Eur regional, single-scenario, extendable-assets configuration
+#
+# This file overrides config.default.yaml. Use it with:
+#   snakemake -call --configfile config/config.regional.yaml
+# Or copy it to config/config.yaml to use it by default (no --configfile needed).
+#
+# What this config does:
+#   - Whole Europe (all countries)
+#   - 50 spatial clusters
+#   - Single deterministic scenario, extendable assets, HiGHS solver
+#
+# To prevent crashes when building (whole Europe + 250 clusters use a lot of RAM):
+#   - Run with low parallelism:  snakemake ... -j 2   or  -j 1
+#   - After a crash/kill, resume with:  snakemake ... --rerun-incomplete
+# ---------------------------------------------------------------------------
+# Countries: whole Europe
+# ---------------------------------------------------------------------------
+countries:
+  - AL
+  - AT
+  - BA
+  - BE
+  - BG
+  - CH
+  - CZ
+  - DE
+  - DK
+  - EE
+  - ES
+  - FI
+  - FR
+  - GB
+  - GR
+  - HR
+  - HU
+  - IE
+  - IT
+  - LT
+  - LU
+  - LV
+  - ME
+  - MK
+  - NL
+  - 'NO'
+  - PL
+  - PT
+  - RO
+  - RS
+  - SE
+  - SI
+  - SK
+  - XK
+
+
+scenario:
+  clusters:
+    - 70
+
+# ---------------------------------------------------------------------------
+# Single deterministic scenario: one week of hourly snapshots
+# One solve = one deterministic capacity expansion + dispatch
+# ---------------------------------------------------------------------------
+snapshots:
+  start: "2013-01-01"
+  end: "2013-01-02"
+  inclusive: left
+
+# ---------------------------------------------------------------------------
+# Extendable assets (capacity expansion)
+# Only these carriers get investment variables. Structure is fixed by pypsa-eur.
+# ---------------------------------------------------------------------------
+electricity:
+  extendable_carriers:
+    Generator:
+      - solar
+      - "solar-hsat"
+      - onwind
+      - "offwind-ac"
+      - "offwind-dc"
+      - "offwind-float"
+      - OCGT
+      - CCGT
+    StorageUnit: []
+    Store:
+      - battery
+      - H2
+    Link:
+      - "H2 pipeline"
+
+  # Transmission links are extendable 
+  transmission_limit: vopt
+
+# ---------------------------------------------------------------------------
+# Solver: HiGHS (open-source). Alternatives: gurobi, cplex, copt, xpress
+# ---------------------------------------------------------------------------
+solving:
+  solver:
+    name: highs
+    options: "highs-default"
+  # Limit solver memory (MB) to avoid OOM on large 50-cluster run
+  mem: 8000
+
+clustering:
+  spatial:
+    method: kmeans
+    clusters: 70
+    algorithm: kmeans
+
+  temporal:
+    resolution_elec: 24h
+
+# Fewer atlite processes = less RAM during renewable profile building (whole Europe)
+atlite:
+  nprocesses: 2
