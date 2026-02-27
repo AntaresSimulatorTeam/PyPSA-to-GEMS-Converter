@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pypsa import Network
 
-from src.dependencies import get_antares_modeler_bin
+from src.dependencies import get_antares_modeler_bin, get_antares_problem_generator_bin
 from src.pypsa_converter import PyPSAStudyConverter
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def test_2_stage_stochastic_study() -> None:
         "Generator",
         "gen1",
         bus="bus 1",
-        p_nom_extendable=False,
+        p_nom_extendable=True,
         marginal_cost=50,
         p_nom=200,
         p_max_pu=[0.9 + 0.01 * i for i in range(10)],
@@ -51,15 +51,15 @@ def test_2_stage_stochastic_study() -> None:
         "Generator",
         "gen2",
         bus="bus 1",
-        p_nom_extendable=False,
+        p_nom_extendable=True,
         marginal_cost=50,
         p_nom=200,
         p_max_pu=[0.9 + 0.01 * i for i in range(10)],
         capital_cost=1000,
     )
     scenarios = {
-        "low": 1,
-        # "medium": 0.2,
+        "low": 0.5,
+        "high": 0.5,
     }  # this sum needs to be equal to 1, so current solution is that we only have one scenario
 
     network.set_scenarios(scenarios)
@@ -74,17 +74,18 @@ def test_2_stage_stochastic_study() -> None:
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
     # benders_bin = get_antares_xpansion_benders_bin(current_dir)
     modeler_bin = get_antares_modeler_bin(current_dir)
+    problem_generator_bin = get_antares_problem_generator_bin(current_dir)
 
     try:
         result = subprocess.run(
-            [str(modeler_bin), str(study_dir / "systems")],
+            [str(problem_generator_bin), str(study_dir / "systems")],
             capture_output=True,
             text=True,
             check=False,
-            cwd=str(modeler_bin.parent),
+            cwd=str(problem_generator_bin.parent),
         )
         print("================================")
-        print("Antares modeler output:")
+        print("Problem generator output:")
         print("returncode:", result.returncode)
         print("stdout:", result.stdout)
         print("stderr:", result.stderr)
