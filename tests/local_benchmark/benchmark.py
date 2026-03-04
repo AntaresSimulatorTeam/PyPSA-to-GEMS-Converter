@@ -55,14 +55,15 @@ logger.setLevel(logging.INFO)
         ("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"),
         (
             "france_clusters_80_snapshots_8760_period_one_week.nc",
-            0.8,
+            1.0,
             "benchmark_study_france_clusters_80_snapshots_8760_period_one_week",
-        ),  # load is scaled 20% to get result faster
+        ),
         (
             "france_clusters_50_snapshots_365_period_one_year.nc",
-            0.8,
+            1.0,
             "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
-        ),  # -||-
+        ),
+        ("pypsa_eur_one_year_hourly.nc", 1.0, "pypsa_eur_one_year_hourly"),
     ],
 )
 def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -> None:

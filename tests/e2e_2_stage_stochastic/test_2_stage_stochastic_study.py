@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pypsa import Network
 
-from src.dependencies import get_antares_modeler_bin, get_antares_problem_generator_bin
+from src.dependencies import get_antares_problem_generator_bin
 from src.pypsa_converter import PyPSAStudyConverter
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def test_2_stage_stochastic_study() -> None:
 
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
     # benders_bin = get_antares_xpansion_benders_bin(current_dir)
-    modeler_bin = get_antares_modeler_bin(current_dir)
+    # modeler_bin = get_antares_modeler_bin(current_dir)
     problem_generator_bin = get_antares_problem_generator_bin(current_dir)
 
     try:
