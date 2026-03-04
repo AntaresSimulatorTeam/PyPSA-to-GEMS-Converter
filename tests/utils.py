@@ -200,23 +200,33 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  PyPSA Total Time: {_n(row['total_time_pypsa']):.4f} s")
     print(f"  Modeler Total Time: {_n(row['modeler_total_time']):.4f} s")
 
-    n_const_pypsa = _n(row["number_of_constraints_pypsa"])
-    n_const_modeler = _n(row["number_of_constraints_modeler"])
-    n_var_pypsa = _n(row["number_of_variables_pypsa"])
-    n_var_modeler = _n(row["number_of_variables_modeler"])
+    # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
+    has_modeler_stats = (
+        "number_of_constraints_modeler" in row.index
+        and "number_of_variables_modeler" in row.index
+    )
+    n_const_pypsa = _n(row.get("number_of_constraints_pypsa"))
+    n_var_pypsa = _n(row.get("number_of_variables_pypsa"))
     print("\n📈 OPTIMIZATION PROBLEM SIZE:")
     print(f"  PyPSA Constraints: {int(n_const_pypsa)}")
-    print(f"  Modeler Constraints: {int(n_const_modeler)}")
-    if n_const_modeler:
-        print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
-    else:
-        print("  Constraints Ratio (PyPSA/Modeler): N/A")
     print(f"  PyPSA Variables: {int(n_var_pypsa)}")
-    print(f"  Modeler Variables: {int(n_var_modeler)}")
-    if n_var_modeler:
-        print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+    if has_modeler_stats:
+        n_const_modeler = _n(row.get("number_of_constraints_modeler"))
+        n_var_modeler = _n(row.get("number_of_variables_modeler"))
+        print(f"  Modeler Constraints: {int(n_const_modeler)}")
+        if n_const_modeler:
+            print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
+        else:
+            print("  Constraints Ratio (PyPSA/Modeler): N/A")
+        print(f"  Modeler Variables: {int(n_var_modeler)}")
+        if n_var_modeler:
+            print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+        else:
+            print("  Variables Ratio (PyPSA/Modeler): N/A")
     else:
-        print("  Variables Ratio (PyPSA/Modeler): N/A")
+        n_const_modeler = 0
+        n_var_modeler = 0
+        print("  Modeler constraints/variables: N/A (not reported by this Antares version)")
 
     pypsa_obj = _n(row["pypsa_objective"])
     modeler_obj = _n(row["modeler_objective_value"])
