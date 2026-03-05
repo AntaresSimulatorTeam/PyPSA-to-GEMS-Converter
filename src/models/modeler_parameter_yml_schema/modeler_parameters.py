@@ -24,6 +24,7 @@ class ModelerParameters(ModifiedBaseModel):
     solver_logs: bool = False
     solver_parameters: str = "THREADS 1"
     no_output: bool = False
+    export_mps: bool = True
     _first_time_step: int = PrivateAttr(default=0)
     _last_time_step: int = PrivateAttr(default=0)
 
@@ -33,6 +34,7 @@ class ModelerParameters(ModifiedBaseModel):
         solver_logs: bool,
         solver_parameters: str,
         no_output: bool,
+        export_mps: bool,
         first_time_step: int,
         last_time_step: int,
     ):
@@ -41,6 +43,7 @@ class ModelerParameters(ModifiedBaseModel):
         self.solver_logs = solver_logs
         self.solver_parameters = solver_parameters
         self.no_output = no_output
+        self.export_mps = export_mps
         self._first_time_step = first_time_step
         self._last_time_step = last_time_step
 
@@ -51,6 +54,7 @@ class ModelerParameters(ModifiedBaseModel):
             "solver-logs": self.solver_logs,
             "solver-parameters": self.solver_parameters,
             "no-output": self.no_output,
+            "export-mps": self.export_mps,
             "first-time-step": self._first_time_step,
             "last-time-step": self._last_time_step,
         }
