@@ -60,7 +60,6 @@ class GemsStudyWriter:
             solver_logs=False,
             solver_parameters="THREADS 1",
             no_output=False,
-            export_mps=True,
             first_time_step=0,
             last_time_step=last_time_step,
         ).to_yml(self.study_dir / "systems" / "parameters.yml")

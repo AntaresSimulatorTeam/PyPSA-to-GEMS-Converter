@@ -55,9 +55,9 @@ logger.setLevel(logging.INFO)
         ("network_672_10_s_nl.nc", 1.0, "benchmark_study_network_672_10_s_nl"),
         ("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"),
         (
-            "france_clusters_80_snapshots_8760_period_one_week.nc",
+            "france_clusters_80_snapshots_16_period_one_week.nc",
             1.0,
-            "benchmark_study_france_clusters_80_snapshots_8760_period_one_week",
+            "benchmark_study_france_clusters_80_snapshots_168_period_one_week",
         ),
         (
             "france_clusters_50_snapshots_365_period_one_year.nc",
@@ -122,16 +122,43 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
             cwd=str(modeler_bin.parent),
         )
         # Parse Antares modeler stdout for problem size and timing information
+        modeler_parsing_time: float | None = None
         modeler_build_time: float | None = None
         modeler_solve_time: float | None = None
+        modeler_writing_time: float | None = None
+        modeler_n_variables: int | None = None
+        modeler_n_constraints: int | None = None
 
         for line in result.stdout.splitlines():
             # Example lines:
-            # "[...][modeler][infos] Number of variables: 187"
-            # "[...][modeler][infos] Number of constraints: 452"
+            # "[...][modeler][infos] Modeler loaded in 0.036 s"
+            # "[...][modeler][infos] Number of variables: 4872"
+            # "[...][modeler][infos] Number of constraints: 5209"
             # "[...][modeler][infos] Modeler build took 0.000 s"
             # "[...][modeler][infos] Solved in 0.003 s"
-            if "Modeler build took" in line and "s" in line:
+            # "[...][modeler][infos] Simulation Table is generated in 8 ms"
+            if "Modeler loaded in" in line:
+                match = re.search(r"Modeler loaded in\s+([0-9.+eE-]+)\s*s", line)
+                if match:
+                    try:
+                        modeler_parsing_time = float(match.group(1))
+                    except ValueError:
+                        pass
+            elif "Number of variables:" in line:
+                match = re.search(r"Number of variables:\s*([0-9]+)", line)
+                if match:
+                    try:
+                        modeler_n_variables = int(match.group(1))
+                    except ValueError:
+                        pass
+            elif "Number of constraints:" in line:
+                match = re.search(r"Number of constraints:\s*([0-9]+)", line)
+                if match:
+                    try:
+                        modeler_n_constraints = int(match.group(1))
+                    except ValueError:
+                        pass
+            elif "Modeler build took" in line and "s" in line:
                 match = re.search(r"Modeler build took\s+([0-9.+eE-]+)\s*s", line)
                 if match:
                     try:
@@ -145,13 +172,31 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
                         modeler_solve_time = float(match.group(1))
                     except ValueError:
                         pass
+            elif "Simulation Table is generated in" in line:
+                match = re.search(r"Simulation Table is generated in\s+([0-9.+eE-]+)\s*ms", line)
+                if match:
+                    try:
+                        modeler_writing_time = float(match.group(1)) / 1000.0
+                    except ValueError:
+                        pass
 
+        if modeler_parsing_time is not None:
+            benchmark_data_frame.loc[0, "modeler_parsing_time"] = modeler_parsing_time
         if modeler_build_time is not None:
             benchmark_data_frame.loc[0, "modeler_build_time"] = modeler_build_time
         if modeler_solve_time is not None:
             benchmark_data_frame.loc[0, "modeler_solve_time"] = modeler_solve_time
+        if modeler_writing_time is not None:
+            benchmark_data_frame.loc[0, "modeler_writing_time"] = modeler_writing_time
+        if modeler_n_variables is not None:
+            benchmark_data_frame.loc[0, "number_of_variables_modeler"] = modeler_n_variables
+        if modeler_n_constraints is not None:
+            benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = modeler_n_constraints
 
-        benchmark_data_frame.loc[0, "modeler_total_time"] = modeler_solve_time + modeler_build_time
+        modeler_total = sum(
+            t for t in [modeler_parsing_time, modeler_build_time, modeler_solve_time, modeler_writing_time] if t is not None
+        )
+        benchmark_data_frame.loc[0, "modeler_total_time"] = modeler_total
 
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Antares modeler failed with error: {e}")
@@ -163,15 +208,17 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         objective_value = get_objective_value(result_file[-1])
         benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
 
-    # To pick up the number of constraints and variables from the MPS file generated by Antares modeler
-    # For Antares Simulator >9.3.5 version, make sure you have export-mps: true in parameters.yml file, otherwise the MPS file is not generated
-    mps_files = [f for f in output_dir.iterdir() if f.is_file() and f.name.endswith(".mps") and f.name != "master.mps"]
-    if mps_files:
-        highs = Highs()
-        highs.readModel(str(mps_files[0]))
-        lp = highs.getLp()
-        benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = lp.num_row_
-        benchmark_data_frame.loc[0, "number_of_variables_modeler"] = lp.num_col_
+    # Fall back to MPS file for constraints/variables if not captured from stdout
+    if modeler_n_variables is None or modeler_n_constraints is None:
+        mps_files = [f for f in output_dir.iterdir() if f.is_file() and f.name.endswith(".mps") and f.name != "master.mps"]
+        if mps_files:
+            highs = Highs()
+            highs.readModel(str(mps_files[0]))
+            lp = highs.getLp()
+            if modeler_n_constraints is None:
+                benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = lp.num_row_
+            if modeler_n_variables is None:
+                benchmark_data_frame.loc[0, "number_of_variables_modeler"] = lp.num_col_
 
     parameters_yml_path = PROJECT_ROOT / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
@@ -217,4 +264,4 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     logger.info(f"Appended benchmark results to {combined_results_file}")
 
     # Clean up temporary files
-    shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
+    #shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
