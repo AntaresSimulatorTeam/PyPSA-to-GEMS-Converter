@@ -20,7 +20,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-from highspy import Highs  # type: ignore
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
@@ -194,7 +193,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
             benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = modeler_n_constraints
 
         modeler_total = sum(
-            t for t in [modeler_parsing_time, modeler_build_time, modeler_solve_time, modeler_writing_time] if t is not None
+            t
+            for t in [modeler_parsing_time, modeler_build_time, modeler_solve_time, modeler_writing_time]
+            if t is not None
         )
         benchmark_data_frame.loc[0, "modeler_total_time"] = modeler_total
 
@@ -207,18 +208,6 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     if result_file:
         objective_value = get_objective_value(result_file[-1])
         benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
-
-    # Fall back to MPS file for constraints/variables if not captured from stdout
-    if modeler_n_variables is None or modeler_n_constraints is None:
-        mps_files = [f for f in output_dir.iterdir() if f.is_file() and f.name.endswith(".mps") and f.name != "master.mps"]
-        if mps_files:
-            highs = Highs()
-            highs.readModel(str(mps_files[0]))
-            lp = highs.getLp()
-            if modeler_n_constraints is None:
-                benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = lp.num_row_
-            if modeler_n_variables is None:
-                benchmark_data_frame.loc[0, "number_of_variables_modeler"] = lp.num_col_
 
     parameters_yml_path = PROJECT_ROOT / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
@@ -264,4 +253,4 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     logger.info(f"Appended benchmark results to {combined_results_file}")
 
     # Clean up temporary files
-    #shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
+    shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
