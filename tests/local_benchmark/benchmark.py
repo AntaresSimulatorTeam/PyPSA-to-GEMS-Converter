@@ -55,7 +55,7 @@ logger.setLevel(logging.INFO)
         ("network_672_10_s_nl.nc", 1.0, "benchmark_study_network_672_10_s_nl"),
         ("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"),
         (
-            "france_clusters_80_snapshots_16_period_one_week.nc",
+            "france_clusters_80_snapshots_168_period_one_week.nc",
             1.0,
             "benchmark_study_france_clusters_80_snapshots_168_period_one_week",
         ),
