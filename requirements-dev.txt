@@ -1,9 +1,4 @@
-polars>=0.20.0
-pyarrow
-pandas==2.2.3
-pypsa==1.0.0
-pyyaml==6.0.2
-pydantic==2.11.7
+-r requirements.txt
 pytest==7.0.1
 pytest-xdist==3.8.0
 highspy>=1.5.0
