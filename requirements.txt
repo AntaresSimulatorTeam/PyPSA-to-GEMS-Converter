@@ -3,4 +3,4 @@ polars>=0.20.0
 pyarrow
 pypsa==1.0.0
 pyyaml==6.0.2
-pydantic==2.11.7
+pydantic==2.12.5

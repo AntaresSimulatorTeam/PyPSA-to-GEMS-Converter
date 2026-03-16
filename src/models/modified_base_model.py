@@ -10,16 +10,12 @@
 #
 # This file is part of the Antares project.
 
-from pydantic import BaseModel
-
-
-def alias_generator(snake: str) -> str:
-    """Convert snake_case to kebab-case."""
-    return snake.replace("_", "-")
+from pydantic import BaseModel, ConfigDict
 
 
 class ModifiedBaseModel(BaseModel):
-    class Config:
-        alias_generator = alias_generator
-        extra = "forbid"
-        populate_by_name = True
+    model_config = ConfigDict(
+        alias_generator=lambda name: name.replace("_", "-"),
+        extra="forbid",
+        populate_by_name=True,
+    )
