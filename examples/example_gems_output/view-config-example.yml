@@ -1,0 +1,60 @@
+# Such a file for "Business Metrics" definitions should be modified only by expert user in a text editor. No API/GUI is needed.
+# In "secure mode", a user can only refer to "Business Metrics Definition files" that are registered as "safe" in a reference repo.
+# In "free mode", a user can refer to "Business Metrics Definitions files" that are freely modified
+
+############################    Columns of a Business View   #######################################
+
+# metric_id | metric_location | breakdown_property | view_date | scenario_id | metric_value |
+
+####################################################################################################
+
+catalog:
+  
+  id: test_example_pypsa
+
+  taxonomy: my_taxonomy
+
+  location:
+    taxonomy-category: balance
+
+  metrics-definition: 
+
+  - id: PROD
+    terms:
+      - taxonomy-category: production
+        output-id: p
+        location-ports: p_balance_port
+    terms-operator: sum
+    time-operator: sum
+
+
+  - id: LOAD
+    terms:
+      - taxonomy-category: consumption
+        output-id: active_load
+        location-ports: p_balance_port
+    terms-operator: sum
+    time-operator: sum
+
+  
+  - id: INSTALLED_PROD_CAPACITY
+    terms:
+      - taxonomy-category: production
+        output-id: pnom
+        location-ports: p_balance_port
+    terms-operator: sum
+    time-operator: sum
+
+
+  - id: BALANCE
+    terms:
+      - taxonomy-category: link
+        output-id: p0_port.flow
+        location-ports: p0_port
+      - taxonomy-category: link
+        output-id: p1_port.flow
+        location-ports: p1_port
+    terms-operator: sum
+    time-operator: sum
+
+  
