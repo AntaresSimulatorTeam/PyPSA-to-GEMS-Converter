@@ -32,6 +32,7 @@ library:
 
   models:
     - id: bus
+      taxonomy-category: balance
     #Model for PyPSA bus: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#bus
       parameters:
         - id: v_nom
@@ -68,6 +69,7 @@ library:
           expression: sum_connections(q_balance_port.flow) = 0
     
     - id: load
+      taxonomy-category: consumption
       #Model for PyPSA load: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#load
       parameters:
         #- id : carrier # This parameter is not used in the Gems model
@@ -198,6 +200,7 @@ library:
           expression: sum(marginal_cost * p) 
 
     - id: link
+      taxonomy-category: link
     #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
       parameters:
         #- id: type # This parameter is not used in the Gems model
@@ -287,6 +290,7 @@ library:
 
   
     - id: storage_unit
+      taxonomy-category: storage
      #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
       parameters:
         #- id: control #Parameter not instantiated for now
@@ -396,6 +400,7 @@ library:
           expression: sum(marginal_cost * p_dispatch + spill_cost*spill + marginal_cost_storage * state_of_charge) 
 
     - id: store
+      taxonomy-category: consumption
       #Model for PyPSA store: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#store
       parameters:
         #- id: type # This parameter is not used in the Gems model
@@ -482,6 +487,7 @@ library:
 #### Models for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint ###
 
     - id: global_constraint_co2_max
+      taxonomy-category: coupling
       #Model for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint
       # Case CO2, <=
       parameters:
@@ -499,6 +505,7 @@ library:
           expression: sum(sum_connections(emission_port.emission)) <= quota
     
     - id: global_constraint_co2_eq
+      taxonomy-category: coupling
       #Model for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint
       # Case CO2, ==
       parameters:
