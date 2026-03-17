@@ -96,6 +96,9 @@ library:
         - port: q_balance_port
           field: flow
           definition: sign * q_set
+      extra-outputs:
+        - id: active_load
+          expression: p_set
 
     - id: generator
     #Model for PyPSA generator: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#generator
