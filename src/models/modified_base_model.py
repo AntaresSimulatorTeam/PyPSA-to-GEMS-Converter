@@ -17,5 +17,6 @@ class ModifiedBaseModel(BaseModel):
     model_config = ConfigDict(
         alias_generator=lambda name: name.replace("_", "-"),
         extra="forbid",
-        populate_by_name=True,
+        validate_by_alias=True,
+        validate_by_name=True,
     )
