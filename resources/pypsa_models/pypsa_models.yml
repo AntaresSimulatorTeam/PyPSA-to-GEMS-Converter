@@ -17,7 +17,7 @@
 
 library:
   id: pypsa_models
-  description: PyPSA model library 
+  description: PyPSA model library
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
   port-types:
@@ -25,6 +25,10 @@ library:
       description: A port which transfers power flow
       fields:
         - id: flow
+    - id: angle
+      description: A port which transfers voltage angle for DC power flow
+      fields:
+        - id: theta
     - id: emission
       description: A port which accounts for CO2 emissions
       fields:
@@ -32,7 +36,7 @@ library:
 
   models:
     - id: bus
-    #Model for PyPSA bus: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#bus
+      #Model for PyPSA bus: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#bus
       parameters:
         - id: v_nom
           time-dependent: false
@@ -56,17 +60,35 @@ library:
         - id: v_mag_pu_max
           time-dependent: false
           scenario-dependent: false
+      variables:
+        - id: theta
       ports:
         - id: p_balance_port
           type: flow
         - id: q_balance_port
           type: flow
+        - id: theta_port
+          type: angle
+      port-field-definitions:
+        - port: theta_port
+          field: theta
+          definition: theta
       binding-constraints:
         - id: p_balance
           expression: sum_connections(p_balance_port.flow) = 0
         - id: q_balance
           expression: sum_connections(q_balance_port.flow) = 0
-    
+
+    - id: reference_bus
+      # One instance of this model should be connected to exactly one bus
+      # to impose theta = 0 on that bus.
+      ports:
+        - id: theta_port
+          type: angle
+      binding-constraints:
+        - id: theta_reference
+          expression: sum_connections(theta_port.theta) = 0
+
     - id: load
       #Model for PyPSA load: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#load
       parameters:
@@ -96,7 +118,7 @@ library:
           definition: sign * q_set
 
     - id: generator
-    #Model for PyPSA generator: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#generator
+      #Model for PyPSA generator: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#generator
       parameters:
         #- id: control #Parameter not instantiated for now
         #- id: type # This parameter is not used in the Gems model
@@ -104,7 +126,7 @@ library:
         #- id: p_nom_extendable #Parameter that is not used in Gems model: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
         - id: p_nom_min
           time-dependent: false
-          scenario-dependent: false 
+          scenario-dependent: false
         - id: p_nom_max
           time-dependent: false
           scenario-dependent: false
@@ -156,7 +178,7 @@ library:
         - id: emission_factor
           time-dependent: false
           scenario-dependent: false
-        
+
       variables:
         - id: p_nom
           lower-bound: p_nom_min
@@ -183,22 +205,59 @@ library:
         #  field: flow
         #  definition: q*sign
       constraints:
-      - id: min_dispatch
-        expression: p >=p_nom * p_min_pu
-      - id: max_dispatch
-        expression: p <=p_nom * p_max_pu
-      - id: min_production
-        expression: sum(p) >= e_sum_min
-      - id: max_production
-        expression: sum(p) <= e_sum_max
+        - id: min_dispatch
+          expression: p >=p_nom * p_min_pu
+        - id: max_dispatch
+          expression: p <=p_nom * p_max_pu
+        - id: min_production
+          expression: sum(p) >= e_sum_min
+        - id: max_production
+          expression: sum(p) <= e_sum_max
       objective-contributions:
         - id: capital_objective
           expression: p_nom * capital_cost
         - id: operational_objective
-          expression: sum(marginal_cost * p) 
+          expression: sum(marginal_cost * p)
+
+    - id: line
+      #Model for PyPSA line in DC economic dispatch (LOPF)
+      #Flow is passive and determined by the angle difference and line reactance (KVL: p0 = (θ_bus0 - θ_bus1) / x)
+      #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
+      parameters:
+        - id: x
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom
+          time-dependent: false
+          scenario-dependent: false
+      variables:
+        - id: p0
+      ports:
+        - id: bus0_p_port
+          type: flow
+        - id: bus1_p_port
+          type: flow
+        - id: bus0_theta_port
+          type: angle
+        - id: bus1_theta_port
+          type: angle
+      port-field-definitions:
+        - port: bus0_p_port
+          field: flow
+          definition: -p0
+        - port: bus1_p_port
+          field: flow
+          definition: p0
+      constraints:
+        - id: dc_flow
+          expression: p0 = (sum_connections(bus0_theta_port.theta) - sum_connections(bus1_theta_port.theta)) / x
+        - id: upper_flow
+          expression: p0 <= s_nom
+        - id: lower_flow
+          expression: p0 >= -s_nom
 
     - id: link
-    #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
+      #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
       parameters:
         #- id: type # This parameter is not used in the Gems model
         #- id: carrier # This parameter is not used in the Gems model
@@ -223,7 +282,7 @@ library:
         - id: p_max_pu
           time-dependent: true
           scenario-dependent: true
-        - id: capital_cost 
+        - id: capital_cost
           time-dependent: false
           scenario-dependent: false
         - id: marginal_cost
@@ -283,11 +342,10 @@ library:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p0) 
+          expression: sum(marginal_cost * p0)
 
-  
     - id: storage_unit
-     #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
+      #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
       parameters:
         #- id: control #Parameter not instantiated for now
         #- id: type # This parameter is not used in the Gems model
@@ -318,7 +376,7 @@ library:
           time-dependent: true
           scenario-dependent: true
         #- id: marginal_cost_quadratic #Parameter not instantiated for now
-        - id: marginal_cost_storage 
+        - id: marginal_cost_storage
           time-dependent: true
           scenario-dependent: true
         - id: capital_cost
@@ -347,7 +405,7 @@ library:
         - id: inflow
           time-dependent: true
           scenario-dependent: true
-      ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
+        ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
           scenario-dependent: false
@@ -393,7 +451,7 @@ library:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p_dispatch + spill_cost*spill + marginal_cost_storage * state_of_charge) 
+          expression: sum(marginal_cost * p_dispatch + spill_cost*spill + marginal_cost_storage * state_of_charge)
 
     - id: store
       #Model for PyPSA store: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#store
@@ -439,7 +497,7 @@ library:
         #- id: active #Parameter that is not instantiated: only active components are built by the data converter.
         #- id: build_year #Parameter not instantiated for now
         #- id: lifetime #Parameter not instantiated for now
-      ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
+        ##Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
           time-dependent: false
           scenario-dependent: false
@@ -474,12 +532,9 @@ library:
         - id: capital_objective
           expression: capital_cost * e_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p + marginal_cost_storage * e) 
+          expression: sum(marginal_cost * p + marginal_cost_storage * e)
 
-
-
-
-#### Models for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint ###
+    #### Models for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint ###
 
     - id: global_constraint_co2_max
       #Model for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint
@@ -488,16 +543,16 @@ library:
         #-type = Primary energy
         #-carrier_attribute = CO2_emissions
         #sense = <=
-       - id: quota
-         time-dependent: false
-         scenario-dependent: false
+        - id: quota
+          time-dependent: false
+          scenario-dependent: false
       ports:
         - id: emission_port
           type: emission
       binding-constraints:
         - id: constraint_expression
           expression: sum(sum_connections(emission_port.emission)) <= quota
-    
+
     - id: global_constraint_co2_eq
       #Model for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint
       # Case CO2, ==
@@ -505,9 +560,9 @@ library:
         #-type = Primary energy
         #-carrier_attribute = CO2_emissions
         #sense = ==
-       - id: quota
-         time-dependent: false
-         scenario-dependent: false
+        - id: quota
+          time-dependent: false
+          scenario-dependent: false
       ports:
         - id: emission_port
           type: emission
