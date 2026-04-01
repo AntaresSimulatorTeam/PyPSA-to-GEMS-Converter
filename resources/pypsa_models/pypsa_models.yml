@@ -224,13 +224,49 @@ library:
       #Flow is passive and determined by the angle difference and line reactance (KVL: p0 = (θ_bus0 - θ_bus1) / x)
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
       parameters:
+        #- id: type # Cannot be implemented: requires a lookup into the line_types table to derive r/x/b; this is a preprocessing step, not a GEMS model parameter.
         - id: x
+          #Series reactance [Ohm]. Required for DC LOPF (linearised power flow). Ignored if type is set.
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom
+        #- id: r # Cannot be implemented: series resistance is neglected in the DC LOPF approximation (lossless network assumption). Only relevant for AC or lossy DC power flow models.
+        #- id: g # Cannot be implemented: shunt conductivity is neglected in the DC LOPF approximation. Only relevant for AC power flow models.
+        #- id: b # Cannot be implemented: shunt susceptance is neglected in the DC LOPF approximation. Only relevant for AC power flow models. Ignored if type is set.
+        - id: s_nom_min
+          #Minimum s_nom [MVA] when s_nom_extendable=True.
           time-dependent: false
           scenario-dependent: false
+        - id: s_nom_max
+          #Maximum s_nom [MVA] when s_nom_extendable=True.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: s_nom_mod # Cannot be implemented: modular capacity expansion introduces integer variables (MIP), which are not supported in the current GEMS model formulation.
+        #- id: s_nom_extendable # Not instantiated: s_nom_min and s_nom_max are used to fix s_nom for non-extendable lines (set to s_nom value by the converter).
+        #- id: s_nom_set # Not instantiated: fixing s_nom_opt is handled by setting s_nom_min = s_nom_max in the converter.
+        - id: s_max_pu
+          #Maximum allowed flow per unit of s_nom. Can be < 1 for N-1 contingency or time-varying for dynamic line rating.
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          #Annuitised investment cost per MVA of s_nom extension [currency/MVA].
+          time-dependent: false
+          scenario-dependent: false
+        #- id: overnight_cost # Not instantiated: upfront investment cost must be converted to an annuitised capital_cost by the converter before being passed to the GEMS model.
+        #- id: discount_rate # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: fom_cost # Not instantiated for now.
+        #- id: active # Not instantiated: only active components are built by the data converter.
+        #- id: build_year # Not instantiated for now.
+        #- id: lifetime # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: length # Cannot be implemented: physical line length is not a variable or constraint in the GEMS model; used only in preprocessing to scale type-based impedances.
+        #- id: carrier # Cannot be implemented: carrier (AC/DC) is a classification attribute with no role in the GEMS model equations.
+        #- id: terrain_factor # Cannot be implemented: scaling factor applied to length in preprocessing to adjust capital_cost; not a GEMS model parameter.
+        #- id: num_parallel # Cannot be implemented: number of parallel circuits is resolved in preprocessing when type is set; not a GEMS model parameter.
+        #- id: v_ang_min # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
+        #- id: v_ang_max # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
       variables:
+        - id: s_nom
+          lower-bound: s_nom_min
+          upper-bound: s_nom_max
         - id: p0
       ports:
         - id: bus0_p_port
@@ -252,9 +288,12 @@ library:
         - id: dc_flow
           expression: p0 = (sum_connections(bus0_theta_port.theta) - sum_connections(bus1_theta_port.theta)) / x
         - id: upper_flow
-          expression: p0 <= s_nom
+          expression: p0 <= s_nom * s_max_pu
         - id: lower_flow
-          expression: p0 >= -s_nom
+          expression: p0 >= -s_nom * s_max_pu
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * s_nom
 
     - id: link
       #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
