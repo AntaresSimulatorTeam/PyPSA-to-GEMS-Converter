@@ -295,6 +295,85 @@ library:
         - id: capital_objective
           expression: capital_cost * s_nom
 
+    - id: transformer
+      #Model for PyPSA transformer in DC economic dispatch (LOPF)
+      #In DC LOPF a transformer is treated as a line with effective per-unit reactance.
+      #The tap ratio effect is absorbed into x_pu_eff by the converter (PyPSA output column).
+      #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
+      parameters:
+        #- id: type # Cannot be implemented: standard type lookup (overrides r/x/b/s_nom/tap_ratio) is a preprocessing step, not a GEMS model parameter.
+        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
+        - id: x_pu_eff
+          #Effective per-unit series reactance for DC LOPF, pre-computed by the converter from x and tap_ratio.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation.
+        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
+        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation.
+        #- id: tap_ratio # Cannot be implemented directly: effect on reactance is absorbed into x_pu_eff by the converter; effect on voltage magnitude is neglected in DC LOPF.
+        #- id: tap_side # Not a GEMS model parameter: only used with tap_ratio in preprocessing to compute x_pu_eff.
+        #- id: tap_position # Not a GEMS model parameter: only used with type in preprocessing.
+        #- id: phase_shift # Not instantiated for now: could be implemented as an angle offset in the dc_flow constraint: p0 = (θ_bus0 - θ_bus1 - phase_shift) / x_pu_eff.
+        - id: s_nom_min
+          #Minimum s_nom [MVA] when s_nom_extendable=True.
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_max
+          #Maximum s_nom [MVA] when s_nom_extendable=True.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: s_nom_mod # Cannot be implemented: modular capacity expansion introduces integer variables (MIP), not supported in the current GEMS model formulation.
+        #- id: s_nom_extendable # Not instantiated: s_nom_min and s_nom_max are used to fix s_nom for non-extendable transformers (set to s_nom value by the converter).
+        #- id: s_nom_set # Not instantiated: fixing s_nom_opt is handled by setting s_nom_min = s_nom_max in the converter.
+        - id: s_max_pu
+          #Maximum allowed flow per unit of s_nom.
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          #Annuitised investment cost per MVA of s_nom extension [currency/MVA].
+          time-dependent: false
+          scenario-dependent: false
+        #- id: overnight_cost # Not instantiated: upfront investment cost must be converted to an annuitised capital_cost by the converter before being passed to the GEMS model.
+        #- id: discount_rate # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: fom_cost # Not instantiated for now.
+        #- id: num_parallel # Cannot be implemented: number of parallel transformers is resolved in preprocessing when type is set; not a GEMS model parameter.
+        #- id: active # Not instantiated: only active components are built by the data converter.
+        #- id: build_year # Not instantiated for now.
+        #- id: lifetime # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: v_ang_min # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
+        #- id: v_ang_max # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
+      variables:
+        - id: s_nom
+          lower-bound: s_nom_min
+          upper-bound: s_nom_max
+        - id: p0
+      ports:
+        - id: bus0_p_port
+          type: flow
+        - id: bus1_p_port
+          type: flow
+        - id: bus0_theta_port
+          type: angle
+        - id: bus1_theta_port
+          type: angle
+      port-field-definitions:
+        - port: bus0_p_port
+          field: flow
+          definition: -p0
+        - port: bus1_p_port
+          field: flow
+          definition: p0
+      constraints:
+        - id: dc_flow
+          expression: p0 = (sum_connections(bus0_theta_port.theta) - sum_connections(bus1_theta_port.theta)) / x_pu_eff
+        - id: upper_flow
+          expression: p0 <= s_nom * s_max_pu
+        - id: lower_flow
+          expression: p0 >= -s_nom * s_max_pu
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * s_nom
+
     - id: link
       #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
       parameters:
