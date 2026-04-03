@@ -60,6 +60,9 @@ library:
         - id: v_mag_pu_max
           time-dependent: false
           scenario-dependent: false
+        - id: theta_flag
+          time-dependent: false
+          scenario-dependent: false
       variables:
         - id: theta
       ports:
@@ -73,6 +76,9 @@ library:
         - port: theta_port
           field: theta
           definition: theta
+      constraints:
+        - id: theta_zero
+          expression: theta_flag * theta = 0
       binding-constraints:
         - id: p_balance
           expression: sum_connections(p_balance_port.flow) = 0
