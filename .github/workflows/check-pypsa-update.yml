@@ -1,0 +1,109 @@
+name: Check PyPSA Update
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read current PyPSA version
+        id: current
+        run: |
+          VERSION=$(grep 'PYPSA_VERSION' versions/pypsa.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current version: $VERSION"
+
+      - name: Fetch latest PyPSA release from PyPI
+        id: latest
+        run: |
+          RESPONSE=$(curl -sf "https://pypi.org/pypi/pypsa/json")
+
+          if [ -z "$RESPONSE" ]; then
+            echo "ERROR: Could not fetch PyPSA info from PyPI"
+            exit 1
+          fi
+
+          LATEST=$(echo "$RESPONSE" | jq -r '.info.version')
+
+          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+            echo "ERROR: Could not parse latest PyPSA version"
+            exit 1
+          fi
+
+          echo "version=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Latest PyPSA version: $LATEST"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          LATEST="${{ steps.latest.outputs.version }}"
+          echo "Current: $CURRENT  |  Latest: $LATEST"
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "update=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date."
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+            echo "New version detected: $LATEST"
+          fi
+
+      - name: Create GitHub Issue
+        if: steps.compare.outputs.update == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const latest = '${{ steps.latest.outputs.version }}';
+            const current = '${{ steps.current.outputs.version }}';
+            const title = `[PYPSA UPDATE] New release: v${latest}`;
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const duplicate = existing.data.find(i => i.title.includes(`v${latest}`));
+            if (duplicate) {
+              console.log(`Issue already exists: #${duplicate.number} - skipping.`);
+              return;
+            }
+
+            const body = [
+              '> This issue was automatically created by the `check-pypsa-update` workflow.',
+              '',
+              '## New Version Detected',
+              '',
+              '| | |',
+              '|---|---|',
+              `| **Previous version** | \`${current}\` |`,
+              `| **New version** | \`${latest}\` |`,
+              `| **PyPI page** | https://pypi.org/project/pypsa/${latest}/ |`,
+              `| **Changelog** | https://pypsa.readthedocs.io/en/latest/release_notes.html |`,
+              '',
+              '## Triage',
+              '',
+              '- [ ] PyPSA changelog reviewed',
+              '- [ ] P2G-03 issue opened (if API changes, new components, or solver behaviour changes affect the converter)',
+              '- [ ] No action needed (if release has no impact on the converter)',
+            ].join('\n');
+
+            const result = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['pypsa-update'],
+            });
+
+            console.log(`Issue created: #${result.data.number} - ${result.data.html_url}`);

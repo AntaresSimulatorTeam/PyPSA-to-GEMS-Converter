@@ -1,0 +1,42 @@
+name: PyPSA Update Detected
+description: Automatically created when a new PyPSA release is detected on PyPI
+title: "[PYPSA UPDATE] New release: v"
+labels: ["pypsa-update"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue was automatically created by the `check-pypsa-update` workflow.
+
+        **Next step:** review the PyPSA changelog and open a **P2G-03** issue if the new version impacts the converter's API usage, data extraction logic, or solver behaviour.
+
+  - type: input
+    id: pypsa_version
+    attributes:
+      label: New PyPSA Version
+      placeholder: "e.g. 1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: previous_version
+    attributes:
+      label: Previous Tracked Version
+      placeholder: "e.g. 1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: release_notes
+    attributes:
+      label: Release Notes Summary
+      description: Key changes in the new PyPSA release relevant to the converter (auto-populated by workflow if available)
+
+  - type: textarea
+    id: triage
+    attributes:
+      label: Triage
+      value: |
+        - [ ] PyPSA changelog reviewed
+        - [ ] P2G-03 issue opened (if API changes, new components, or solver behaviour changes affect the converter)
+        - [ ] No action needed (if release has no impact on the converter)

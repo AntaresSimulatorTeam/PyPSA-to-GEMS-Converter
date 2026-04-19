@@ -1,0 +1,105 @@
+name: "P2G-01 — Antares evolution impact on converter"
+description: Track updates to the PyPSA-to-GEMS converter triggered by a new Antares-Simulator/Modeler release
+title: "[P2G-01] Antares v — converter impact"
+labels: ["P2G-01", "antares-update"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Process P2G-01** — Triggered by a new Antares-Simulator/Modeler release that impacts the PyPSA-to-GEMS converter or the PyPSA models library.
+
+        > **Deviation from standard workflow — Step 5:** dual-system validation is required. Run both a PyPSA simulation AND the equivalent GEMS study; compare objective function values and key metrics. Document any acceptable differences due to modelling assumptions. Declare the supported PyPSA AND Antares versions on completion.
+
+  - type: input
+    id: antares_new_version
+    attributes:
+      label: New Antares Version
+      placeholder: "e.g. 9.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: antares_previous_version
+    attributes:
+      label: Previous Tracked Version
+      placeholder: "e.g. 9.3.7"
+    validations:
+      required: true
+
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Trigger
+      description: What changed in the new Antares release? Link to the release notes or changelog.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Analysis
+      description: |
+        Assess the impact on:
+        - **Converter logic** — does data extraction, study generation, or connection logic need updating?
+        - **PyPSA models library** — does `resources/pypsa_models/pypsa_models.yml` need updating?
+        - **Results** — are objective function values expected to change?
+        - **Compatibility** — breaking vs backward-compatible?
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation_strategy
+    attributes:
+      label: Validation Strategy
+      description: |
+        Describe the dual-system validation approach (P2G-01 Step 5 deviation):
+        - Which PyPSA network(s) will be used for comparison?
+        - How will PyPSA objective values be compared against GEMS objective values?
+        - What tolerance is acceptable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Process Checklist
+      value: |
+        ### Step 3 — Impact Analysis
+        - [ ] Antares release notes reviewed for converter-relevant changes
+        - [ ] Converter logic impact assessed (data extraction, study generation, connections)
+        - [ ] `pypsa_models.yml` impact assessed
+        - [ ] Breaking vs backward-compatible changes identified
+        - [ ] Results impact assessed (objective function values expected to change?)
+        - [ ] Dependencies assessed (PyPSA version, pydantic, other deps)
+
+        ### Step 4 — Implementation
+        - [ ] Converter code updated if needed (`src/`)
+        - [ ] `resources/pypsa_models/pypsa_models.yml` updated if needed
+        - [ ] Backward compatibility maintained unless explicitly intended as breaking
+        - [ ] All referencing studies verified (parameter counts, port refs valid)
+
+        ### Step 5 — Testing & Validation ⚠️ dual-system validation required
+        - [ ] Unit tests pass (`pytest tests/unit_tests/`)
+        - [ ] PyPSA simulation run for representative network(s)
+        - [ ] Equivalent GEMS study generated and run against new Antares version
+        - [ ] Objective function values compared (PyPSA vs GEMS); differences documented
+        - [ ] E2E tests pass against new Antares binary (`pytest tests/e2e/`)
+
+        ### Step 6 — CI Validation
+        - [ ] Code quality passes (`ruff`, `mypy`)
+        - [ ] E2E tests pass in CI
+
+        ### Step 7 — Review & Merge
+        - [ ] PR reviewed; documentation changes included
+
+        ### Step 8 — Versioning
+        - [ ] `versions/antares-simulator.txt` updated to new version
+        - [ ] `versions/converter.txt` bumped (Major if Antares major bump, Minor otherwise)
+        - [ ] `versions/pypsa_models_library.txt` bumped if library changed
+
+        ### Step 9 — Release
+        - [ ] Release documents supported Antares version, supported PyPSA version, compatibility, and behaviour changes
+
+        ### Step 10 — Documentation & Changelog
+        - [ ] Changelog entry added (`CHANGELOG-pypsa_models_library.md`) if library changed
+        - [ ] `COMPATIBILITY.md` updated with new version mapping

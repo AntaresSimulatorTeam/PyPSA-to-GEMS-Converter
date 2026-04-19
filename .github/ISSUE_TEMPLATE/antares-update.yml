@@ -1,0 +1,42 @@
+name: Antares Simulator Update Detected
+description: Automatically created when a new Antares Simulator release is detected
+title: "[ANTARES UPDATE] New release: v"
+labels: ["antares-update"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue was automatically created by the `check-antares-update` workflow.
+
+        **Next step:** review the release notes and open a **P2G-01** issue if the new version impacts the converter or the PyPSA models library.
+
+  - type: input
+    id: antares_version
+    attributes:
+      label: New Antares Version
+      placeholder: "e.g. 9.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: previous_version
+    attributes:
+      label: Previous Tracked Version
+      placeholder: "e.g. 9.3.7"
+    validations:
+      required: true
+
+  - type: textarea
+    id: release_notes
+    attributes:
+      label: Release Notes Summary
+      description: Key changes in the new Antares release relevant to the PyPSA-to-GEMS converter (auto-populated by workflow if available)
+
+  - type: textarea
+    id: triage
+    attributes:
+      label: Triage
+      value: |
+        - [ ] Release notes reviewed
+        - [ ] P2G-01 issue opened (if converter logic or `pypsa_models` library are affected)
+        - [ ] No action needed (if release has no impact on the converter)

@@ -1,0 +1,107 @@
+name: "P2G-02 — Internal converter development or PyPSA model update"
+description: Track internal bug fixes, converter improvements, or modifications to the PyPSA models library not driven by an external tool update
+title: "[P2G-02] "
+labels: ["P2G-02"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Process P2G-02** — Triggered by internal initiative to fix, improve, or modify the PyPSA-to-GEMS converter or the PyPSA models library. Not driven by a new Antares or PyPSA release.
+
+        > **Deviation from standard workflow — Step 4:** structural mapping validation is required. Validate that the generated study's component mapping (parameters, port connections, data-series references) remains structurally correct after the change. Provide a minimal PyPSA network example that exercises the changed path.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Converter logic (src/)
+        - PyPSA models library (pypsa_models.yml)
+        - Both converter and library
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Type of Change
+      description: Determines the semantic version impact (see versioning rules in COMPATIBILITY.md).
+      options:
+        - "Converter — Minor: bug fix, new PyPSA feature support, PyPSA version update"
+        - "Converter — Patch: dependency update, code optimisation, library-only change"
+        - "Library — Major: new PyPSA model added"
+        - "Library — Minor: bug fix or improvement to existing model"
+        - "Library — Patch: non-functional change (rename variable/parameter)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What change is being proposed and why?
+    validations:
+      required: true
+
+  - type: textarea
+    id: results_impact
+    attributes:
+      label: Results Impact
+      description: |
+        Are optimization results (objective function values) expected to change?
+        If yes: describe the before/after difference and why it is intended.
+        If no: this must be confirmed via E2E tests.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation_strategy
+    attributes:
+      label: Validation Strategy
+      description: |
+        Describe the validation approach including structural mapping validation (P2G-02 Step 4 deviation):
+        - Minimal PyPSA network example that exercises the changed path
+        - How structural correctness will be verified (parameter counts, port refs, data-series files)
+        - How optimization results will be compared (E2E before/after or tolerance check)
+    validations:
+      required: true
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Process Checklist
+      value: |
+        ### Step 3 — Impact Analysis
+        - [ ] Affected converter modules identified (`src/`)
+        - [ ] Affected models identified within `pypsa_models.yml` (if library change)
+        - [ ] All test studies in `resources/` referencing affected models verified
+        - [ ] Breaking vs backward-compatible change determined
+        - [ ] Results impact assessed and declared (change intended / no change intended)
+
+        ### Step 4 — Implementation ⚠️ structural mapping validation required
+        - [ ] Converter code updated (`src/`) and/or library updated (`pypsa_models.yml`)
+        - [ ] Minimal PyPSA network example created or updated to exercise the changed path
+        - [ ] Generated study validated: parameter counts match model definition, port refs valid, data-series files present
+        - [ ] Backward compatibility maintained unless explicitly intended as breaking
+
+        ### Step 5 — Testing & Validation
+        - [ ] Unit tests pass (`pytest tests/unit_tests/`)
+        - [ ] If results are expected to change: before/after comparison documented
+        - [ ] If results must not change: E2E tests confirm objective values are identical (within tolerance)
+        - [ ] E2E tests pass (`pytest tests/e2e/`)
+
+        ### Step 6 — CI Validation
+        - [ ] Code quality passes (`ruff`, `mypy`)
+        - [ ] E2E tests pass in CI
+
+        ### Step 7 — Review & Merge
+        - [ ] PR reviewed; documentation changes included
+
+        ### Step 8 — Versioning
+        - [ ] `versions/converter.txt` bumped if converter logic changed
+        - [ ] `versions/pypsa_models_library.txt` bumped if library changed
+
+        ### Step 10 — Documentation & Changelog
+        - [ ] Changelog entry added (`CHANGELOG-pypsa_models_library.md`) if library changed
+        - [ ] `COMPATIBILITY.md` updated if supported versions changed
