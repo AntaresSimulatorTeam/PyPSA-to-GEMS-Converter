@@ -12,6 +12,10 @@ permissions:
 jobs:
   check-update:
     runs-on: ubuntu-latest
+    outputs:
+      update: ${{ steps.compare.outputs.update }}
+      latest_version: ${{ steps.latest.outputs.version }}
+      issue_number: ${{ steps.create_issue.outputs.issue_number }}
 
     steps:
       - name: Checkout repository
@@ -59,6 +63,7 @@ jobs:
           fi
 
       - name: Create GitHub Issue
+        id: create_issue
         if: steps.compare.outputs.update == 'true'
         uses: actions/github-script@v7
         with:
@@ -76,6 +81,7 @@ jobs:
             const duplicate = existing.data.find(i => i.title.includes(`v${latest}`));
             if (duplicate) {
               console.log(`Issue already exists: #${duplicate.number} - skipping.`);
+              core.setOutput('issue_number', String(duplicate.number));
               return;
             }
 
@@ -96,6 +102,10 @@ jobs:
               '- [ ] PyPSA changelog reviewed',
               '- [ ] P2G-03 issue opened (if API changes, new components, or solver behaviour changes affect the converter)',
               '- [ ] No action needed (if release has no impact on the converter)',
+              '',
+              '---',
+              '',
+              '_E2E test results against this version will be posted below by the workflow._',
             ].join('\n');
 
             const result = await github.rest.issues.create({
@@ -106,4 +116,92 @@ jobs:
               labels: ['pypsa-update'],
             });
 
+            core.setOutput('issue_number', String(result.data.number));
             console.log(`Issue created: #${result.data.number} - ${result.data.html_url}`);
+
+  e2e-new-pypsa-version:
+    name: E2E Tests against PyPSA v${{ needs.check-update.outputs.latest_version }}
+    runs-on: ubuntu-22.04
+    needs: check-update
+    if: needs.check-update.outputs.update == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies with new PyPSA version
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install "pypsa==${{ needs.check-update.outputs.latest_version }}"
+
+      - name: Read Antares version
+        id: antares
+        run: |
+          v=$(grep 'ANTARES_SIMULATOR_VERSION' versions/antares-simulator.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "version=${v}" >> $GITHUB_OUTPUT
+          echo "dir=antares-${v}-Ubuntu-22.04" >> $GITHUB_OUTPUT
+
+      - name: Download and extract Antares
+        run: |
+          v="${{ steps.antares.outputs.version }}"
+          d="${{ steps.antares.outputs.dir }}"
+          curl -OLs "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${v}/${d}.tar.gz"
+          tar -xzf "${d}.tar.gz" && rm -f "${d}.tar.gz"
+
+      - name: Run unit tests
+        run: python -m pytest tests/unit_tests/ -v --tb=short -rA
+
+      - name: Run end-to-end tests
+        id: run_tests
+        run: python -m pytest tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
+        continue-on-error: true
+
+      - name: Upload test artifacts on failure
+        if: steps.run_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failures-pypsa-${{ needs.check-update.outputs.latest_version }}
+          path: |
+            tmp/
+            **/*.log
+          retention-days: 7
+
+      - name: Post results to issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const outcome = '${{ steps.run_tests.outcome }}';
+            const version = '${{ needs.check-update.outputs.latest_version }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const icon = outcome === 'success' ? '✅' : '❌';
+            const status = outcome === 'success' ? 'passed' : 'failed';
+
+            const body = [
+              `## E2E Test Results — PyPSA v${version}`,
+              '',
+              `${icon} E2E tests **${status}** against PyPSA v${version}.`,
+              '',
+              `[View full run](${runUrl})`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ needs.check-update.outputs.issue_number }}'),
+              body: body,
+            });
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf ${{ steps.antares.outputs.dir }}
+
+      - name: Fail job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: exit 1
