@@ -25,7 +25,7 @@ jobs:
       - name: Read current PyPSA version
         id: current
         run: |
-          VERSION=$(grep 'PYPSA_VERSION' versions/pypsa.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          VERSION=$(grep '^pypsa==' requirements.txt | cut -d'=' -f3 | tr -d '[:space:]')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Current version: $VERSION"
 

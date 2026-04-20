@@ -114,7 +114,7 @@ body:
         - [ ] PR reviewed; documentation changes included
 
         ### Step 8 — Versioning
-        - [ ] `versions/pypsa.txt` updated to new PyPSA version
+        - [ ] `requirements.txt` updated to new PyPSA version
         - [ ] `versions/converter.txt` bumped (Minor — PyPSA version update)
         - [ ] `versions/pypsa_models_library.txt` bumped if library changed
 

@@ -18,7 +18,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
   - **Minor** — Bug fix or improvement to an existing model
   - **Patch** — Non-functional change (rename variable/parameter, internal refactor)
 
-- **PyPSA** — tracked version in `versions/pypsa.txt`. The version pinned in `requirements.txt` and against which E2E tests are run.
+- **PyPSA** — tracked version in `requirements.txt` (pinned via `pypsa==x.y.z`). The version against which E2E tests are run.
 
 - **Antares-Simulator** — tracked version in `versions/antares-simulator.txt`. The version downloaded by CI and used for E2E tests.
 
@@ -33,5 +33,5 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 |-----------|----------------|--------------|
 | Converter | 0.0.1 | `versions/converter.txt` |
 | PyPSA Models Library | 1.0.0 | `versions/pypsa_models_library.txt` |
-| PyPSA | 1.0.0 | `versions/pypsa.txt` |
+| PyPSA | 1.0.0 | `requirements.txt` |
 | Antares-Simulator | 9.3.7 | `versions/antares-simulator.txt` |
