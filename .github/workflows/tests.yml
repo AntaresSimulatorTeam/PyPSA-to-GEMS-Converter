@@ -30,8 +30,7 @@ jobs:
       - name: Run unit tests
         id: run_unit_tests
         run: |
-          pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA \
-            --cov=src --cov-report=xml
+          pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
 
       - name: Upload test artifacts on failure
         if: failure()
@@ -79,8 +78,7 @@ jobs:
       - name: Run end-to-end tests
         id: run_e2e_tests
         run: |
-          pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA \
-            --cov=src --cov-report=xml
+          pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
 
       - name: Upload test artifacts on failure
         if: failure()
