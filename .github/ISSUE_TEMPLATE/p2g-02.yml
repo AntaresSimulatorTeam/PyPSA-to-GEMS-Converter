@@ -107,7 +107,7 @@ body:
         - [ ] PR reviewed; documentation changes included
 
         ### Step 8 — Versioning
-        - [ ] `versions/converter.txt` bumped if converter logic changed
+        - [ ] `pyproject.toml` version bumped if converter logic changed
         - [ ] `versions/pypsa_models_library.txt` bumped if library changed
 
         ### Step 10 — Documentation & Changelog

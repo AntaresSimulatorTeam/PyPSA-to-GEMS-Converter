@@ -102,7 +102,7 @@ body:
 
         ### Step 8 — Versioning
         - [ ] `versions/antares-simulator.txt` updated to new version
-        - [ ] `versions/converter.txt` bumped (Major if Antares major bump, Minor otherwise)
+        - [ ] `pyproject.toml` version bumped (Major if Antares major bump, Minor otherwise)
         - [ ] `versions/pypsa_models_library.txt` bumped if library changed
 
         ### Step 9 — Release

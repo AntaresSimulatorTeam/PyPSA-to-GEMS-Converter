@@ -8,7 +8,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 
 ## Versioning Policy
 
-- **Converter** — version in `versions/converter.txt`. Follows semantic versioning:
+- **Converter** — version in `pyproject.toml` (`[project] version`). Follows semantic versioning:
   - **Major** — Antares-Simulator major version bump
   - **Minor** — Bug fix, new PyPSA feature supported, or PyPSA version update
   - **Patch** — Dependency updates, code optimisation, or PyPSA models library-only change
@@ -31,7 +31,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 
 | Component | Current Version | Version File |
 |-----------|----------------|--------------|
-| Converter | 0.0.1 | `versions/converter.txt` |
+| Converter | 0.0.1 | `pyproject.toml` |
 | PyPSA Models Library | 1.0.0 | `versions/pypsa_models_library.txt` |
 | PyPSA | 1.0.0 | `requirements.txt` |
 | Antares-Simulator | 9.3.7 | `versions/antares-simulator.txt` |
