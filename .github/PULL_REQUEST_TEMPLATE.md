@@ -19,8 +19,7 @@
 - [ ] Unit tests pass (`pytest tests/unit_tests/`)
 - [ ] E2E tests pass (or confirmed not affected)
 - [ ] `pyproject.toml` version bumped if converter logic changed
-- [ ] `versions/pypsa_models_library.txt` bumped if library changed
-- [ ] Changelog entry added if library changed (`CHANGELOG-pypsa_models_library.md`)
+- [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 - [ ] `COMPATIBILITY.md` updated if supported versions changed
 - [ ] Documentation updated or confirmed up to date
 - [ ] No direct commits to `main` (feature branch → PR → main)
