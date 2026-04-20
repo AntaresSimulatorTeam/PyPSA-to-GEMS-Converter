@@ -77,6 +77,14 @@ body:
     attributes:
       label: Process Checklist
       value: |
+        ### Step 1 — Issue Creation
+        - [x] Issue created and linked to process P2G-03
+
+        ### Step 2 — Triage
+        - [ ] Process confirmed applicable
+        - [ ] Assigned to responsible contributor
+        - [ ] Priority and milestone set (if applicable)
+
         ### Step 3 — Impact Analysis ⚠️ API and solver behaviour analysis required before implementation
         - [ ] PyPSA changelog reviewed in full
         - [ ] API changes affecting data extraction identified (`pypsa_preprocessor.py`, `pypsa_register.py`)

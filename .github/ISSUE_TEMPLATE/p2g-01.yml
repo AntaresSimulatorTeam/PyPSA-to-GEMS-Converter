@@ -64,6 +64,14 @@ body:
     attributes:
       label: Process Checklist
       value: |
+        ### Step 1 — Issue Creation
+        - [x] Issue created and linked to process P2G-01
+
+        ### Step 2 — Triage
+        - [ ] Process confirmed applicable
+        - [ ] Assigned to responsible contributor
+        - [ ] Priority and milestone set (if applicable)
+
         ### Step 3 — Impact Analysis
         - [ ] Antares release notes reviewed for converter-relevant changes
         - [ ] Converter logic impact assessed (data extraction, study generation, connections)
