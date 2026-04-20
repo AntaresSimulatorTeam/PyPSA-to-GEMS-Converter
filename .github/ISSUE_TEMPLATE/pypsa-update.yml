@@ -1,6 +1,6 @@
 name: PyPSA Update Detected
 description: Automatically created when a new PyPSA release is detected on PyPI
-title: "[PYPSA UPDATE] New release: v"
+title: "[PYPSA UPDATE] New release"
 labels: ["pypsa-update"]
 body:
   - type: markdown

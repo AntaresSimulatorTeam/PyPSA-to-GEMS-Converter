@@ -1,6 +1,6 @@
 name: "P2G-01 — Antares evolution impact on converter"
 description: Track updates to the PyPSA-to-GEMS converter triggered by a new Antares-Simulator/Modeler release
-title: "[P2G-01] Antares v — converter impact"
+title: "[P2G-01] Antares update — converter impact"
 labels: ["P2G-01", "antares-update"]
 body:
   - type: markdown

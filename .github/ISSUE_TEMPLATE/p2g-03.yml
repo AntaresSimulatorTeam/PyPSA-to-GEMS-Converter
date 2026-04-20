@@ -1,6 +1,6 @@
 name: "P2G-03 — PyPSA evolution impact on converter"
 description: Track updates to the PyPSA-to-GEMS converter triggered by a new PyPSA release
-title: "[P2G-03] PyPSA v — converter impact"
+title: "[P2G-03] PyPSA update — converter impact"
 labels: ["P2G-03", "pypsa-update"]
 body:
   - type: markdown

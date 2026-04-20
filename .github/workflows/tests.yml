@@ -11,40 +11,8 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-
-      - name: Run unit tests
-        id: run_unit_tests
-        run: |
-          pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
-
-      - name: Upload test artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-failures
-          path: |
-            **/*.log
-          retention-days: 7
-
-  e2e-tests:
-    name: End-to-End Tests
-    runs-on: ubuntu-22.04
-    needs: unit-tests
+    outputs:
+      antares_version: ${{ steps.read_version.outputs.version }}
 
     steps:
       - name: Checkout repository
@@ -62,34 +30,29 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Read Antares version
-        id: antares
+        id: read_version
         run: |
-          v=$(grep 'ANTARES_SIMULATOR_VERSION' versions/antares-simulator.txt | cut -d'=' -f2 | tr -d '[:space:]')
-          echo "version=${v}" >> $GITHUB_OUTPUT
-          echo "dir=antares-${v}-Ubuntu-22.04" >> $GITHUB_OUTPUT
+          VERSION=$(grep 'ANTARES_SIMULATOR_VERSION' versions/antares-simulator.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Download and extract Antares
+      - name: Run unit tests
+        id: run_unit_tests
         run: |
-          v="${{ steps.antares.outputs.version }}"
-          d="${{ steps.antares.outputs.dir }}"
-          curl -OLs "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${v}/${d}.tar.gz"
-          tar -xzf "${d}.tar.gz" && rm -f "${d}.tar.gz"
-
-      - name: Run end-to-end tests
-        id: run_e2e_tests
-        run: |
-          pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
+          pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
 
       - name: Upload test artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-failures
+          name: unit-test-failures
           path: |
-            tmp/
             **/*.log
           retention-days: 7
 
-      - name: Cleanup
-        if: always()
-        run: rm -rf ${{ steps.antares.outputs.dir }}
+  e2e-tests:
+    name: End-to-End Tests
+    needs: unit-tests
+    uses: ./.github/workflows/run-e2e-tests.yml
+    with:
+      antares_version: ${{ needs.unit-tests.outputs.antares_version }}
+      artifact_name: e2e-test-failures
