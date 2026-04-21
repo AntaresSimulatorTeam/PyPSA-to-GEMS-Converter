@@ -25,10 +25,6 @@ library:
       description: A port which transfers power flow
       fields:
         - id: flow
-    - id: angle
-      description: A port which transfers voltage angle for DC power flow
-      fields:
-        - id: theta
     - id: emission
       description: A port which accounts for CO2 emissions
       fields:
@@ -60,40 +56,22 @@ library:
         - id: v_mag_pu_max
           time-dependent: false
           scenario-dependent: false
-        - id: theta_flag
-          time-dependent: false
-          scenario-dependent: false
+        - id: theta_min
+        - id: theta_max
       variables:
         - id: theta
+          lower-bound: theta_min
+          upper-bound: theta_max
       ports:
         - id: p_balance_port
           type: flow
         - id: q_balance_port
           type: flow
-        - id: theta_port
-          type: angle
-      port-field-definitions:
-        - port: theta_port
-          field: theta
-          definition: theta
-      constraints:
-        - id: theta_zero
-          expression: theta_flag * theta = 0
       binding-constraints:
         - id: p_balance
           expression: sum_connections(p_balance_port.flow) = 0
         - id: q_balance
           expression: sum_connections(q_balance_port.flow) = 0
-
-    - id: reference_bus
-      # One instance of this model should be connected to exactly one bus
-      # to impose theta = 0 on that bus.
-      ports:
-        - id: theta_port
-          type: angle
-      binding-constraints:
-        - id: theta_reference
-          expression: sum_connections(theta_port.theta) = 0
 
     - id: load
       #Model for PyPSA load: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#load
