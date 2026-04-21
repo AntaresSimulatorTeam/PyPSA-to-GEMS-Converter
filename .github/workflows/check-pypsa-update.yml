@@ -52,7 +52,7 @@ jobs:
       - name: Read current Antares version
         id: antares
         run: |
-          VERSION=$(grep 'ANTARES_SIMULATOR_VERSION' versions/antares-simulator.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          VERSION=$(jq -r '.antares_version' dependencies.json)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compare versions
