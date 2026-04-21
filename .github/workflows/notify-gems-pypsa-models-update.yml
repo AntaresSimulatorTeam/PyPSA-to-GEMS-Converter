@@ -1,0 +1,83 @@
+name: Notify GEMS — PyPSA Models Library Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'versions/pypsa_models_library.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read library version
+        id: version
+        run: |
+          VERSION=$(grep 'PYPSA_MODELS_LIBRARY_VERSION' versions/pypsa_models_library.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Library version: $VERSION"
+
+      - name: Create issue in GEMS repository
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GEMS_REPO_PAT }}
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const converterRepo = context.repo.repo;
+            const converterOwner = context.repo.owner;
+            const title = `[PYPSA MODELS] New library version: v${version}`;
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: converterOwner,
+              repo: 'GEMS',
+              state: 'open',
+            });
+
+            const duplicate = existing.data.find(i => i.title.includes(`v${version}`));
+            if (duplicate) {
+              console.log(`Issue already exists: #${duplicate.number} — skipping.`);
+              return;
+            }
+
+            const body = [
+              '> This issue was automatically created by the `notify-gems-pypsa-models-update` workflow',
+              `> in the [${converterRepo}](https://github.com/${converterOwner}/${converterRepo}) repository.`,
+              '',
+              '## New PyPSA Models Library Version',
+              '',
+              '| | |',
+              '|---|---|',
+              `| **New version** | \`${version}\` |`,
+              `| **Changelog** | https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/CHANGELOG-pypsa_models_library.md |`,
+              `| **Library file** | https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/pypsa_models.yml |`,
+              '',
+              '## Action Required',
+              '',
+              'A new version of the PyPSA models library has been released in the PyPSA-to-GEMS converter.',
+              'The library file (`pypsa_models.yml`) used in GEMS studies should be reviewed and updated.',
+              '',
+              '## Checklist',
+              '',
+              '- [ ] Review the changelog for breaking changes or new models',
+              '- [ ] Update `pypsa_models.yml` in the relevant GEMS studies',
+              '- [ ] Validate affected studies run correctly',
+              '- [ ] Close this issue once updated',
+            ].join('\n');
+
+            const result = await github.rest.issues.create({
+              owner: converterOwner,
+              repo: 'GEMS',
+              title: title,
+              body: body,
+              labels: ['pypsa-models-update'],
+            });
+
+            console.log(`Issue created: #${result.data.number} — ${result.data.html_url}`);
