@@ -29,16 +29,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Read Antares version
-        id: read_version
-        run: |
-          VERSION=$(grep 'ANTARES_SIMULATOR_VERSION' versions/antares-simulator.txt | cut -d'=' -f2 | tr -d '[:space:]')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Run unit tests
         id: run_unit_tests
         run: |
           pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
+
+      - name: Resolve Antares version for downstream E2E job
+        id: read_version
+        run: |
+          VERSION=$(grep 'ANTARES_SIMULATOR_VERSION' versions/antares-simulator.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upload test artifacts on failure
         if: failure()
