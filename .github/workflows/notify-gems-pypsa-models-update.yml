@@ -21,11 +21,17 @@ jobs:
       - name: Read library version
         id: version
         run: |
-          VERSION=$(python3 -c "import json; d=json.load(open('dependencies.json')); print(d['pypsa_models_library_version'])")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Library version: $VERSION"
+          PREV=$(git show HEAD^:dependencies.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
+          CURR=$(python3 -c "import json; print(json.load(open('dependencies.json'))['pypsa_models_library_version'])")
+          echo "version=$CURR" >> "$GITHUB_OUTPUT"
+          if [ "$PREV" = "$CURR" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create issue in GEMS repository
+        if: steps.version.outputs.changed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GEMS_REPO_PAT }}
