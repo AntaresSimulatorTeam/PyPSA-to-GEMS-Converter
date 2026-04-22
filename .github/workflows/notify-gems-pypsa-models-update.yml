@@ -48,28 +48,11 @@ jobs:
             }
 
             const body = [
-              '> This issue was automatically created by the `notify-gems-pypsa-models-update` workflow',
-              `> in the [${converterRepo}](https://github.com/${converterOwner}/${converterRepo}) repository.`,
+              `PyPSA models library updated to \`v${version}\` in [${converterRepo}](https://github.com/${converterOwner}/${converterRepo}).`,
               '',
-              '## New PyPSA Models Library Version',
+              `Changelog: https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/CHANGELOG-pypsa_models_library.md`,
               '',
-              '| | |',
-              '|---|---|',
-              `| **New version** | \`${version}\` |`,
-              `| **Changelog** | https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/CHANGELOG-pypsa_models_library.md |`,
-              `| **Library file** | https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/pypsa_models.yml |`,
-              '',
-              '## Action Required',
-              '',
-              'A new version of the PyPSA models library has been released in the PyPSA-to-GEMS converter.',
-              'The library file (`pypsa_models.yml`) used in GEMS studies should be reviewed and updated.',
-              '',
-              '## Checklist',
-              '',
-              '- [ ] Review the changelog for breaking changes or new models',
-              '- [ ] Update `pypsa_models.yml` in the relevant GEMS studies',
-              '- [ ] Validate affected studies run correctly',
-              '- [ ] Close this issue once updated',
+              'Update `libraries/pypsa_models.yml` in GEMS accordingly.',
             ].join('\n');
 
             const result = await github.rest.issues.create({
