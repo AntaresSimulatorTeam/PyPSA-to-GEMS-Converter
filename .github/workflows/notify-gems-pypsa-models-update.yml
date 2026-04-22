@@ -21,7 +21,12 @@ jobs:
       - name: Read library version
         id: version
         run: |
-          PREV=$(git show HEAD^:dependencies.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            PREV=""
+          else
+            PREV=$(git show ${LAST_TAG}:dependencies.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
+          fi
           CURR=$(python3 -c "import json; print(json.load(open('dependencies.json'))['pypsa_models_library_version'])")
           echo "version=$CURR" >> "$GITHUB_OUTPUT"
           if [ "$PREV" = "$CURR" ]; then
