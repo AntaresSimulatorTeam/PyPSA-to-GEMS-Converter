@@ -71,7 +71,6 @@ jobs:
               repo: 'GEMS',
               title: title,
               body: body,
-              labels: ['pypsa-models-update'],
             });
 
             console.log(`Issue created: #${result.data.number} — ${result.data.html_url}`);
