@@ -110,6 +110,8 @@ body:
         - [ ] `pyproject.toml` version bumped if converter logic changed
         - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 
-        ### Step 10 — Documentation & Changelog
+        ### Step 9 — Release
+        - [ ] Release documents changes, compatibility, and behaviour changes
 
+        ### Step 10 — Documentation & Changelog
         - [ ] `COMPATIBILITY.md` updated if supported versions changed
