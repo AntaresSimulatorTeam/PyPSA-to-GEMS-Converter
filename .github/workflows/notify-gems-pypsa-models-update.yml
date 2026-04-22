@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'versions/pypsa_models_library.txt'
+      - 'dependencies.json'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
       - name: Read library version
         id: version
         run: |
-          VERSION=$(grep 'PYPSA_MODELS_LIBRARY_VERSION' versions/pypsa_models_library.txt | cut -d'=' -f2 | tr -d '[:space:]')
+          VERSION=$(python3 -c "import json; d=json.load(open('dependencies.json')); print(d['pypsa_models_library_version'])")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Library version: $VERSION"
 
