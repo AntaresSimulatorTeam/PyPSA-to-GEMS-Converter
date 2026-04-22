@@ -101,7 +101,7 @@ body:
         - [ ] PR reviewed; documentation changes included
 
         ### Step 8 — Versioning
-        - [ ] `versions/antares-simulator.txt` updated to new version
+        - [ ] `dependencies.json` updated (`antares_version`)
         - [ ] `pyproject.toml` version bumped (Major if Antares major bump, Minor otherwise)
         - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 

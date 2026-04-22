@@ -20,7 +20,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 
 - **PyPSA** — tracked version in `requirements.txt` (pinned via `pypsa==x.y.z`). The version against which E2E tests are run.
 
-- **Antares-Simulator** — tracked version in `versions/antares-simulator.txt`. The version downloaded by CI and used for E2E tests.
+- **Antares-Simulator** — tracked version in `dependencies.json` (`antares_version`). The version downloaded by CI and used for E2E tests.
 
 ## Compatibility Rules
 
@@ -34,4 +34,4 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 | Converter | 0.0.1 | `pyproject.toml` |
 | PyPSA Models Library | 1.0.0 | `resources/pypsa_models/CHANGELOG-pypsa_models_library.md` |
 | PyPSA | 1.0.0 | `requirements.txt` |
-| Antares-Simulator | 9.3.7 | `versions/antares-simulator.txt` |
+| Antares-Simulator | 9.3.7 | `dependencies.json` |

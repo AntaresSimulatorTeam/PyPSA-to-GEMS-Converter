@@ -22,4 +22,3 @@
 - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 - [ ] `COMPATIBILITY.md` updated if supported versions changed
 - [ ] Documentation updated or confirmed up to date
-- [ ] No direct commits to `main` (feature branch → PR → main)
