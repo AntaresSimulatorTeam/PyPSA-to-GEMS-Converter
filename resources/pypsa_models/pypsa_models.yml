@@ -245,12 +245,12 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # Not instantiated: upfront investment cost must be converted to an annuitised capital_cost by the converter before being passed to the GEMS model.
-        #- id: discount_rate # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
+        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
         #- id: fom_cost # TODO: not yet implemented in the converter.
         #- id: active # Not instantiated: only active components are built by the data converter.
         #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
         #- id: length # Cannot be implemented: physical line length is not a variable or constraint in the GEMS model; used only in preprocessing to scale type-based impedances.
         #- id: carrier # Cannot be implemented: carrier (AC/DC) is a classification attribute with no role in the GEMS model equations.
         #- id: terrain_factor # Cannot be implemented: scaling factor applied to length in preprocessing to adjust capital_cost; not a GEMS model parameter.
@@ -350,13 +350,13 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # Not instantiated: upfront investment cost must be converted to an annuitised capital_cost by the converter before being passed to the GEMS model.
-        #- id: discount_rate # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
+        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
         #- id: fom_cost # TODO: not yet implemented in the converter.
         #- id: num_parallel # Cannot be implemented: number of parallel transformers is resolved in preprocessing when type is set; not a GEMS model parameter.
         #- id: active # Not instantiated: only active components are built by the data converter.
         #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
+        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
         #- id: v_ang_min # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
         #- id: v_ang_max # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
         - id: modular
