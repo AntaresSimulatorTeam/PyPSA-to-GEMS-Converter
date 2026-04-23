@@ -293,12 +293,13 @@ library:
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom >= s_nom_min
         - id: capacity_max
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom <= s_nom_max
-        - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
         - id: upper_flow
           expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
         - id: lower_flow
           expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
+      binding-constraints:
+        - id: dc_flow
+          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom)
@@ -394,12 +395,13 @@ library:
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom >= s_nom_min
         - id: capacity_max
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom <= s_nom_max
-        - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
         - id: upper_flow
           expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
         - id: lower_flow
           expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
+      binding-constraints:
+        - id: dc_flow
+          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom)
