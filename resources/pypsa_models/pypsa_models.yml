@@ -247,9 +247,9 @@ library:
           scenario-dependent: false
         #- id: overnight_cost # Not instantiated: upfront investment cost must be converted to an annuitised capital_cost by the converter before being passed to the GEMS model.
         #- id: discount_rate # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
-        #- id: fom_cost # Not instantiated for now.
+        #- id: fom_cost # TODO: not yet implemented in the converter.
         #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # Not instantiated for now.
+        #- id: build_year # TODO: not yet implemented in the converter.
         #- id: lifetime # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
         #- id: length # Cannot be implemented: physical line length is not a variable or constraint in the GEMS model; used only in preprocessing to scale type-based impedances.
         #- id: carrier # Cannot be implemented: carrier (AC/DC) is a classification attribute with no role in the GEMS model equations.
@@ -327,7 +327,7 @@ library:
         #- id: tap_ratio # Cannot be implemented directly: effect on reactance is absorbed into x_pu_eff by the converter; effect on voltage magnitude is neglected in DC LOPF.
         #- id: tap_side # Not a GEMS model parameter: only used with tap_ratio in preprocessing to compute x_pu_eff.
         #- id: tap_position # Not a GEMS model parameter: only used with type in preprocessing.
-        #- id: phase_shift # Not instantiated for now: could be implemented as an angle offset in the dc_flow constraint: p0 = (θ_bus0 - θ_bus1 - phase_shift) / x_pu_eff.
+        #- id: phase_shift # TODO: not yet implemented in the converter — could be added as an angle offset in the dc_flow binding-constraint: p0 = (θ_bus0 - θ_bus1 - phase_shift) / x_pu_eff.
         - id: s_nom_min
           #Minimum installed capacity [MVA].
           time-dependent: false
@@ -352,10 +352,10 @@ library:
           scenario-dependent: false
         #- id: overnight_cost # Not instantiated: upfront investment cost must be converted to an annuitised capital_cost by the converter before being passed to the GEMS model.
         #- id: discount_rate # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
-        #- id: fom_cost # Not instantiated for now.
+        #- id: fom_cost # TODO: not yet implemented in the converter.
         #- id: num_parallel # Cannot be implemented: number of parallel transformers is resolved in preprocessing when type is set; not a GEMS model parameter.
         #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # Not instantiated for now.
+        #- id: build_year # TODO: not yet implemented in the converter.
         #- id: lifetime # Not instantiated: used only by the converter to compute capital_cost from overnight_cost; not a GEMS model parameter.
         #- id: v_ang_min # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
         #- id: v_ang_max # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
