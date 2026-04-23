@@ -84,7 +84,7 @@ body:
         - [ ] Converter code updated if needed (`src/`)
         - [ ] `resources/pypsa_models/pypsa_models.yml` updated if needed
         - [ ] Backward compatibility maintained unless explicitly intended as breaking
-        - [ ] All referencing studies verified (parameter counts, port refs valid)
+        - [ ] All referencing studies verified (parameter ids, port refs valid)
 
         ### Step 5 — Testing & Validation ⚠️ dual-system validation required
         - [ ] Unit tests pass (`pytest tests/unit_tests/`)
