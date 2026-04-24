@@ -8,32 +8,51 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write  # required to push the library version tag
 
 jobs:
   notify:
+    name: Check PyPSA models library version and notify GEMS
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository with full history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Read library version
+      - name: Read current and previous library version
         id: version
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^1 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            PREV=""
-          else
-            PREV=$(git show ${LAST_TAG}:dependencies.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
-          fi
           CURR=$(python3 -c "import json; print(json.load(open('dependencies.json'))['pypsa_models_library_version'])")
           echo "version=$CURR" >> "$GITHUB_OUTPUT"
-          if [ "$PREV" = "$CURR" ]; then
+
+          LAST_TAG=$(git tag --list 'pypsa_models-v*' --sort=-creatordate | head -1)
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous library tag found."
+            PREV=""
+          else
+            echo "Last library tag: $LAST_TAG"
+            PREV=$(git show "${LAST_TAG}:dependencies.json" 2>/dev/null \
+              | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
+          fi
+
+          echo "Current: $CURR  |  Previous: $PREV"
+          if [ "$CURR" = "$PREV" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Create library version tag
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          TAG="pypsa_models-v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Created and pushed tag: $TAG"
 
       - name: Create issue in GEMS repository
         if: steps.version.outputs.changed == 'true'
@@ -41,9 +60,9 @@ jobs:
         with:
           github-token: ${{ secrets.GEMS_REPO_PAT }}
           script: |
-            const version = '${{ steps.version.outputs.version }}';
-            const converterRepo = context.repo.repo;
+            const version       = '${{ steps.version.outputs.version }}';
             const converterOwner = context.repo.owner;
+            const converterRepo  = context.repo.repo;
             const title = `[PYPSA MODELS] New library version: v${version}`;
 
             const existing = await github.rest.issues.listForRepo({
