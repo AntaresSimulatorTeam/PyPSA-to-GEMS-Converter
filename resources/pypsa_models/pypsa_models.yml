@@ -270,7 +270,7 @@ library:
           variable-type: integer
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom
+        - id: s_nom_opt
           #Continuous capacity. Active when modular=0; bounded to [0,0] when modular=1.
           lower-bound: (1 - modular) * s_nom_min
           upper-bound: (1 - modular) * s_nom_max
@@ -291,22 +291,19 @@ library:
           definition: p0
       constraints:
         - id: capacity_min
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom >= s_nom_min
+          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
         - id: capacity_max
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom <= s_nom_max
+          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt <= s_nom_max
         - id: upper_flow
-          expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
+          expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
         - id: lower_flow
-          expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
+          expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
       binding-constraints:
         - id: dc_flow
           expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom)
-      extra-outputs:
-        - id: s_nom_opt
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom
+          expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
 
     - id: line_lp
       #Model for PyPSA line in DC LOPF — LP (continuous capacity) formulation.
@@ -479,9 +476,6 @@ library:
       objective-contributions:
         - id: capital_objective
           expression: (capital_cost + fom_cost) * n_mod * s_nom_mod
-      extra-outputs:
-        - id: s_nom_opt
-          expression: n_mod * s_nom_mod
 
     - id: transformer
       #Model for PyPSA transformer in DC LOPF.
@@ -548,7 +542,7 @@ library:
           variable-type: integer
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom
+        - id: s_nom_opt
           #Continuous capacity. Active when modular=0; bounded to [0,0] when modular=1.
           lower-bound: (1 - modular) * s_nom_min
           upper-bound: (1 - modular) * s_nom_max
@@ -569,22 +563,19 @@ library:
           definition: p0
       constraints:
         - id: capacity_min
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom >= s_nom_min
+          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
         - id: capacity_max
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom <= s_nom_max
+          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt <= s_nom_max
         - id: upper_flow
-          expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
+          expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
         - id: lower_flow
-          expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom) * s_max_pu
+          expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
       binding-constraints:
         - id: dc_flow
           expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom)
-      extra-outputs:
-        - id: s_nom_opt
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom
+          expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
 
     - id: transformer_lp
       #Model for PyPSA transformer in DC LOPF — LP (continuous capacity) formulation.
