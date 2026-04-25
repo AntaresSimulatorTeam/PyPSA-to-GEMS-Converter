@@ -215,14 +215,10 @@ library:
       #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP).
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
       parameters:
-        #- id: type # Cannot be implemented: requires a lookup into the line_types table to derive r/x/b; this is a preprocessing step, not a GEMS model parameter.
         - id: x
-          #Series reactance [Ohm]. Required for DC LOPF (linearised power flow). Ignored if type is set.
+          # Effective per-unit series reactance for DC LOPF, will be extracted from PyPSA objects after calling calculate_dependent_values() PyPSA function. It is important to call this function after loading entire PyPSA study into PyPSA Network object!
           time-dependent: false
           scenario-dependent: false
-        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation (lossless network assumption).
-        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
-        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation. Ignored if type is set.
         - id: s_nom_min
           #Minimum installed capacity [MVA].
           time-dependent: false
@@ -235,8 +231,6 @@ library:
           #Module size [MVA]. Used when modular=1. Set to any positive value when modular=0.
           time-dependent: false
           scenario-dependent: false
-        #- id: s_nom_extendable # Handled implicitly: extendability is encoded via s_nom_min/s_nom_max bounds — the converter sets them equal (s_nom_min = s_nom_max = s_nom) for non-extendable lines, and uses the actual s_nom_min/s_nom_max for extendable ones.
-        #- id: s_nom_set # Handled implicitly: pinning s_nom_opt to a fixed value is achieved by setting s_nom_min = s_nom_max in the converter.
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity. Can be < 1 for N-1 contingency or time-varying for dynamic line rating.
           time-dependent: true
@@ -245,22 +239,29 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
-        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
-        #- id: fom_cost # TODO: not yet implemented in the converter.
-        #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
-        #- id: length # Cannot be implemented: physical line length is not a variable or constraint in the GEMS model; used only in preprocessing to scale type-based impedances.
-        #- id: carrier # Cannot be implemented: carrier (AC/DC) is a classification attribute with no role in the GEMS model equations.
-        #- id: terrain_factor # Cannot be implemented: scaling factor applied to length in preprocessing to adjust capital_cost; not a GEMS model parameter.
-        #- id: num_parallel # Cannot be implemented: number of parallel circuits is resolved in preprocessing when type is set; not a GEMS model parameter.
-        #- id: v_ang_min # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
-        #- id: v_ang_max # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
         - id: modular
           #Expansion mode: 0 = continuous (LP), 1 = modular integer (MIP).
           time-dependent: false
           scenario-dependent: false
+        #- id: type # Preprocessing: triggers lookup in line_types table — overrides r, x, b. Converter must call calculate_dependent_values() first.
+        #- id: r # Not used in DC LOPF.
+        #- id: g # Not used in DC LOPF.
+        #- id: b # Not used in DC LOPF.
+        #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max.
+        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Not a GEMS parameter; when not NaN, converter must compute capital_cost = annuity(discount_rate, lifetime) * overnight_cost.
+        #- id: discount_rate # Not a GEMS parameter; only used when overnight_cost is not NaN to compute capital_cost.
+        #- id: fom_cost # TODO: not yet implemented in the converter.
+        #- id: active # Handled by converter: only active components are built.
+        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
+        #- id: lifetime # Not a GEMS parameter; used when overnight_cost is not NaN to compute capital_cost and in investment periods
+        #- id: length # When type is set, scales x from line_types (r/b also scaled but not used in DC LOPF) — x absorbed by calculate_dependent_values(); capital_cost must already include any length factor.
+        #- id: carrier # Not GEMS parameter, but in PyPSA for Line Component carrier is always AC.
+        #- id: terrain_factor # Claude Code analysis says that this parameter is not used anywhere? To be analyzed on implementing Line Types !
+        #- id: num_parallel # Only used when type is set (scales r/x/b from line_types); ignored otherwise.
+        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
         - id: n_mod
           #Integer modules. Active when modular=1; bounded to [0,0] when modular=0.
@@ -310,37 +311,23 @@ library:
     - id: line_lp
       #Model for PyPSA line in DC LOPF — LP (continuous capacity) formulation.
       #Covers two cases:
-      #  Non-extendable (s_nom_extendable=0): s_nom_opt is fixed to s_nom; s_nom_min/s_nom_max are ignored.
-      #  Extendable     (s_nom_extendable=1): s_nom_opt is a continuous variable in [s_nom_min, s_nom_max]; s_nom is ignored.
+      #  Non-extendable: converter sets s_nom_min = s_nom_max = s_nom (capacity fixed, no expansion).
+      #  Extendable:     converter sets s_nom_min < s_nom_max (continuous capacity expansion optimised by the solver).
       #For modular integer expansion (MILP) use line_milp. For combined LP+MILP in a single model use line.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
       parameters:
-        #- id: type # Cannot be implemented: requires a lookup into the line_types table to derive r/x/b; this is a preprocessing step, not a GEMS model parameter.
         - id: x
-          #Series reactance [Ohm].
-          time-dependent: false
-          scenario-dependent: false
-        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation (lossless network assumption).
-        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
-        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation.
-        - id: s_nom
-          #Fixed nominal capacity [MVA]. Used when s_nom_extendable=0; ignored when s_nom_extendable=1.
+          # Effective per-unit series reactance for DC LOPF, will be extracted from PyPSA objects after calling calculate_dependent_values() PyPSA function. It is important to call this function after loading entire PyPSA study into PyPSA Network object!
           time-dependent: false
           scenario-dependent: false
         - id: s_nom_min
-          #Minimum installed capacity [MVA]. Used when s_nom_extendable=1; ignored when s_nom_extendable=0.
+          #Minimum installed capacity [MVA]. Converter sets equal to s_nom when s_nom_extendable=False.
           time-dependent: false
           scenario-dependent: false
         - id: s_nom_max
-          #Maximum installed capacity [MVA]. Used when s_nom_extendable=1; ignored when s_nom_extendable=0.
+          #Maximum installed capacity [MVA]. Converter sets equal to s_nom when s_nom_extendable=False.
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom_extendable
-          #Boolean (0/1): 0 = fixed capacity (s_nom used); 1 = continuous capacity expansion (s_nom_min/s_nom_max used).
-          time-dependent: false
-          scenario-dependent: false
-        #- id: s_nom_mod # Not applicable to LP formulation; for modular integer expansion use line_milp.
-        #- id: s_nom_set # Not directly supported: to pin s_nom_opt, set s_nom_extendable=1 and s_nom_min=s_nom_max=desired value.
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity.
           time-dependent: true
@@ -349,24 +336,34 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
-        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
-        #- id: fom_cost # TODO: not yet implemented in the converter.
-        #- id: modular # Not applicable: this model is always LP. For modular integer expansion use line_milp. For combined LP+MILP in a single model use line.
-        #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
-        #- id: length # Cannot be implemented: physical line length is not a variable or constraint in the GEMS model; used only in preprocessing to scale type-based impedances.
-        #- id: carrier # Cannot be implemented: carrier (AC/DC) is a classification attribute with no role in the GEMS model equations.
-        #- id: terrain_factor # Cannot be implemented: scaling factor applied to length in preprocessing to adjust capital_cost; not a GEMS model parameter.
-        #- id: num_parallel # Cannot be implemented: number of parallel circuits is resolved in preprocessing when type is set; not a GEMS model parameter.
-        #- id: v_ang_min # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
-        #- id: v_ang_max # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
+        - id: fom_cost
+          #Fixed operation and maintenance cost [currency/MVA/year]. Added to capital_cost in the objective.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: type # Preprocessing: triggers lookup in line_types table — overrides r, x, b. Converter must call calculate_dependent_values() first.
+        #- id: r # Not used in DC LOPF.
+        #- id: g # Not used in DC LOPF.
+        #- id: b # Not used in DC LOPF.
+        #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max.
+        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max PyPSA parameters directly.
+        #- id: s_nom_mod # Not applicable to LP formulation; for modular integer expansion use line_milp.
+        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Not a GEMS parameter; when not NaN, converter must compute capital_cost = annuity(discount_rate, lifetime) * overnight_cost.
+        #- id: discount_rate # Not a GEMS parameter; only used when overnight_cost is not NaN to compute capital_cost.
+        #- id: active # Handled by converter: only active components are built.
+        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
+        #- id: lifetime # Not a GEMS parameter; used when overnight_cost is not NaN to compute capital_cost and in investment periods
+        #- id: length # When type is set, scales x from line_types (r/b also scaled but not used in DC LOPF) — x absorbed by calculate_dependent_values(); capital_cost must already include any length factor.
+        #- id: carrier # Not GEMS parameter, but in PyPSA for Line Component carrier is always AC.
+        #- id: terrain_factor # Claude Code analysis says that this parameter is not used anywhere? To be analyzed on implementing Line Types !
+        #- id: num_parallel # Only used when type is set (scales r/x/b from line_types); ignored otherwise.
+        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
         - id: s_nom_opt
-          #Optimised installed capacity [MVA]. Fixed to s_nom when s_nom_extendable=0; optimised in [s_nom_min, s_nom_max] when s_nom_extendable=1.
-          lower-bound: (1 - s_nom_extendable) * s_nom + s_nom_extendable * s_nom_min
-          upper-bound: (1 - s_nom_extendable) * s_nom + s_nom_extendable * s_nom_max
+          #Optimised installed capacity [MVA]. Bounded by [s_nom_min, s_nom_max]; set equal by converter for non-extendable lines.
+          lower-bound: s_nom_min
+          upper-bound: s_nom_max
           time-dependent: false
           scenario-dependent: false
         - id: p0
@@ -392,7 +389,7 @@ library:
           expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * s_nom_opt
+          expression: (capital_cost + fom_cost) * s_nom_opt
 
     - id: line_milp
       #Model for PyPSA line in DC LOPF — MILP (modular integer capacity) formulation.
@@ -401,14 +398,10 @@ library:
       #For combined LP+MILP in a single model use line.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
       parameters:
-        #- id: type # Cannot be implemented: requires a lookup into the line_types table to derive r/x/b; this is a preprocessing step, not a GEMS model parameter.
         - id: x
-          #Series reactance [Ohm].
+          # Effective per-unit series reactance for DC LOPF, will be extracted from PyPSA objects after calling calculate_dependent_values() PyPSA function. It is important to call this function after loading entire PyPSA study into PyPSA Network object!
           time-dependent: false
           scenario-dependent: false
-        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation (lossless network assumption).
-        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
-        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation.
         - id: s_nom_min
           #Minimum installed capacity [MVA].
           time-dependent: false
@@ -421,8 +414,6 @@ library:
           #Module size [MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: s_nom_extendable # Handled implicitly: extendability is encoded via s_nom_min/s_nom_max bounds — the converter sets them equal for non-extendable lines.
-        #- id: s_nom_set # Handled implicitly: pinning s_nom_opt to a fixed value is achieved by setting s_nom_min = s_nom_max in the converter.
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity.
           time-dependent: true
@@ -431,19 +422,27 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
-        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
-        #- id: fom_cost # TODO: not yet implemented in the converter.
-        #- id: modular # Not applicable: this model is always MILP. For continuous LP expansion use line_lp. For combined LP+MILP in a single model use line.
-        #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
-        #- id: length # Cannot be implemented: physical line length is not a variable or constraint in the GEMS model; used only in preprocessing to scale type-based impedances.
-        #- id: carrier # Cannot be implemented: carrier (AC/DC) is a classification attribute with no role in the GEMS model equations.
-        #- id: terrain_factor # Cannot be implemented: scaling factor applied to length in preprocessing to adjust capital_cost; not a GEMS model parameter.
-        #- id: num_parallel # Cannot be implemented: number of parallel circuits is resolved in preprocessing when type is set; not a GEMS model parameter.
-        #- id: v_ang_min # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
-        #- id: v_ang_max # Not instantiated: voltage angle difference bounds are placeholder attributes in PyPSA and not currently used in optimisation.
+        - id: fom_cost
+          #Fixed operation and maintenance cost [currency/MVA/year]. Added to capital_cost in the objective.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: type # Preprocessing: triggers lookup in line_types table — overrides r, x, b. Converter must call calculate_dependent_values() first.
+        #- id: r # Not used in DC LOPF.
+        #- id: g # Not used in DC LOPF.
+        #- id: b # Not used in DC LOPF.
+        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Not a GEMS parameter; when not NaN, converter must compute capital_cost = annuity(discount_rate, lifetime) * overnight_cost.
+        #- id: discount_rate # Not a GEMS parameter; only used when overnight_cost is not NaN to compute capital_cost.
+        #- id: active # Handled by converter: only active components are built.
+        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
+        #- id: lifetime # Not a GEMS parameter; used when overnight_cost is not NaN to compute capital_cost and in investment periods
+        #- id: length # When type is set, scales x from line_types (r/b also scaled but not used in DC LOPF) — x absorbed by calculate_dependent_values(); capital_cost must already include any length factor.
+        #- id: carrier # Not GEMS parameter, but in PyPSA for Line Component carrier is always AC
+        #- id: terrain_factor # Claude Code analysis says that this parameter is not used anywhere? To be analyzed on implementing Line Types !
+        #- id: num_parallel # TODO: only used when type is set, not GEMS parameter
+        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
         - id: n_mod
           #Integer number of installed modules.
@@ -479,7 +478,7 @@ library:
           expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * n_mod * s_nom_mod
+          expression: (capital_cost + fom_cost) * n_mod * s_nom_mod
       extra-outputs:
         - id: s_nom_opt
           expression: n_mod * s_nom_mod
@@ -492,19 +491,10 @@ library:
       #x_pu_eff is the effective per-unit reactance pre-computed from x and tap_ratio by the converter.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
       parameters:
-        #- id: type # Cannot be implemented: standard type lookup (overrides r/x/b/s_nom/tap_ratio) is a preprocessing step, not a GEMS model parameter.
-        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
         - id: x_pu_eff
-          #Effective per-unit series reactance for DC LOPF, pre-computed by the converter from x and tap_ratio.
+          # Effective per-unit series reactance for DC LOPF, will be extracted from PyPSA objects after calling calculate_dependent_values() PyPSA function. It is important to call this function after loading entire PyPSA study into PyPSA Network object!
           time-dependent: false
           scenario-dependent: false
-        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation.
-        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
-        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation.
-        #- id: tap_ratio # Cannot be implemented directly: effect on reactance is absorbed into x_pu_eff by the converter; effect on voltage magnitude is neglected in DC LOPF.
-        #- id: tap_side # Not a GEMS model parameter: only used with tap_ratio in preprocessing to compute x_pu_eff.
-        #- id: tap_position # Not a GEMS model parameter: only used with type in preprocessing.
-        #- id: phase_shift # TODO: not yet implemented in the converter — could be added as an angle offset in the dc_flow binding-constraint: p0 = (θ_bus0 - θ_bus1 - phase_shift) / x_pu_eff.
         - id: s_nom_min
           #Minimum installed capacity [MVA].
           time-dependent: false
@@ -517,8 +507,6 @@ library:
           #Module size [MVA]. Used when modular=1. Set to any positive value when modular=0.
           time-dependent: false
           scenario-dependent: false
-        #- id: s_nom_extendable # Handled implicitly: extendability is encoded via s_nom_min/s_nom_max bounds — the converter sets them equal (s_nom_min = s_nom_max = s_nom) for non-extendable transformers, and uses the actual s_nom_min/s_nom_max for extendable ones.
-        #- id: s_nom_set # Handled implicitly: pinning s_nom_opt to a fixed value is achieved by setting s_nom_min = s_nom_max in the converter.
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity.
           time-dependent: true
@@ -527,19 +515,31 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
-        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
-        #- id: fom_cost # TODO: not yet implemented in the converter.
-        #- id: num_parallel # Cannot be implemented: number of parallel transformers is resolved in preprocessing when type is set; not a GEMS model parameter.
-        #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
-        #- id: v_ang_min # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
-        #- id: v_ang_max # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
         - id: modular
           #Expansion mode: 0 = continuous (LP), 1 = modular integer (MIP).
           time-dependent: false
           scenario-dependent: false
+        #- id: type # Preprocessing: triggers lookup in transformer_types table — overrides r, x, g, b, s_nom, tap_ratio, tap_side, phase_shift. Converter must call calculate_dependent_values() first.
+        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
+        #- id: r # Not used in DC LOPF.
+        #- id: g # Not used in DC LOPF.
+        #- id: b # Not used in DC LOPF.
+        #- id: tap_ratio # Absorbed into x_pu_eff by calculate_dependent_values() — x_pu_eff = (x/s_nom)*tap_ratio. Overridden by transformer_types table when type is set.
+        #- id: tap_side # Not used in DC LOPF (AC power flow only). Overridden by transformer_types table when type is set.
+        #- id: tap_position # Only used when type is set — To be investigated how it is used within type.
+        #- id: phase_shift # Not used in DC LOPF optimization. Overridden by transformer_types table when type is set.
+        #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max bounds on s_nom_opt.
+        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Not a GEMS parameter; when not NaN, converter must compute capital_cost = annuity(discount_rate, lifetime) * overnight_cost.
+        #- id: discount_rate # Not a GEMS parameter; only used when overnight_cost is not NaN to compute capital_cost.
+        #- id: fom_cost # TODO: not yet implemented in the converter.
+        #- id: num_parallel # Only used when type is set (scales all impedances from transformer_types); ignored otherwise.
+        #- id: active # Handled by converter: only active components are built.
+        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
+        #- id: lifetime # Not a GEMS parameter; used when overnight_cost is not NaN to compute capital_cost and in investment periods
+        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
         - id: n_mod
           #Integer modules. Active when modular=1; bounded to [0,0] when modular=0.
@@ -589,43 +589,24 @@ library:
     - id: transformer_lp
       #Model for PyPSA transformer in DC LOPF — LP (continuous capacity) formulation.
       #Covers two cases:
-      #  Non-extendable (s_nom_extendable=0): s_nom_opt is fixed to s_nom; s_nom_min/s_nom_max are ignored.
-      #  Extendable     (s_nom_extendable=1): s_nom_opt is a continuous variable in [s_nom_min, s_nom_max]; s_nom is ignored.
+      #  Non-extendable: converter sets s_nom_min = s_nom_max = s_nom (capacity fixed, no expansion).
+      #  Extendable:     converter sets s_nom_min < s_nom_max (continuous capacity expansion optimised by the solver).
       #For modular integer expansion (MILP) use transformer_milp. For combined LP+MILP in a single model use transformer.
       #x_pu_eff is the effective per-unit reactance pre-computed from x and tap_ratio by the converter.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
       parameters:
-        #- id: type # Cannot be implemented: standard type lookup (overrides r/x/b/s_nom/tap_ratio) is a preprocessing step, not a GEMS model parameter.
-        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
         - id: x_pu_eff
-          #Effective per-unit series reactance for DC LOPF, pre-computed by the converter from x and tap_ratio.
-          time-dependent: false
-          scenario-dependent: false
-        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation.
-        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
-        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation.
-        #- id: tap_ratio # Cannot be implemented directly: effect on reactance is absorbed into x_pu_eff by the converter; effect on voltage magnitude is neglected in DC LOPF.
-        #- id: tap_side # Not a GEMS model parameter: only used with tap_ratio in preprocessing to compute x_pu_eff.
-        #- id: tap_position # Not a GEMS model parameter: only used with type in preprocessing.
-        #- id: phase_shift # TODO: not yet implemented in the converter — could be added as an angle offset in the dc_flow binding-constraint: p0 = (θ_bus0 - θ_bus1 - phase_shift) / x_pu_eff.
-        - id: s_nom
-          #Fixed nominal capacity [MVA]. Used when s_nom_extendable=0; ignored when s_nom_extendable=1.
+          # Effective per-unit series reactance for DC LOPF, will be extracted from PyPSA objects after calling calculate_dependent_values() PyPSA function. It is important to call this function after loading entire PyPSA study into PyPSA Network object!
           time-dependent: false
           scenario-dependent: false
         - id: s_nom_min
-          #Minimum installed capacity [MVA]. Used when s_nom_extendable=1; ignored when s_nom_extendable=0.
+          #Minimum installed capacity [MVA]. Converter sets equal to s_nom when s_nom_extendable=False.
           time-dependent: false
           scenario-dependent: false
         - id: s_nom_max
-          #Maximum installed capacity [MVA]. Used when s_nom_extendable=1; ignored when s_nom_extendable=0.
+          #Maximum installed capacity [MVA]. Converter sets equal to s_nom when s_nom_extendable=False.
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom_extendable
-          #Boolean (0/1): 0 = fixed capacity (s_nom used); 1 = continuous capacity expansion (s_nom_min/s_nom_max used).
-          time-dependent: false
-          scenario-dependent: false
-        #- id: s_nom_mod # Not applicable to LP formulation; for modular integer expansion use transformer_milp.
-        #- id: s_nom_set # Not directly supported: to pin s_nom_opt, set s_nom_extendable=1 and s_nom_min=s_nom_max=desired value.
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity.
           time-dependent: true
@@ -634,21 +615,37 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
-        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
-        #- id: fom_cost # TODO: not yet implemented in the converter.
+        - id: fom_cost
+          #Fixed operation and maintenance cost [currency/MVA/year]. Added to capital_cost in the objective.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: type # Preprocessing: triggers lookup in transformer_types table — overrides r, x, g, b, s_nom, tap_ratio, tap_side, phase_shift. Converter must call calculate_dependent_values() first.
+        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
+        #- id: r # Not used in DC LOPF.
+        #- id: g # Not used in DC LOPF.
+        #- id: b # Not used in DC LOPF.
+        #- id: tap_ratio # Absorbed into x_pu_eff by calculate_dependent_values() — x_pu_eff = (x/s_nom)*tap_ratio. Overridden by transformer_types table when type is set.
+        #- id: tap_side # Not used in DC LOPF (AC power flow only). Overridden by transformer_types table when type is set.
+        #- id: tap_position # Only used when type is set — To be investigated how it is used within type.
+        #- id: phase_shift # Not used in DC LOPF optimization. Overridden by transformer_types table when type is set.
+        #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max bounds on s_nom_opt.
+        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_mod # Not applicable to LP formulation; for modular integer expansion use transformer_milp.
+        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Not a GEMS parameter; when not NaN, converter must compute capital_cost = annuity(discount_rate, lifetime) * overnight_cost.
+        #- id: discount_rate # Not a GEMS parameter; only used when overnight_cost is not NaN to compute capital_cost.
         #- id: modular # Not applicable: this model is always LP. For modular integer expansion use transformer_milp. For combined LP+MILP in a single model use transformer.
-        #- id: num_parallel # Cannot be implemented: number of parallel transformers is resolved in preprocessing when type is set; not a GEMS model parameter.
-        #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
-        #- id: v_ang_min # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
-        #- id: v_ang_max # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
+        #- id: num_parallel # Only used when type is set (scales all impedances from transformer_types); ignored otherwise.
+        #- id: active # Handled by converter: only active components are built.
+        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
+        #- id: lifetime # Not a GEMS parameter; used when overnight_cost is not NaN to compute capital_cost and in investment periods
+        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
         - id: s_nom_opt
-          #Optimised installed capacity [MVA]. Fixed to s_nom when s_nom_extendable=0; optimised in [s_nom_min, s_nom_max] when s_nom_extendable=1.
-          lower-bound: (1 - s_nom_extendable) * s_nom + s_nom_extendable * s_nom_min
-          upper-bound: (1 - s_nom_extendable) * s_nom + s_nom_extendable * s_nom_max
+          #Optimised installed capacity [MVA]. Bounded by [s_nom_min, s_nom_max]; set equal by converter for non-extendable transformers.
+          lower-bound: s_nom_min
+          upper-bound: s_nom_max
           time-dependent: false
           scenario-dependent: false
         - id: p0
@@ -674,7 +671,7 @@ library:
           expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * s_nom_opt
+          expression: (capital_cost + fom_cost) * s_nom_opt
 
     - id: transformer_milp
       #Model for PyPSA transformer in DC LOPF — MILP (modular integer capacity) formulation.
@@ -684,19 +681,10 @@ library:
       #x_pu_eff is the effective per-unit reactance pre-computed from x and tap_ratio by the converter.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
       parameters:
-        #- id: type # Cannot be implemented: standard type lookup (overrides r/x/b/s_nom/tap_ratio) is a preprocessing step, not a GEMS model parameter.
-        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
         - id: x_pu_eff
-          #Effective per-unit series reactance for DC LOPF, pre-computed by the converter from x and tap_ratio.
+          # Effective per-unit series reactance for DC LOPF, will be extracted from PyPSA objects after calling calculate_dependent_values() PyPSA function. It is important to call this function after loading entire PyPSA study into PyPSA Network object!
           time-dependent: false
           scenario-dependent: false
-        #- id: r # Cannot be implemented: series resistance neglected in DC LOPF approximation.
-        #- id: g # Cannot be implemented: shunt conductivity neglected in DC LOPF approximation.
-        #- id: b # Cannot be implemented: shunt susceptance neglected in DC LOPF approximation.
-        #- id: tap_ratio # Cannot be implemented directly: effect on reactance is absorbed into x_pu_eff by the converter; effect on voltage magnitude is neglected in DC LOPF.
-        #- id: tap_side # Not a GEMS model parameter: only used with tap_ratio in preprocessing to compute x_pu_eff.
-        #- id: tap_position # Not a GEMS model parameter: only used with type in preprocessing.
-        #- id: phase_shift # TODO: not yet implemented in the converter — could be added as an angle offset in the dc_flow binding-constraint: p0 = (θ_bus0 - θ_bus1 - phase_shift) / x_pu_eff.
         - id: s_nom_min
           #Minimum installed capacity [MVA].
           time-dependent: false
@@ -709,8 +697,6 @@ library:
           #Module size [MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: s_nom_extendable # Handled implicitly: extendability is encoded via s_nom_min/s_nom_max bounds — the converter sets them equal for non-extendable transformers.
-        #- id: s_nom_set # Handled implicitly: pinning s_nom_opt to a fixed value is achieved by setting s_nom_min = s_nom_max in the converter.
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity.
           time-dependent: true
@@ -719,16 +705,30 @@ library:
           #Annuitised investment cost per MVA of installed capacity [currency/MVA].
           time-dependent: false
           scenario-dependent: false
-        #- id: overnight_cost # TODO: not yet implemented in the converter — overnight_cost must be annuitised into capital_cost using discount_rate and lifetime.
-        #- id: discount_rate # TODO: not yet implemented in the converter — used together with overnight_cost and lifetime to compute annuitised capital_cost.
-        #- id: fom_cost # TODO: not yet implemented in the converter.
+        - id: fom_cost
+          #Fixed operation and maintenance cost [currency/MVA/year]. Added to capital_cost in the objective.
+          time-dependent: false
+          scenario-dependent: false
+        #- id: type # Preprocessing: triggers lookup in transformer_types table — overrides r, x, g, b, s_nom, tap_ratio, tap_side, phase_shift. Converter must call calculate_dependent_values() first.
+        #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
+        #- id: r # Not used in DC LOPF.
+        #- id: g # Not used in DC LOPF.
+        #- id: b # Not used in DC LOPF.
+        #- id: tap_ratio # Absorbed into x_pu_eff by calculate_dependent_values() — x_pu_eff = (x/s_nom)*tap_ratio. Overridden by transformer_types table when type is set.
+        #- id: tap_side # Not used in DC LOPF (AC power flow only). Overridden by transformer_types table when type is set.
+        #- id: tap_position # Only used when type is set — To be investigated how it is used within type.
+        #- id: phase_shift # Not used in DC LOPF optimization. Overridden by transformer_types table when type is set.
+        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Not a GEMS parameter; when not NaN, converter must compute capital_cost = annuity(discount_rate, lifetime) * overnight_cost.
+        #- id: discount_rate # Not a GEMS parameter; only used when overnight_cost is not NaN to compute capital_cost.
         #- id: modular # Not applicable: this model is always MILP. For continuous LP expansion use transformer_lp. For combined LP+MILP in a single model use transformer.
-        #- id: num_parallel # Cannot be implemented: number of parallel transformers is resolved in preprocessing when type is set; not a GEMS model parameter.
-        #- id: active # Not instantiated: only active components are built by the data converter.
-        #- id: build_year # TODO: not yet implemented in the converter.
-        #- id: lifetime # TODO: not yet implemented in the converter — used together with overnight_cost and discount_rate to compute annuitised capital_cost.
-        #- id: v_ang_min # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
-        #- id: v_ang_max # Not instantiated: placeholder attribute in PyPSA, not currently used in optimisation.
+        #- id: num_parallel # Only used when type is set (scales all impedances from transformer_types); ignored otherwise.
+        #- id: active # Handled by converter: only active components are built.
+        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
+        #- id: lifetime # Not a GEMS parameter; used when overnight_cost is not NaN to compute capital_cost and in investment periods
+        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
         - id: n_mod
           #Integer number of installed modules.
@@ -764,7 +764,7 @@ library:
           expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * n_mod * s_nom_mod
+          expression: (capital_cost + fom_cost) * n_mod * s_nom_mod
       extra-outputs:
         - id: s_nom_opt
           expression: n_mod * s_nom_mod
