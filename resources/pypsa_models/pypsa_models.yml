@@ -211,8 +211,8 @@ library:
     - id: line
       #Model for PyPSA line in DC LOPF.
       #Covers fixed capacity, continuous extendable (LP), and modular integer extendable (MIP).
-      #modular=0: s_nom is a continuous variable bounded [s_nom_min, s_nom_max]. Set s_nom_min=s_nom_max for fixed capacity.
-      #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP).
+      #modular=0: s_nom_opt is a continuous variable bounded [s_nom_min, s_nom_max]. Set s_nom_min=s_nom_max for fixed capacity.
+      #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP). s_nom_opt is bounded to [0,0].
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
       parameters:
         - id: x
@@ -480,8 +480,8 @@ library:
     - id: transformer
       #Model for PyPSA transformer in DC LOPF.
       #Covers fixed capacity, continuous extendable (LP), and modular integer extendable (MIP).
-      #modular=0: s_nom is a continuous variable bounded [s_nom_min, s_nom_max]. Set s_nom_min=s_nom_max for fixed capacity.
-      #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP).
+      #modular=0: s_nom_opt is a continuous variable bounded [s_nom_min, s_nom_max]. Set s_nom_min=s_nom_max for fixed capacity.
+      #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP). s_nom_opt is bounded to [0,0].
       #x_pu_eff is the effective per-unit reactance pre-computed from x and tap_ratio by the converter.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
       parameters:
@@ -756,9 +756,6 @@ library:
       objective-contributions:
         - id: capital_objective
           expression: (capital_cost + fom_cost) * n_mod * s_nom_mod
-      extra-outputs:
-        - id: s_nom_opt
-          expression: n_mod * s_nom_mod
 
     - id: link
       #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
