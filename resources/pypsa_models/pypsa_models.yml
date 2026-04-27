@@ -24,7 +24,7 @@ library:
     - id: flow
       description: A port which transfers power flow
       fields:
-        - id: flow
+        - id: power
         - id: angle
     - id: emission
       description: A port which accounts for CO2 emissions
@@ -74,9 +74,9 @@ library:
           definition: theta
       binding-constraints:
         - id: p_balance
-          expression: sum_connections(p_balance_port.flow) = 0
+          expression: sum_connections(p_balance_port.power) = 0
         - id: q_balance
-          expression: sum_connections(q_balance_port.flow) = 0
+          expression: sum_connections(q_balance_port.power) = 0
 
     - id: load
       #Model for PyPSA load: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#load
@@ -100,10 +100,10 @@ library:
           type: flow
       port-field-definitions:
         - port: p_balance_port
-          field: flow
+          field: power
           definition: sign * p_set
         - port: q_balance_port
-          field: flow
+          field: power
           definition: sign * q_set
 
     - id: generator
@@ -185,7 +185,7 @@ library:
         #  type: flow
       port-field-definitions:
         - port: p_balance_port
-          field: flow
+          field: power
           definition: p*sign
         - port: emission_port
           field: emission
@@ -287,10 +287,10 @@ library:
           type: flow
       port-field-definitions:
         - port: bus0_p_port
-          field: flow
+          field: power
           definition: -p0
         - port: bus1_p_port
-          field: flow
+          field: power
           definition: p0
       constraints:
         - id: capacity_min
@@ -374,10 +374,10 @@ library:
           type: flow
       port-field-definitions:
         - port: bus0_p_port
-          field: flow
+          field: power
           definition: -p0
         - port: bus1_p_port
-          field: flow
+          field: power
           definition: p0
       constraints:
         - id: upper_flow
@@ -459,10 +459,10 @@ library:
           type: flow
       port-field-definitions:
         - port: bus0_p_port
-          field: flow
+          field: power
           definition: -p0
         - port: bus1_p_port
-          field: flow
+          field: power
           definition: p0
       constraints:
         - id: capacity_min
@@ -562,10 +562,10 @@ library:
           type: flow
       port-field-definitions:
         - port: bus0_p_port
-          field: flow
+          field: power
           definition: -p0
         - port: bus1_p_port
-          field: flow
+          field: power
           definition: p0
       constraints:
         - id: capacity_min
@@ -653,10 +653,10 @@ library:
           type: flow
       port-field-definitions:
         - port: bus0_p_port
-          field: flow
+          field: power
           definition: -p0
         - port: bus1_p_port
-          field: flow
+          field: power
           definition: p0
       constraints:
         - id: upper_flow
@@ -742,10 +742,10 @@ library:
           type: flow
       port-field-definitions:
         - port: bus0_p_port
-          field: flow
+          field: power
           definition: -p0
         - port: bus1_p_port
-          field: flow
+          field: power
           definition: p0
       constraints:
         - id: capacity_min
@@ -832,10 +832,10 @@ library:
         #  type: flow
       port-field-definitions:
         - port: p0_port
-          field: flow
+          field: power
           definition: -p0
         - port: p1_port
-          field: flow
+          field: power
           definition: efficiency * p0
         #- port: q_balance_port
         #  field: flow
@@ -940,7 +940,7 @@ library:
           type: emission
       port-field-definitions:
         - port: p_balance_port
-          field: flow
+          field: power
           definition: p_dispatch - p_store
         - port: emission_port
           field: emission
@@ -1023,7 +1023,7 @@ library:
           type: emission
       port-field-definitions:
         - port: p_balance_port
-          field: flow
+          field: power
           definition: p
         - port: emission_port
           field: emission
