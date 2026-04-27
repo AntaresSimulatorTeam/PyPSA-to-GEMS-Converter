@@ -111,8 +111,8 @@ body:
         - [ ] `dependencies.json` updated (`pypsa_models_library_version`) if library changed
         - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 
-        ### Step 9 — Release
-        - [ ] Release documents changes, compatibility, and behaviour changes
-
-        ### Step 10 — Documentation & Changelog
+        ### Step 9 — Documentation & Changelog
         - [ ] `COMPATIBILITY.md` updated if supported versions changed
+
+        ### Step 10 — Release
+        - [ ] If a release is needed: follow the release process in the Developer Guidelines

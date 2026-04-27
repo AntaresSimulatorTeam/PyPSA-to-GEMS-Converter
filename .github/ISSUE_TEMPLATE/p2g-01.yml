@@ -84,7 +84,7 @@ body:
         - [ ] Converter code updated if needed (`src/`)
         - [ ] `resources/pypsa_models/pypsa_models.yml` updated if needed
         - [ ] Backward compatibility maintained unless explicitly intended as breaking
-        - [ ] All referencing studies verified (parameter counts, port refs valid)
+        - [ ] All referencing studies verified (parameter ids, port refs valid)
 
         ### Step 5 — Testing & Validation ⚠️ dual-system validation required
         - [ ] Unit tests pass (`pytest tests/unit_tests/`)
@@ -106,9 +106,8 @@ body:
         - [ ] `pyproject.toml` version bumped (Major if Antares major bump, Minor otherwise)
         - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 
-        ### Step 9 — Release
-        - [ ] Release documents supported Antares version, supported PyPSA version, compatibility, and behaviour changes
-
-        ### Step 10 — Documentation & Changelog
-
+        ### Step 9 — Documentation & Changelog
         - [ ] `COMPATIBILITY.md` updated with new version mapping
+
+        ### Step 10 — Release
+        - [ ] If a release is needed: follow the release process in the Developer Guidelines
