@@ -25,7 +25,7 @@ library:
       description: A port which transfers power flow
       fields:
         - id: flow
-        - id: theta
+        - id: angle
     - id: emission
       description: A port which accounts for CO2 emissions
       fields:
@@ -70,7 +70,7 @@ library:
           type: flow
       port-field-definitions:
         - port: p_balance_port
-          field: theta
+          field: angle
           definition: theta
       binding-constraints:
         - id: p_balance
@@ -303,7 +303,7 @@ library:
           expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
       binding-constraints:
         - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
+          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
@@ -386,7 +386,7 @@ library:
           expression: p0 >= -s_nom_opt * s_max_pu
       binding-constraints:
         - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
+          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * s_nom_opt
@@ -475,7 +475,7 @@ library:
           expression: p0 >= -n_mod * s_nom_mod * s_max_pu
       binding-constraints:
         - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x
+          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * n_mod * s_nom_mod
@@ -578,7 +578,7 @@ library:
           expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
       binding-constraints:
         - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
+          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
@@ -665,7 +665,7 @@ library:
           expression: p0 >= -s_nom_opt * s_max_pu
       binding-constraints:
         - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
+          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * s_nom_opt
@@ -758,7 +758,7 @@ library:
           expression: p0 >= -n_mod * s_nom_mod * s_max_pu
       binding-constraints:
         - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.theta) - sum_connections(bus1_p_port.theta)) / x_pu_eff
+          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * n_mod * s_nom_mod
