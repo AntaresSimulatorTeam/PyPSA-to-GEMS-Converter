@@ -13,7 +13,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
   - **Minor** — Bug fix, new PyPSA feature supported, or PyPSA version update
   - **Patch** — Dependency updates, code optimisation, or PyPSA models library-only change
 
-- **PyPSA Models Library** — version tracked in `resources/pypsa_models/CHANGELOG-pypsa_models_library.md` (latest entry header). Independent versioning:
+- **PyPSA Models Library** — version tracked in `dependencies.json` (`pypsa_models_library_version`). Independent versioning:
   - **Major** — New PyPSA model added to `pypsa_models.yml`
   - **Minor** — Bug fix or improvement to an existing model
   - **Patch** — Non-functional change (rename variable/parameter, internal refactor)
@@ -32,6 +32,6 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 | Component | Current Version | Version File |
 |-----------|----------------|--------------|
 | Converter | 0.0.1 | `pyproject.toml` |
-| PyPSA Models Library | 1.0.0 | `resources/pypsa_models/CHANGELOG-pypsa_models_library.md` |
+| PyPSA Models Library | 1.0.0 | `dependencies.json` |
 | PyPSA | 1.0.0 | `requirements.txt` |
 | Antares-Simulator | 9.3.7 | `dependencies.json` |

@@ -1,0 +1,95 @@
+name: Notify GEMS — PyPSA Models Library Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dependencies.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write  # required to push the library version tag
+
+jobs:
+  notify:
+    name: Check PyPSA models library version and notify GEMS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read current and previous library version
+        id: version
+        run: |
+          CURR=$(python3 -c "import json; print(json.load(open('dependencies.json'))['pypsa_models_library_version'])")
+          echo "version=$CURR" >> "$GITHUB_OUTPUT"
+
+          LAST_TAG=$(git tag --list 'pypsa_models-v*' --sort=-creatordate | head -1)
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous library tag found."
+            PREV=""
+          else
+            echo "Last library tag: $LAST_TAG"
+            PREV=$(git show "${LAST_TAG}:dependencies.json" 2>/dev/null \
+              | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
+          fi
+
+          echo "Current: $CURR  |  Previous: $PREV"
+          if [ "$CURR" = "$PREV" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create library version tag
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          TAG="pypsa_models-v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "Created and pushed tag: $TAG"
+
+      - name: Create issue in GEMS repository
+        if: steps.version.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GEMS_REPO_PAT }}
+          script: |
+            const version       = '${{ steps.version.outputs.version }}';
+            const converterOwner = context.repo.owner;
+            const converterRepo  = context.repo.repo;
+            const title = `[PYPSA MODELS] New library version: v${version}`;
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: converterOwner,
+              repo: 'GEMS',
+              state: 'open',
+            });
+
+            const duplicate = existing.data.find(i => i.title.includes(`v${version}`));
+            if (duplicate) {
+              console.log(`Issue already exists: #${duplicate.number} — skipping.`);
+              return;
+            }
+
+            const body = [
+              `PyPSA models library updated to \`v${version}\` in [${converterRepo}](https://github.com/${converterOwner}/${converterRepo}).`,
+              '',
+              `Changelog: https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/CHANGELOG-pypsa_models_library.md`,
+              '',
+              'Update `libraries/pypsa_models.yml` in GEMS accordingly.',
+            ].join('\n');
+
+            const result = await github.rest.issues.create({
+              owner: converterOwner,
+              repo: 'GEMS',
+              title: title,
+              body: body,
+            });
+
+            console.log(`Issue created: #${result.data.number} — ${result.data.html_url}`);
