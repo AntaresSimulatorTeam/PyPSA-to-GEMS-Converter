@@ -22,3 +22,4 @@
 - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 - [ ] `COMPATIBILITY.md` updated if supported versions changed
 - [ ] Documentation updated or confirmed up to date
+- [ ] `AGENTS.md` reviewed for impact and updated if needed

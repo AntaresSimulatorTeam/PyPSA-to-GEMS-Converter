@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # required to push the library version tag
+  contents: read
 
 jobs:
   notify:
@@ -21,38 +21,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read current and previous library version
+      - name: Read current version and GEMS library version
         id: version
+        env:
+          GH_TOKEN: ${{ secrets.GEMS_REPO_PAT }}
         run: |
           CURR=$(python3 -c "import yaml; print(yaml.safe_load(open('resources/pypsa_models/pypsa_models.yml'))['library']['version'])")
           echo "version=$CURR" >> "$GITHUB_OUTPUT"
 
-          LAST_TAG=$(git tag --list 'pypsa_models-v*' --sort=-creatordate | head -1)
-          if [ -z "$LAST_TAG" ]; then
-            echo "No previous library tag found."
-            PREV=""
-          else
-            echo "Last library tag: $LAST_TAG"
-            PREV=$(git show "${LAST_TAG}:resources/pypsa_models/pypsa_models.yml" 2>/dev/null \
-              | python3 -c "import yaml,sys; print(yaml.safe_load(sys.stdin).get('library', {}).get('version', ''))")
-          fi
+          # Read the version currently in the GEMS repo (empty string if file absent or API unavailable)
+          GEMS_VERSION=$(gh api "repos/${{ github.repository_owner }}/GEMS/contents/libraries/pypsa_models.yml" \
+            --jq '.content' 2>/dev/null \
+            | base64 -d 2>/dev/null \
+            | python3 -c "import yaml,sys; print(yaml.safe_load(sys.stdin).get('library', {}).get('version', ''))" \
+            2>/dev/null || echo "")
 
-          echo "Current: $CURR  |  Previous: $PREV"
-          if [ "$CURR" = "$PREV" ]; then
+          echo "Current: $CURR  |  GEMS: $GEMS_VERSION"
+          if [ "$CURR" = "$GEMS_VERSION" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Create library version tag
-        if: steps.version.outputs.changed == 'true'
-        run: |
-          TAG="pypsa_models-v${{ steps.version.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG"
-          git push origin "$TAG"
-          echo "Created and pushed tag: $TAG"
 
       - name: Create issue in GEMS repository
         if: steps.version.outputs.changed == 'true'
