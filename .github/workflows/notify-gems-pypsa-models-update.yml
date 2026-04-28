@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read current version and GEMS library version
+      - name: Read PyPSA converter pypsa models library version and GEMS pypsa models library version
         id: version
         env:
           GH_TOKEN: ${{ secrets.GEMS_REPO_PAT }}
