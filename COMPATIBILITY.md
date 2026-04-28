@@ -79,6 +79,15 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `p_set` | Fixed active power output — not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
 | `committable` | Unit commitment (MILP) — not supported, enforced to be False |
+| `start_up_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `shut_down_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `stand_by_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `min_up_time` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `min_down_time` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `up_time_before` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `down_time_before` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `ramp_limit_start_up` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `ramp_limit_shut_down` | Unit commitment parameter — not implemented (requires `committable=True` support) |
 | `ramp_limit_up` | Inter-temporal ramp constraint — not implemented |
 | `ramp_limit_down` | Inter-temporal ramp constraint — not implemented |
 | `active` | Only active generators are built — inactive ones are dropped by the converter |
@@ -93,15 +102,6 @@ Parameters not relevant for DC LOPF (silently ignored):
 | `weight` | Used only for network clustering — not optimization |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
-| `start_up_cost` | Only used if `committable=True` — already blocked |
-| `shut_down_cost` | Only used if `committable=True` — already blocked |
-| `stand_by_cost` | Only used if `committable=True` — already blocked |
-| `min_up_time` | Only used if `committable=True` — already blocked |
-| `min_down_time` | Only used if `committable=True` — already blocked |
-| `up_time_before` | Only used if `committable=True` — already blocked |
-| `down_time_before` | Only used if `committable=True` — already blocked |
-| `ramp_limit_start_up` | Only used if `committable=True` — already blocked |
-| `ramp_limit_shut_down` | Only used if `committable=True` — already blocked |
 
 #### Load
 
@@ -122,6 +122,15 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `p_set` | Fixed dispatch set point — not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not implemented |
 | `committable` | Unit commitment (MILP) — not implemented |
+| `start_up_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `shut_down_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `stand_by_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `min_up_time` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `min_down_time` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `up_time_before` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `down_time_before` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `ramp_limit_start_up` | Unit commitment parameter — not implemented (requires `committable=True` support) |
+| `ramp_limit_shut_down` | Unit commitment parameter — not implemented (requires `committable=True` support) |
 | `ramp_limit_up` | Inter-temporal ramp constraint — not implemented |
 | `ramp_limit_down` | Inter-temporal ramp constraint — not implemented |
 | `bus2`, `bus3`, … / `efficiency2`, `efficiency3`, … | Multi-port sector coupling — only bus0 → bus1 supported |
@@ -137,15 +146,6 @@ Parameters not relevant for DC LOPF (silently ignored):
 | `terrain_factor` | Metadata for pre-computing `capital_cost` — not used in the LP |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
-| `start_up_cost` | Only used if `committable=True` — already blocked |
-| `shut_down_cost` | Only used if `committable=True` — already blocked |
-| `stand_by_cost` | Only used if `committable=True` — already blocked |
-| `min_up_time` | Only used if `committable=True` — already blocked |
-| `min_down_time` | Only used if `committable=True` — already blocked |
-| `up_time_before` | Only used if `committable=True` — already blocked |
-| `down_time_before` | Only used if `committable=True` — already blocked |
-| `ramp_limit_start_up` | Only used if `committable=True` — already blocked |
-| `ramp_limit_shut_down` | Only used if `committable=True` — already blocked |
 
 #### StorageUnit
 
