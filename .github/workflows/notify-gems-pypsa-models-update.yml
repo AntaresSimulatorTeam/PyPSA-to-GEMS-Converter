@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'dependencies.json'
+      - 'resources/pypsa_models/pypsa_models.yml'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
       - name: Read current and previous library version
         id: version
         run: |
-          CURR=$(python3 -c "import json; print(json.load(open('dependencies.json'))['pypsa_models_library_version'])")
+          CURR=$(python3 -c "import yaml; print(yaml.safe_load(open('resources/pypsa_models/pypsa_models.yml'))['library']['version'])")
           echo "version=$CURR" >> "$GITHUB_OUTPUT"
 
           LAST_TAG=$(git tag --list 'pypsa_models-v*' --sort=-creatordate | head -1)
@@ -33,8 +33,8 @@ jobs:
             PREV=""
           else
             echo "Last library tag: $LAST_TAG"
-            PREV=$(git show "${LAST_TAG}:dependencies.json" 2>/dev/null \
-              | python3 -c "import json,sys; print(json.load(sys.stdin).get('pypsa_models_library_version',''))")
+            PREV=$(git show "${LAST_TAG}:resources/pypsa_models/pypsa_models.yml" 2>/dev/null \
+              | python3 -c "import yaml,sys; print(yaml.safe_load(sys.stdin).get('library', {}).get('version', ''))")
           fi
 
           echo "Current: $CURR  |  Previous: $PREV"

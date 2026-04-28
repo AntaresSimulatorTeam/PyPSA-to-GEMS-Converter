@@ -102,12 +102,13 @@ body:
 
         ### Step 8 — Versioning
         - [ ] `dependencies.json` updated (`antares_version`)
-        - [ ] `dependencies.json` updated (`pypsa_models_library_version`) if library changed
+        - [ ] `version` field in `resources/pypsa_models/pypsa_models.yml` bumped if library changed
         - [ ] `pyproject.toml` version bumped (Major if Antares major bump, Minor otherwise)
         - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 
         ### Step 9 — Documentation & Changelog
         - [ ] `COMPATIBILITY.md` updated with new version mapping
+        - [ ] `AGENTS.md` reviewed for impact and updated if needed
 
         ### Step 10 — Release
         - [ ] If a release is needed: follow the release process in the Developer Guidelines
