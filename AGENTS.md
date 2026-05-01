@@ -27,7 +27,10 @@ src/
 
 -  Registers each **supported** component type 
 -  Registers global constraints 
-  gems_model_builder.py       # GemsModelBuilder: create GEMS components + connections
+  gems_model_builder.py       # GemsModelBuilder: 
+-  Build GEMS components
+-  Build port connections
+-  Handles global constraints separately 
   gems_study_writer.py        # GemsStudyWriter: write all output files
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
