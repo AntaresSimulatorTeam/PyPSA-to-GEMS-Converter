@@ -23,7 +23,10 @@ src/
 - Rename busses 
 - Preprocessed each **supported** component type  
  
-  pypsa_register.py           # PyPSARegister: extract data, map params to GEMS names
+  pypsa_register.py           # PyPSARegister: 
+
+-  Registers each **supported** component type 
+-  Registers global constraints 
   gems_model_builder.py       # GemsModelBuilder: create GEMS components + connections
   gems_study_writer.py        # GemsStudyWriter: write all output files
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
