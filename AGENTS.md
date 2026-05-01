@@ -17,7 +17,12 @@ Repository: `AntaresSimulatorTeam/PyPSA-to-GEMS-Converter` — License: MPL 2.0
 ```
 src/
   pypsa_converter.py          # PyPSAStudyConverter: top-level orchestrator
-  pypsa_preprocessor.py       # PyPSAPreprocessor: validate + normalize network
+  pypsa_preprocessor.py       # PyPSAPreprocessor: 
+- Validates converter limitations 
+- Adds a fictitious null carrier 
+- Rename busses 
+- Preprocessed each **supported** component type  
+ 
   pypsa_register.py           # PyPSARegister: extract data, map params to GEMS names
   gems_model_builder.py       # GemsModelBuilder: create GEMS components + connections
   gems_study_writer.py        # GemsStudyWriter: write all output files
