@@ -213,7 +213,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 9. **Float clamping is intentional.** `any_to_float()` clamps values to `±100_000_000_000`. Do not remove or weaken this: the Antares modeler requires bounded values. `inf`/`-inf` must not appear in output files.
 
-10. **Do not commit** `venv/`, `tmp/`, `.nc` output files, or extracted Antares binary directories.
+10. **Do not commit** `tmp/` output files, or extracted Antares binary directories.
 
 11. **Version tracking.** The Antares Simulator version is in `dependencies.json`. When updating, also check `src/dependencies.py` defaults and CI workflow download steps.
 
