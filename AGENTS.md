@@ -31,7 +31,12 @@ src/
 -  Build GEMS components
 -  Build port connections
 -  Handles global constraints separately 
-  gems_study_writer.py        # GemsStudyWriter: write all output files
+  gems_study_writer.py        # GemsStudyWriter: 
+- Writes `system.yml`- GEMS components and port connections 
+- Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
+- Copies `pypsa-models.yml` - copies pre-built PyPSA GEMS model library
+- Copies `optim-config.yml` -  Benders decomposition used by `Antares Modeler`
+- Preproceses and writes time series data into `data-series` directory 
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
   parsing.py                  # Legacy CLI argument parser (not used by converter)
