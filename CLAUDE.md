@@ -29,5 +29,5 @@ ruff check src tests && ruff format src tests && mypy src && mypy tests
 - Never pass an optimized network (`network.optimize()`) to `PyPSAStudyConverter` — HiGHS solver state cannot be deep-copied
 - Output component IDs differ from PyPSA input IDs (type prefix added, spaces replaced with `_`)
 - `resources/pypsa_models/pypsa_models.yml` parameter counts must exactly match `PyPSARegister` mappings — mismatch causes silent Antares modeler failure
-- All studies use the multi-scenario code path internally; deterministic = single `"default"` scenario
+- All studies use the multi-scenario code path internally, e.g. deterministic = single `"default"` scenario
 - Git workflow: feature branches from `main`, PRs back to `main`
