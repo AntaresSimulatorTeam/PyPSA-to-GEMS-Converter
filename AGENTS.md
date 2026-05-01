@@ -6,7 +6,7 @@ This file provides guidance to AI coding agents (LLMs, copilots, code assistants
 
 ## Project Overview
 
-**PyPSA-to-GEMS Converter** converts [PyPSA](https://pypsa.org/) energy system networks into [GEMS](https://gems-energy.readthedocs.io/) study folders runnable by the Antares Simulator modeler. It handles linear optimal power flow, economic dispatch, and two-stage stochastic optimization studies.
+**PyPSA-to-GEMS Converter** converts [PyPSA](https://pypsa.org/) energy system networks into [GEMS](https://gems-energy.readthedocs.io/) study folders runnable by the Antares Simulator modeler. It handles conversion of linear optimal power flow, economic dispatch, and two-stage stochastic optimization studies, with documented [constraints](https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter/blob/main/README.md#global-constraints) and [currently unsupported components](https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter/blob/main/README.md#unsupported-pypsa-components).
 
 Repository: `AntaresSimulatorTeam/PyPSA-to-GEMS-Converter` — License: MPL 2.0
 
