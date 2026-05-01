@@ -127,7 +127,7 @@ All components must have `active=1`. Lines can be approximated as links using `r
 ### Prerequisites
 
 - **Antares Simulator binary** (version in `dependencies.json`). CI downloads it automatically. For local runs, extract the archive at the repo root — the path is resolved by `src/dependencies.py`.
-- **Antares Xpansion** (v1.8.0) for stochastic E2E tests.
+- **Antares Xpansion** for stochastic E2E tests.
 
 ### Commands
 
