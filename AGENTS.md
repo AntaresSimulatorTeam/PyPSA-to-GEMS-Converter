@@ -41,7 +41,7 @@ src/
   dependencies.py             # Resolve Antares binary paths from dependencies.json
   parsing.py                  # Legacy CLI argument parser (not used by converter)
   models/
-    modified_base_model.py    # ModifiedBaseModel: Pydantic base with _ → - alias generator
+    modified_base_model.py    # ModifiedBaseModel: Pydantic base model applied across all internal models
     gems_system_yml_schema/   # Pydantic models for system.yml output
     pypsa_model_schema/       # PyPSAComponentData, PyPSAGlobalConstraintData dataclasses
     modeler_parameter_yml_schema/  # ModelerParameters for parameters.yml
