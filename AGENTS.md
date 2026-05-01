@@ -199,7 +199,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 2. **GEMS output component IDs differ from PyPSA input IDs.** The preprocessor adds a type prefix and replaces spaces (e.g., `"gen 1"` → `"generator_gen_1"`). If you are writing tests or debugging output files, do not assume PyPSA names appear verbatim in `system.yml`.
 
-3. **`resources/pypsa_models/pypsa_models.yml` parameter counts must exactly match `PyPSARegister`.** If you add a parameter to the register's mapping dict for a component type, you must add the corresponding parameter definition to the YAML model. The Antares modeler fails silently (no exception, no output) on a mismatch.
+3. **`resources/pypsa_models/pypsa_models.yml` parameter ids must exactly match `PyPSARegister`.** If you add a parameter to the register's mapping dict for a component type, you must add the corresponding parameter definition to the YAML model. The Antares modeler fails silently (no exception, no output) on a mismatch.
 
 4. **`check_converter_limitations()` raises before any output is written.** If a network violates a constraint (e.g., contains Lines, uses quadratic costs, has `active=0` components), the converter raises `ValueError` or `AssertionError` at startup. No partial output is produced.
 
