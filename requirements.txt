@@ -4,3 +4,4 @@ pyarrow
 pypsa==1.0.0
 pyyaml==6.0.2
 pydantic==2.12.5
+gemspy==0.1.0

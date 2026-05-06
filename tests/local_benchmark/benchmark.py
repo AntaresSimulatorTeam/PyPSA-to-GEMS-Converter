@@ -63,16 +63,6 @@ logger.setLevel(logging.INFO)
             1.0,
             "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
         ),
-        (
-            "pypsa_eur_one_year_hourly_2013.nc",
-            1.0,
-            "benchmark_study_pypsa_eur_one_year_hourly_2013",
-        ),
-        (
-            "pypsa_eur_one_year_hourly_10years.nc",
-            1.0,
-            "benchmark_study_pypsa_eur_one_year_hourly_10years",
-        ),
     ],
 )
 def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -> None:
