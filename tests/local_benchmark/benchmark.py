@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from datetime import datetime
 
 import pandas as pd
 import pytest
@@ -62,6 +63,16 @@ logger.setLevel(logging.INFO)
             "france_clusters_50_snapshots_365_period_one_year.nc",
             1.0,
             "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
+        ),
+        (
+            "pypsa_eur_one_year_hourly_2013.nc",
+            1.0,
+            "benchmark_study_pypsa_eur_one_year_hourly_2013",
+        ),
+        (
+            "pypsa_eur_one_year_hourly_10years.nc",
+            1.0,
+            "benchmark_study_pypsa_eur_one_year_hourly_10years",
         ),
     ],
 )
@@ -120,6 +131,15 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
             check=False,
             cwd=str(modeler_bin.parent),
         )
+        logger.info("Antares modeler finished: returncode=%s", result.returncode)
+        if result.stderr:
+            logger.warning("Antares modeler stderr:\n%s", result.stderr)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Antares modeler exited with {result.returncode}. "
+                f"stdout (last 8k chars):\n{result.stdout[-8000:]!s}\n"
+                f"stderr (last 8k chars):\n{result.stderr[-8000:]!s}"
+            )
         # Parse Antares modeler stdout for problem size and timing information
         modeler_parsing_time: float | None = None
         modeler_build_time: float | None = None
@@ -215,6 +235,85 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         benchmark_data_frame.loc[0, "modeler_solver_parameters"] = parameters_yml["solver-parameters"]
         benchmark_data_frame.loc[0, "modeler_solver_name"] = parameters_yml["solver"]
 
+    # Run GemsPy on the converted study and collect comparable metrics
+    try:
+        from gems.optim_config.parsing import OptimConfig, validate_optim_config  # type: ignore[import-not-found]
+        from gems.simulation.optimization import build_problem  # type: ignore[import-not-found]
+        from gems.simulation.simulation_table import SimulationTableBuilder  # type: ignore[import-not-found]
+        from gems.simulation.time_block import TimeBlock  # type: ignore[import-not-found]
+        from gems.study.folder import load_study  # type: ignore[import-not-found]
+    except Exception as e:  # pragma: no cover
+        pytest.skip(f"GemsPy (PyPI) not available: {e}")
+
+    gemspy_study_dir = PROJECT_ROOT / "tmp" / study_name / "systems"
+    logger.info("Running GemsPy simulation")
+
+    # Parsing / loading
+    t0 = time.time()
+    study = load_study(gemspy_study_dir)
+    # Use parameters.yml as the single source of truth for time scope and solver.
+    optim_config = OptimConfig()
+    optim_config.time_scope.first_time_step = int(parameters_yml.get("first_time_step", 0))
+    optim_config.time_scope.last_time_step = int(parameters_yml.get("last_time_step", 0))
+
+    modeler_solver_name = str(parameters_yml.get("solver", "highs"))
+    modeler_solver_parameters = str(parameters_yml.get("solver-parameters", "")).strip()
+    optim_config.solver_options.name = modeler_solver_name
+    # GemsPy expects 'KEY VALUE KEY2 VALUE2 ...'. We keep the modeler format but
+    # translate the common THREADS option to HiGHS' expected 'threads'.
+    if modeler_solver_name.lower() == "highs" and modeler_solver_parameters:
+        optim_config.solver_options.parameters = modeler_solver_parameters.replace("THREADS", "threads")
+    else:
+        optim_config.solver_options.parameters = modeler_solver_parameters
+    validate_optim_config(optim_config, study.system)
+    gemspy_parsing_time = time.time() - t0
+
+    # Build + solve + write (single frontal block; scenario scope from optim-config)
+    run_id = datetime.now().strftime("%Y%m%dT%H%M%S")
+    output_dir_gemspy = gemspy_study_dir / "output" / f"gemspy_{run_id}"
+    output_dir_gemspy.mkdir(parents=True, exist_ok=True)
+
+    first = optim_config.time_scope.first_time_step
+    last = optim_config.time_scope.last_time_step
+    timesteps = list(range(first, last + 1))
+    block = TimeBlock(0, timesteps)
+    scenario_ids = list(range(optim_config.scenario_scope.nb_scenarios))
+
+    t_build = time.time()
+    problem = build_problem(study, block, scenario_ids, optim_config=optim_config)
+    gemspy_build_time = time.time() - t_build
+
+    t_solve = time.time()
+    problem.solve(
+        solver_name=optim_config.solver_options.name,
+        **optim_config.solver_options.parsed_parameters(),
+    )
+    gemspy_solve_time = time.time() - t_solve
+
+    t_write = time.time()
+    table = SimulationTableBuilder().build(problem, scenario_ids_remap=scenario_ids, table_id=run_id)
+    table.to_csv(output_dir_gemspy)
+    gemspy_writing_time = time.time() - t_write
+
+    benchmark_data_frame.loc[0, "gemspy_parsing_time"] = gemspy_parsing_time
+    benchmark_data_frame.loc[0, "gemspy_build_time"] = gemspy_build_time
+    benchmark_data_frame.loc[0, "gemspy_solve_time"] = gemspy_solve_time
+    benchmark_data_frame.loc[0, "gemspy_writing_time"] = gemspy_writing_time
+    benchmark_data_frame.loc[0, "gemspy_total_time"] = (
+        gemspy_parsing_time + gemspy_build_time + gemspy_solve_time + gemspy_writing_time
+    )
+
+    # linopy problem size
+    benchmark_data_frame.loc[0, "number_of_variables_gemspy"] = problem.linopy_model.nvars
+    benchmark_data_frame.loc[0, "number_of_constraints_gemspy"] = problem.linopy_model.ncons
+
+    # objective_value already includes the constant term in GemsPy's OptimizationProblem
+    benchmark_data_frame.loc[0, "gemspy_objective_value"] = problem.objective_value
+    benchmark_data_frame.loc[0, "gemspy_solver_name"] = optim_config.solver_options.name
+    benchmark_data_frame.loc[0, "gemspy_solver_parameters"] = optim_config.solver_options.parameters or str(
+        optim_config.solver_options.parsed_parameters()
+    )
+
     # make pypsa optimization problem equations,constraints,variables
     start_time_build_optimization_problem = time.time()
     logger.info("Building PyPSA optimization problem")
@@ -253,4 +352,4 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     logger.info(f"Appended benchmark results to {combined_results_file}")
 
     # Clean up temporary files
-    shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
+    #shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
