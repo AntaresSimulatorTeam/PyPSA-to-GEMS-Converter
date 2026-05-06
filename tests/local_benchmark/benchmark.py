@@ -12,6 +12,7 @@
 
 import logging
 import re
+import shutil
 import subprocess
 import time
 from datetime import datetime
@@ -20,6 +21,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
+from gems.optim_config.parsing import OptimConfig, validate_optim_config  # type: ignore[import-not-found]
+from gems.simulation.optimization import build_problem  # type: ignore[import-not-found]
+from gems.simulation.simulation_table import SimulationTableBuilder  # type: ignore[import-not-found]
+from gems.simulation.time_block import TimeBlock  # type: ignore[import-not-found]
+from gems.study.folder import load_study  # type: ignore[import-not-found]
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
@@ -72,6 +78,10 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         )
     logger.info(f"Running benchmark for study: {study_name}")
     benchmark_data_frame = pd.DataFrame()
+
+    # ==================================================================================
+    # PyPSA: load the input network (.nc) and collect basic network metadata
+    # ==================================================================================
     network, parsing_time = load_pypsa_study_benchmark(file_name, load_scaling)
     benchmark_data_frame.loc[0, "parsing_time"] = parsing_time
     benchmark_data_frame.loc[0, "pypsa_network_name"] = network.name
@@ -93,12 +103,19 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     benchmark_data_frame.loc[0, "pypsa_version"] = network.pypsa_version
     # Converter requires unity snapshot weightings
     network.snapshot_weightings.loc[:] = 1.0
+
+    # ==================================================================================
+    # PyPSA: preprocess the network before conversion
+    # ==================================================================================
     logger.info("Preprocessing PyPSA network")
     start_time_preprocessing = time.time()
     network = preprocess_network(network, True, True)
     end_time_preprocessing = time.time() - start_time_preprocessing
     benchmark_data_frame.loc[0, "preprocessing_time_pypsa_network"] = end_time_preprocessing
 
+    # ==================================================================================
+    # Converter: PyPSA -> GEMS study (YAML-based study under tmp/<study_name>/systems)
+    # ==================================================================================
     start_time_conversion = time.time()
     logger.info("Converting PyPSA network to GEMS study")
     PyPSAStudyConverter(
@@ -107,6 +124,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     end_time_conversion = time.time() - start_time_conversion
     benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = end_time_conversion
 
+    # ==================================================================================
+    # Antares Modeler (binary): run on the converted GEMS study and parse stdout metrics
+    # ==================================================================================
     logger.info("Running Antares modeler")
     modeler_bin = get_antares_modeler_bin(PROJECT_ROOT)
     logger.info(f"Running Antares modeler with study directory: {PROJECT_ROOT / 'tmp' / study_name / 'systems'}")
@@ -218,22 +238,21 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         objective_value = get_objective_value(result_file[-1])
         benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
 
+    # ==================================================================================
+    # Study configuration: read the modeler-generated parameters.yml
+    # This is the single source of truth for:
+    # - time scope (first-time-step / last-time-step)
+    # - solver (solver / solver-parameters)
+    # ==================================================================================
     parameters_yml_path = PROJECT_ROOT / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
         parameters_yml = yaml.safe_load(f)
         benchmark_data_frame.loc[0, "modeler_solver_parameters"] = parameters_yml["solver-parameters"]
         benchmark_data_frame.loc[0, "modeler_solver_name"] = parameters_yml["solver"]
 
-    # Run GemsPy on the converted study and collect comparable metrics
-    try:
-        from gems.optim_config.parsing import OptimConfig, validate_optim_config  # type: ignore[import-not-found]
-        from gems.simulation.optimization import build_problem  # type: ignore[import-not-found]
-        from gems.simulation.simulation_table import SimulationTableBuilder  # type: ignore[import-not-found]
-        from gems.simulation.time_block import TimeBlock  # type: ignore[import-not-found]
-        from gems.study.folder import load_study  # type: ignore[import-not-found]
-    except Exception as e:  # pragma: no cover
-        pytest.skip(f"GemsPy (PyPI) not available: {e}")
-
+    # ==================================================================================
+    # GemsPy (Python): run the converted GEMS study via the gemspy API
+    # ==================================================================================
     gemspy_study_dir = PROJECT_ROOT / "tmp" / study_name / "systems"
     logger.info("Running GemsPy simulation")
 
@@ -304,7 +323,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         optim_config.solver_options.parsed_parameters()
     )
 
-    # make pypsa optimization problem equations,constraints,variables
+    # ==================================================================================
+    # PyPSA: build and solve the optimization model (collect solver stats + objective)
+    # ==================================================================================
     start_time_build_optimization_problem = time.time()
     logger.info("Building PyPSA optimization problem")
     network.optimize.create_model()
@@ -332,7 +353,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
 
     benchmark_data_frame.loc[0, "pypsa_objective"] = network.objective + network.objective_constant
 
-    # Save/append to combined results file
+    # ==================================================================================
+    # Results: append one row to the combined benchmark CSV
+    # ==================================================================================
     results_dir = PROJECT_ROOT / "tmp" / "benchmark_results"
     results_dir.mkdir(parents=True, exist_ok=True)
     combined_results_file = results_dir / "all_studies_results.csv"
@@ -342,4 +365,4 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     logger.info(f"Appended benchmark results to {combined_results_file}")
 
     # Clean up temporary files
-    # shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
+    shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
