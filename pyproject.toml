@@ -43,4 +43,5 @@ module = ["tests.e2e.end_2_end_tests", "tests.local_benchmark.benchmark"]
 disable_error_code = ["operator"]
 
 [[tool.mypy.overrides]]
-module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*"]
+module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*", "gems.*"]
+ignore_missing_imports = true

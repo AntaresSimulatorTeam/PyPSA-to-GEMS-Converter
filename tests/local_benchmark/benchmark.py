@@ -21,16 +21,16 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-from gems.optim_config.parsing import (  # type: ignore[import-not-found]
+from gems.optim_config.parsing import (
     OptimConfig,
     validate_optim_config,
 )
-from gems.simulation.optimization import build_problem  # type: ignore[import-not-found]
-from gems.simulation.simulation_table import (  # type: ignore[import-not-found]
+from gems.simulation.optimization import build_problem
+from gems.simulation.simulation_table import (
     SimulationTableBuilder,
 )
-from gems.simulation.time_block import TimeBlock  # type: ignore[import-not-found]
-from gems.study.folder import load_study  # type: ignore[import-not-found]
+from gems.simulation.time_block import TimeBlock
+from gems.study.folder import load_study
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
