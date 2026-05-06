@@ -21,11 +21,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-from gems.optim_config.parsing import OptimConfig, validate_optim_config  # type: ignore[import-not-found]
-from gems.simulation.optimization import build_problem  # type: ignore[import-not-found]
-from gems.simulation.simulation_table import SimulationTableBuilder  # type: ignore[import-not-found]
-from gems.simulation.time_block import TimeBlock  # type: ignore[import-not-found]
-from gems.study.folder import load_study  # type: ignore[import-not-found]
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
@@ -253,6 +248,15 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     # ==================================================================================
     # GemsPy (Python): run the converted GEMS study via the gemspy API
     # ==================================================================================
+    try:
+        from gems.optim_config.parsing import OptimConfig, validate_optim_config  # type: ignore[import-not-found]
+        from gems.simulation.optimization import build_problem  # type: ignore[import-not-found]
+        from gems.simulation.simulation_table import SimulationTableBuilder  # type: ignore[import-not-found]
+        from gems.simulation.time_block import TimeBlock  # type: ignore[import-not-found]
+        from gems.study.folder import load_study  # type: ignore[import-not-found]
+    except Exception as e:  # pragma: no cover
+        pytest.skip(f"GemsPy (PyPI) not available: {e}")
+
     gemspy_study_dir = PROJECT_ROOT / "tmp" / study_name / "systems"
     logger.info("Running GemsPy simulation")
 
