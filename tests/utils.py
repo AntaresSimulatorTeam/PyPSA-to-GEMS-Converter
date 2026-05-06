@@ -16,7 +16,6 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from matplotlib.patches import Patch
 from pypsa import Network
 
 # Project root: tests/utils.py -> parents[1] = project root
@@ -60,8 +59,8 @@ def scale_load(network: Network, factor: float) -> Network:
 def extend_quota(network: Network) -> Network:
     # Temporary function, used while the GlobalConstraint model is not implemented yet.
     # Set the CO2 bound to very large value
-    if len(network.global_constraints) > 0 and "constant" in network.global_constraints.columns:
-        network.global_constraints["constant"][0] = 10000000000
+    if not network.global_constraints.empty and "constant" in network.global_constraints.columns:
+        network.global_constraints.loc[network.global_constraints.index[0], "constant"] = 10_000_000_000
     return network
 
 
@@ -157,12 +156,20 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         "modeler_solve_time",
         "modeler_writing_time",
         "modeler_total_time",
+        "gemspy_parsing_time",
+        "gemspy_build_time",
+        "gemspy_solve_time",
+        "gemspy_writing_time",
+        "gemspy_total_time",
         "number_of_constraints_pypsa",
         "number_of_constraints_modeler",
+        "number_of_constraints_gemspy",
         "number_of_variables_pypsa",
         "number_of_variables_modeler",
+        "number_of_variables_gemspy",
         "pypsa_objective",
         "modeler_objective_value",
+        "gemspy_objective_value",
     ]
     for col in numeric_cols:
         if col in row.index:
@@ -211,10 +218,22 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Modeler Writing Time (simulation table): {modeler_writing:.4f} s")
     # modeler_total_time in CSV = parsing + build + solve + writing (Antares binary)
     print(f"  Modeler (parsing+build+solve+writing) Time: {_n(row['modeler_total_time']):.4f} s")
+    gemspy_total = _n(row.get("gemspy_total_time"))
+    if gemspy_total:
+        print(f"  GemsPy Parsing Time (study+config): {_n(row.get('gemspy_parsing_time')):.4f} s")
+        print(f"  GemsPy Build Time: {_n(row.get('gemspy_build_time')):.4f} s")
+        print(f"  GemsPy Solve Time: {_n(row.get('gemspy_solve_time')):.4f} s")
+        print(f"  GemsPy Writing Time (simulation table): {_n(row.get('gemspy_writing_time')):.4f} s")
+        print(f"  GemsPy (parsing+build+solve+writing) Time: {gemspy_total:.4f} s")
     preproc = _n(row.get("preprocessing_time_pypsa_network"))
     conversion = _n(row.get("pypsa_to_gems_conversion_time"))
     full_modeler_path = preproc + conversion + _n(row["modeler_total_time"])
     print(f"  Full Modeler Path (preproc + conversion + parsing + build + solve + writing): {full_modeler_path:.4f} s")
+    if gemspy_total:
+        full_gemspy_path = preproc + conversion + gemspy_total
+        print(
+            f"  Full GemsPy Path (preproc + conversion + parsing + build + solve + writing): {full_gemspy_path:.4f} s"
+        )
 
     # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
     has_modeler_stats = "number_of_constraints_modeler" in row.index and "number_of_variables_modeler" in row.index
@@ -223,6 +242,11 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print("\n📈 OPTIMIZATION PROBLEM SIZE:")
     print(f"  PyPSA Constraints: {int(n_const_pypsa)}")
     print(f"  PyPSA Variables: {int(n_var_pypsa)}")
+    n_const_gemspy = _n(row.get("number_of_constraints_gemspy"))
+    n_var_gemspy = _n(row.get("number_of_variables_gemspy"))
+    if n_const_gemspy or n_var_gemspy:
+        print(f"  GemsPy Constraints: {int(n_const_gemspy)}")
+        print(f"  GemsPy Variables: {int(n_var_gemspy)}")
     if has_modeler_stats:
         n_const_modeler = _n(row.get("number_of_constraints_modeler"))
         n_var_modeler = _n(row.get("number_of_variables_modeler"))
@@ -243,9 +267,12 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     pypsa_obj = _n(row["pypsa_objective"])
     modeler_obj = _n(row["modeler_objective_value"])
+    gemspy_obj = _n(row.get("gemspy_objective_value"))
     print("\n🎯 OBJECTIVE VALUES:")
     print(f"  PyPSA Objective: {pypsa_obj:.6f}")
     print(f"  Modeler Objective: {modeler_obj:.6f}")
+    if gemspy_obj:
+        print(f"  GemsPy Objective: {gemspy_obj:.6f}")
     obj_diff = pypsa_obj - modeler_obj
     obj_diff_pct = (obj_diff / modeler_obj) * 100 if modeler_obj else 0.0
     print(f"  Difference: {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
@@ -254,6 +281,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  PyPSA Solver: {row['solver_name_pypsa']} {row['solver_version_pypsa']}")
     print(f"  Modeler Solver: {row['modeler_solver_name']}")
     print(f"  Modeler Solver Parameters: {row['modeler_solver_parameters']}")
+    if "gemspy_solver_name" in row.index:
+        print(f"  GemsPy Solver: {row.get('gemspy_solver_name', 'N/A')}")
+        print(f"  GemsPy Solver Parameters: {row.get('gemspy_solver_parameters', 'N/A')}")
 
     total_pypsa = _n(row["total_time_pypsa"])
     total_modeler = _n(row["modeler_total_time"])  # parsing+build+solve+writing (Antares binary)
@@ -286,9 +316,10 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 1. Objective Value Comparison
     ax1 = fig.add_subplot(gs[0, 0:2])
-    categories = ["PyPSA", "Modeler"]
-    objectives = [pypsa_obj, modeler_obj]
-    bars = ax1.bar(categories, objectives, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
+    categories = ["PyPSA", "Modeler", "GemsPy"]
+    gemspy_obj = _n(row.get("gemspy_objective_value"))
+    objectives = [pypsa_obj, modeler_obj, gemspy_obj]
+    bars = ax1.bar(categories, objectives, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
     ax1.set_ylabel("Objective Value", fontsize=11)
     ax1.set_title("Objective Value Comparison", fontsize=12, fontweight="bold", pad=10)
     ax1.grid(True, alpha=0.3, axis="y")
@@ -297,13 +328,17 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         height = bar.get_height()
         ax1.text(bar.get_x() + bar.get_width() / 2.0, height, f"{val:.2e}", ha="center", va="bottom", fontsize=9)
 
-    # Used in ax2, ax6 (modeler pie), ax7 (modeler pipeline stack)
+    # Used in plots below
     preproc_time = _n(row.get("preprocessing_time_pypsa_network"))
     conversion_time = _n(row.get("pypsa_to_gems_conversion_time"))
     modeler_parsing_time_plot = _n(row.get("modeler_parsing_time"))
     modeler_writing_time_plot = _n(row.get("modeler_writing_time"))
     # PyPSA parsing = loading the .nc file; tracked separately, NOT included in build time
     pypsa_parsing_time_plot = _n(row.get("parsing_time"))
+    gemspy_parsing_time_plot = _n(row.get("gemspy_parsing_time"))
+    gemspy_build = _n(row.get("gemspy_build_time"))
+    gemspy_solve = _n(row.get("gemspy_solve_time"))
+    gemspy_writing_time_plot = _n(row.get("gemspy_writing_time"))
 
     # 2. Total time: parsing+build+solve for PyPSA (no writing); parsing+build+solve+writing for Modeler
     ax2 = fig.add_subplot(gs[0, 2:4])
@@ -319,18 +354,19 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # Modeler: parsing (YAML load) / build / solve / writing (simulation table to disk)
     bottom_pypsa: float = 0.0
     bottom_modeler: float = 0.0
+    bottom_gemspy: float = 0.0
     layer_defs = [
-        ("Parsing", pypsa_parsing_time_plot, modeler_parsing_time_plot, "#2e86ab"),
-        ("Build", pypsa_build, modeler_build, "steelblue"),
-        ("Solve", pypsa_solve, modeler_solve, "coral"),
-        ("Writing", 0.0, modeler_writing_time_plot, "#f18f01"),
+        ("Parsing", pypsa_parsing_time_plot, modeler_parsing_time_plot, gemspy_parsing_time_plot, "#2e86ab"),
+        ("Build", pypsa_build, modeler_build, gemspy_build, "steelblue"),
+        ("Solve", pypsa_solve, modeler_solve, gemspy_solve, "coral"),
+        ("Writing", 0.0, modeler_writing_time_plot, gemspy_writing_time_plot, "#f18f01"),
     ]
     bar_refs = []
-    for label, pypsa_val, mod_val, color in layer_defs:
+    for label, pypsa_val, mod_val, gem_val, color in layer_defs:
         b = ax2.bar(
-            ["PyPSA", "Modeler"],
-            [pypsa_val, mod_val],
-            bottom=[bottom_pypsa, bottom_modeler],
+            ["PyPSA", "Modeler", "GemsPy"],
+            [pypsa_val, mod_val, gem_val],
+            bottom=[bottom_pypsa, bottom_modeler, bottom_gemspy],
             label=label,
             color=color,
             alpha=0.8,
@@ -339,19 +375,21 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         bar_refs.append(b)
         bottom_pypsa += pypsa_val
         bottom_modeler += mod_val
+        bottom_gemspy += gem_val
 
     ax2.set_ylabel("Time (seconds)", fontsize=11)
     ax2.set_title("Time Comparison (Build + Solve)", fontsize=12, fontweight="bold", pad=10)
     ax2.grid(True, alpha=0.3, axis="y")
-    for i, total_h in enumerate([bottom_pypsa, bottom_modeler]):
+    for i, total_h in enumerate([bottom_pypsa, bottom_modeler, bottom_gemspy]):
         if total_h > 0:
             ax2.text(i, total_h, f"{total_h:.3f}s", ha="center", va="bottom", fontsize=9)
     ax2.legend(fontsize=9)
 
     # 3. Constraints Comparison
     ax3 = fig.add_subplot(gs[0, 4:6])
-    constraints = [int(n_const_pypsa), int(n_const_modeler)]
-    bars = ax3.bar(categories, constraints, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
+    n_const_gemspy = _n(row.get("number_of_constraints_gemspy"))
+    constraints = [int(n_const_pypsa), int(n_const_modeler), int(n_const_gemspy)]
+    bars = ax3.bar(categories, constraints, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
     ax3.set_ylabel("Number of Constraints", fontsize=11)
     ax3.set_title("Constraints Comparison", fontsize=12, fontweight="bold", pad=10)
     ax3.grid(True, alpha=0.3, axis="y")
@@ -361,8 +399,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 4. Variables Comparison
     ax4 = fig.add_subplot(gs[0, 6:8])
-    variables = [int(n_var_pypsa), int(n_var_modeler)]
-    bars = ax4.bar(categories, variables, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
+    n_var_gemspy = _n(row.get("number_of_variables_gemspy"))
+    variables = [int(n_var_pypsa), int(n_var_modeler), int(n_var_gemspy)]
+    bars = ax4.bar(categories, variables, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
     ax4.set_ylabel("Number of Variables", fontsize=11)
     ax4.set_title("Variables Comparison", fontsize=12, fontweight="bold", pad=10)
     ax4.grid(True, alpha=0.3, axis="y")
@@ -407,77 +446,42 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         ax6.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax6.transAxes)
     ax6.set_title("Modeler Time Breakdown (binary)", fontsize=12, fontweight="bold", pad=10)
 
-    # 7. Modeler only: full pipeline stack (preprocessing / conversion / parsing / build / solve / writing)
+    # 7. GemsPy Time Breakdown (parsing / build / solve / writing)
     ax7 = fig.add_subplot(gs[1, 4:6])
-    modeler_build_time = _n(row.get("modeler_build_time"))
-    modeler_solve_time = _n(row.get("modeler_solve_time"))
-    if modeler_build_time == 0 and modeler_solve_time == 0 and total_modeler > 0:
-        modeler_build_time = 0.0
-        modeler_solve_time = total_modeler
-    modeler_stages = ["Preprocessing", "Conversion", "Parsing", "Build", "Solve", "Writing sim. table"]
-    modeler_stage_times = [
-        preproc_time,
-        conversion_time,
-        modeler_parsing_time_plot,
-        modeler_build_time,
-        modeler_solve_time,
-        modeler_writing_time_plot,
-    ]
-    # Distinct colors for modeler pipeline stages
-    colors_stack = ["#2e86ab", "#a23b72", "#5c7a29", "#f18f01", "#c73e1d", "#6b4c9a"]
-    left: float = 0.0
-    total_pipeline = sum(modeler_stage_times)
-    legend_handles = []
-    legend_labels = []
+    gemspy_pie_labels = ["Parsing (study+config)", "Build", "Solve", "Writing sim. table"]
+    gemspy_pie_vals = [gemspy_parsing_time_plot, gemspy_build, gemspy_solve, gemspy_writing_time_plot]
+    gemspy_pie_colors = ["#2e86ab", "steelblue", "coral", "#f18f01"]
+    filtered_gemspy = [(lbl, v, c) for lbl, v, c in zip(gemspy_pie_labels, gemspy_pie_vals, gemspy_pie_colors) if v > 0]
+    if filtered_gemspy:
+        g_labels, g_vals, g_colors = zip(*filtered_gemspy)
+        ax7.pie(g_vals, labels=g_labels, autopct="%1.1f%%", startangle=90, colors=g_colors)
+    else:
+        ax7.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax7.transAxes)
+    ax7.set_title("GemsPy Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
-    for i, (stage, t) in enumerate(zip(modeler_stages, modeler_stage_times)):
-        if t > 0:
-            bar = ax7.bar(
-                0,
-                t,
-                width=0.5,
-                bottom=left,
-                color=colors_stack[i],
-                alpha=0.85,
-                edgecolor="black",
-            )
-            legend_handles.append(bar.patches[0])
-            left += t
-        else:
-            legend_handles.append(Patch(facecolor=colors_stack[i], alpha=0.85, edgecolor="black"))
-        pct = f" ({100 * t / total_pipeline:.1f}%)" if total_pipeline else ""
-        legend_labels.append(f"{stage}: {t:.3f}s{pct}")
-    ax7.set_xlim(-0.5, 0.5)
-    ax7.set_xticks([0])
-    ax7.set_xticklabels(["Modeler"])
-    ax7.set_ylabel("Time (seconds)", fontsize=11)
-    if total_pipeline > 0:
-        ax7.text(0, total_pipeline, f"{total_pipeline:.3f}s", ha="center", va="bottom", fontsize=9)
-    ax7.set_title("Modeler Full Pipeline", fontsize=12, fontweight="bold", pad=10)
-    ax7.legend(legend_handles, legend_labels, title="Stage", fontsize=9)
-    ax7.grid(True, alpha=0.3, axis="y")
-
-    # 8. End-to-end comparison: full PyPSA path vs full Modeler path (side-by-side stacked bars)
+    # 8. End-to-end comparison: full PyPSA vs full Modeler vs full GemsPy (stacked bars)
     # PyPSA:   Parsing (.nc) / Preprocessing / Build / Solve
     # Modeler: Preprocessing / Conversion / Parsing (YAML) / Build / Solve / Writing sim. table
+    # GemsPy:  Preprocessing / Conversion / Parsing (study+config) / Build / Solve / Writing sim. table
     ax8 = fig.add_subplot(gs[1, 6:8])
     e2e_layer_defs = [
-        # (label,               pypsa_val,              modeler_val,                   color)
-        ("Parsing (.nc)", pypsa_parsing_time_plot, 0.0, "#2e86ab"),
-        ("Preprocessing", preproc_time, preproc_time, "#5c7a29"),
-        ("Conversion", 0.0, conversion_time, "#a23b72"),
-        ("Parsing (YAML)", 0.0, modeler_parsing_time_plot, "#4db6d0"),
-        ("Build", pypsa_build, modeler_build_time, "steelblue"),
-        ("Solve", pypsa_solve, modeler_solve_time, "coral"),
-        ("Writing sim. table", 0.0, modeler_writing_time_plot, "#f18f01"),
+        # (label,                 pypsa_val,                modeler_val,                 gemspy_val,               color)
+        ("Parsing (.nc)", pypsa_parsing_time_plot, 0.0, 0.0, "#2e86ab"),
+        ("Preprocessing", preproc_time, preproc_time, preproc_time, "#5c7a29"),
+        ("Conversion", 0.0, conversion_time, conversion_time, "#a23b72"),
+        ("Parsing (YAML/study)", 0.0, modeler_parsing_time_plot, gemspy_parsing_time_plot, "#4db6d0"),
+        ("Build", pypsa_build, modeler_build, gemspy_build, "steelblue"),
+        ("Solve", pypsa_solve, modeler_solve, gemspy_solve, "coral"),
+        ("Writing sim. table", 0.0, modeler_writing_time_plot, gemspy_writing_time_plot, "#f18f01"),
     ]
     bot_pypsa: float = 0.0
     bot_modeler: float = 0.0
-    for e2e_label, e2e_pypsa, e2e_mod, e2e_color in e2e_layer_defs:
+    bot_gemspy: float = 0.0
+    for e2e_label, e2e_pypsa, e2e_mod, e2e_gem, e2e_color in e2e_layer_defs:
         ax8.bar(
-            ["PyPSA", "Modeler"],
-            [e2e_pypsa, e2e_mod],
-            bottom=[bot_pypsa, bot_modeler],
+            ["PyPSA", "Modeler", "GemsPy"],
+            [e2e_pypsa, e2e_mod, e2e_gem],
+            bottom=[bot_pypsa, bot_modeler, bot_gemspy],
             label=e2e_label,
             color=e2e_color,
             alpha=0.8,
@@ -485,7 +489,8 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         )
         bot_pypsa += e2e_pypsa
         bot_modeler += e2e_mod
-    for i, total_h in enumerate([bot_pypsa, bot_modeler]):
+        bot_gemspy += e2e_gem
+    for i, total_h in enumerate([bot_pypsa, bot_modeler, bot_gemspy]):
         if total_h > 0:
             ax8.text(i, total_h, f"{total_h:.3f}s", ha="center", va="bottom", fontsize=9)
     ax8.set_ylabel("Time (seconds)", fontsize=11)

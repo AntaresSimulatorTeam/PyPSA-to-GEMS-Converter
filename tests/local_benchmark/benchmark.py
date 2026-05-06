@@ -12,11 +12,10 @@
 
 import logging
 import re
-import shutil
 import subprocess
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -253,8 +252,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     study = load_study(gemspy_study_dir)
     # Use parameters.yml as the single source of truth for time scope and solver.
     optim_config = OptimConfig()
-    optim_config.time_scope.first_time_step = int(parameters_yml.get("first_time_step", 0))
-    optim_config.time_scope.last_time_step = int(parameters_yml.get("last_time_step", 0))
+    # Note: parameters.yml uses kebab-case keys (first-time-step/last-time-step).
+    optim_config.time_scope.first_time_step = int(parameters_yml.get("first-time-step", 0))
+    optim_config.time_scope.last_time_step = int(parameters_yml.get("last-time-step", 0))
 
     modeler_solver_name = str(parameters_yml.get("solver", "highs"))
     modeler_solver_parameters = str(parameters_yml.get("solver-parameters", "")).strip()
@@ -352,4 +352,4 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     logger.info(f"Appended benchmark results to {combined_results_file}")
 
     # Clean up temporary files
-    #shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)
+    # shutil.rmtree(PROJECT_ROOT / "tmp" / study_name)

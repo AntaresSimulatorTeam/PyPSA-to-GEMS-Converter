@@ -47,7 +47,6 @@ class GemsStudyWriter:
     ) -> None:
         GemsSystem(
             id=system_id,
-            nodes=[],
             components=list_components,
             connections=list_connections,
             model_libraries=pypsalib_id,
