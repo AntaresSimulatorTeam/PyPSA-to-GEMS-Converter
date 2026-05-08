@@ -228,7 +228,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     preproc = _n(row.get("preprocessing_time_pypsa_network"))
     conversion = _n(row.get("pypsa_to_gems_conversion_time"))
     full_modeler_path = preproc + conversion + _n(row["modeler_total_time"])
-    print(f"  Full Modeler Path (preproc + conversion + parsing + build + solve + writing): {full_modeler_path:.4f} s")
+    print(
+        f"  Antares Modeler, including conversion time (preproc + conversion + parsing + build + solve + writing): {full_modeler_path:.4f} s"
+    )
     if gemspy_total:
         full_gemspy_path = preproc + conversion + gemspy_total
         print(
@@ -292,17 +294,17 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     time_ratio_binary = total_pypsa / total_modeler if total_modeler else float("nan")
     print(f"  Time Ratio PyPSA / Modeler (parsing+build+solve+writing): {time_ratio_binary:.4f}x")
     time_ratio_full = total_pypsa / full_modeler_path if full_modeler_path else float("nan")
-    print(f"  Time Ratio PyPSA / Full modeler path: {time_ratio_full:.4f}x")
+    print(f"  Time Ratio PyPSA / Antares Modeler, including conversion time: {time_ratio_full:.4f}x")
     if pd.notna(time_ratio_binary) and time_ratio_binary > 0:
         if time_ratio_binary < 1:
-            print(f"  → PyPSA is {1 / time_ratio_binary:.2f}x faster (vs modeler binary)")
+            print(f"  → PyPSA is {1 / time_ratio_binary:.2f}x faster (vs Antares Modeler)")
         else:
-            print(f"  → Modeler binary is {time_ratio_binary:.2f}x faster")
+            print(f"  → Antares Modeler is {time_ratio_binary:.2f}x faster")
     if pd.notna(time_ratio_full) and time_ratio_full > 0:
         if time_ratio_full < 1:
-            print(f"  → PyPSA is {1 / time_ratio_full:.2f}x faster (vs full modeler path)")
+            print(f"  → PyPSA is {1 / time_ratio_full:.2f}x faster (vs Antares Modeler, including conversion time)")
         else:
-            print(f"  → Full modeler path is {time_ratio_full:.2f}x faster")
+            print(f"  → Antares Modeler, including conversion time is {time_ratio_full:.2f}x faster")
     if pd.isna(time_ratio_binary) and pd.isna(time_ratio_full):
         print("  → N/A (missing or invalid times)")
 
@@ -316,7 +318,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 1. Objective Value Comparison
     ax1 = fig.add_subplot(gs[0, 0:2])
-    categories = ["PyPSA", "Modeler", "GemsPy"]
+    categories = ["PyPSA", "Antares Modeler", "GemsPy"]
     gemspy_obj = _n(row.get("gemspy_objective_value"))
     objectives = [pypsa_obj, modeler_obj, gemspy_obj]
     bars = ax1.bar(categories, objectives, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
@@ -364,7 +366,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     bar_refs = []
     for label, pypsa_val, mod_val, gem_val, color in layer_defs:
         b = ax2.bar(
-            ["PyPSA", "Modeler", "GemsPy"],
+            ["PyPSA", "Antares Modeler", "GemsPy"],
             [pypsa_val, mod_val, gem_val],
             bottom=[bottom_pypsa, bottom_modeler, bottom_gemspy],
             label=label,
@@ -427,7 +429,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         ax5.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax5.transAxes)
     ax5.set_title("PyPSA Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
-    # 6. Modeler Time Breakdown (parsing / build / solve / writing)
+    # 6. Antares Modeler Time Breakdown (parsing / build / solve / writing)
     ax6 = fig.add_subplot(gs[1, 2:4])
     _modeler_build = _n(row.get("modeler_build_time"))
     _modeler_solve = _n(row.get("modeler_solve_time"))
@@ -444,7 +446,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         ax6.pie(f_vals, labels=f_labels, autopct="%1.1f%%", startangle=90, colors=f_colors)
     else:
         ax6.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax6.transAxes)
-    ax6.set_title("Modeler Time Breakdown (binary)", fontsize=12, fontweight="bold", pad=10)
+    ax6.set_title("Antares Modeler Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
     # 7. GemsPy Time Breakdown (parsing / build / solve / writing)
     ax7 = fig.add_subplot(gs[1, 4:6])
@@ -479,7 +481,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     bot_gemspy: float = 0.0
     for e2e_label, e2e_pypsa, e2e_mod, e2e_gem, e2e_color in e2e_layer_defs:
         ax8.bar(
-            ["PyPSA", "Modeler", "GemsPy"],
+            ["PyPSA", "Antares Modeler", "GemsPy"],
             [e2e_pypsa, e2e_mod, e2e_gem],
             bottom=[bot_pypsa, bot_modeler, bot_gemspy],
             label=e2e_label,
