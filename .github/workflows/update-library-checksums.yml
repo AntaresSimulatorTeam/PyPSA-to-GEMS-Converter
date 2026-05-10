@@ -2,7 +2,9 @@ name: Update Library SHA256 Checksums
 
 on:
   push:
-    branches: [main]
+    branches:
+      - 'release/**'
+      - 'hotfix/**'
     paths:
       - 'resources/pypsa_models/*.yml'
   workflow_dispatch:
