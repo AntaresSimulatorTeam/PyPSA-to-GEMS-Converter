@@ -111,7 +111,7 @@ body:
         - [ ] `version` field in `resources/pypsa_models/pypsa_models.yml` bumped if library changed
         - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
 
-        ### Step 9 — Documentation & Changelog
+        ### Step 9 — Supporting Files
         - [ ] `COMPATIBILITY.md` updated if supported versions changed
         - [ ] `AGENTS.md` reviewed for impact and updated if needed
 
