@@ -106,13 +106,10 @@ def test_bus_theta_bounds_added(base_network: Network) -> None:
 
     assert "theta_min" in buses.columns
     assert "theta_max" in buses.columns
-    # Reference bus (first) must have angle fixed to 0
-    assert buses["theta_min"].iloc[0] == 0.0
-    assert buses["theta_max"].iloc[0] == 0.0
-    # Other buses must be unbounded
-    if len(buses) > 1:
-        assert math.isinf(buses["theta_min"].iloc[1])
-        assert math.isinf(buses["theta_max"].iloc[1])
+    # base_network has two buses with no AC lines between them — each is its own sub-network,
+    # so determine_network_topology() marks both as Slack and both get theta fixed to 0.
+    assert all(buses["theta_min"] == 0.0)
+    assert all(buses["theta_max"] == 0.0)
 
 
 def test_bus_register_includes_theta_params(base_network: Network) -> None:

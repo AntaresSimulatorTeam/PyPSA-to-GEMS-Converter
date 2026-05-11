@@ -195,26 +195,33 @@ class PyPSAPreprocessor:
 
     def _add_bus_theta_bounds(self) -> None:
         """Add theta angle bounds to buses for DC LOPF. Fix reference bus angle to 0."""
-        buses_df = self.pypsa_network.buses
-        if len(buses_df) == 0:
+        if len(self.pypsa_network.buses) == 0:
             return
+
+        self.pypsa_network.determine_network_topology()
+
+        # Re-fetch after determine_network_topology(), which may replace the internal DataFrame
+        buses_df = self.pypsa_network.components.buses.static
+
         buses_df["theta_min"] = float("-inf")
         buses_df["theta_max"] = float("inf")
 
         index = buses_df.index
         names = index.get_level_values(-1) if isinstance(index, pd.MultiIndex) else index
 
-        ref_bus_name = names[0]
-        if "control" in buses_df.columns:
-            for name in list(dict.fromkeys(names)):
-                mask = (index.get_level_values(-1) == name) if isinstance(index, pd.MultiIndex) else (index == name)
-                if buses_df.loc[mask, "control"].iloc[0] == "Slack":
-                    ref_bus_name = name
-                    break
+        slack_buses: list[str] = []
+        for name in dict.fromkeys(names):
+            mask = (index.get_level_values(-1) == name) if isinstance(index, pd.MultiIndex) else (index == name)
+            if buses_df.loc[mask, "control"].iloc[0] == "Slack":
+                slack_buses.append(str(name))
 
-        ref_mask = (index.get_level_values(-1) == ref_bus_name) if isinstance(index, pd.MultiIndex) else (index == ref_bus_name)
-        buses_df.loc[ref_mask, "theta_min"] = 0.0
-        buses_df.loc[ref_mask, "theta_max"] = 0.0
+        if not slack_buses:
+            slack_buses = [str(names[0])]
+
+        for slack_bus in slack_buses:
+            mask = (index.get_level_values(-1) == slack_bus) if isinstance(index, pd.MultiIndex) else (index == slack_bus)
+            buses_df.loc[mask, "theta_min"] = 0.0
+            buses_df.loc[mask, "theta_max"] = 0.0
 
     def _add_modular_flag(self, component_type: str) -> None:
         """Compute modular expansion flag and ensure s_nom_mod is positive."""
