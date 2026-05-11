@@ -216,20 +216,6 @@ class PyPSAPreprocessor:
         buses_df.loc[ref_mask, "theta_min"] = 0.0
         buses_df.loc[ref_mask, "theta_max"] = 0.0
 
-    def _compute_line_reactance_pu(self) -> None:
-        """Convert line reactance from Ohm to per-unit on 1 MVA base: x_pu = x_ohm / v_nom_kV²."""
-        lines = self.pypsa_network.lines
-        if len(lines) == 0:
-            return
-        buses = self.pypsa_network.buses
-        index = buses.index
-        if isinstance(index, pd.MultiIndex):
-            v_nom_series = buses["v_nom"].groupby(level=-1).first()
-        else:
-            v_nom_series = buses["v_nom"]
-        bus0_names = lines["bus0"].map(lambda b: b if not isinstance(b, tuple) else b[-1])
-        lines["x"] = lines["x"] / bus0_names.map(v_nom_series) ** 2
-
     def _add_modular_flag(self, component_type: str) -> None:
         """Compute modular expansion flag and ensure s_nom_mod is positive."""
         df = getattr(self.pypsa_network, component_type)
@@ -245,12 +231,11 @@ class PyPSAPreprocessor:
         self._preprocess_pypsa_component("storage_units", True, "p_nom")
         self._preprocess_pypsa_component("links", True, "p_nom")
         self._add_bus_theta_bounds()
-        self._compute_line_reactance_pu()
+        if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
+            self.pypsa_network.calculate_dependent_values()
         self._add_modular_flag("lines")
         self._rename_pypsa_component("lines")
         self._fix_capacity_non_extendable_attribute("lines", "s_nom")
-        if len(self.pypsa_network.transformers) > 0:
-            self.pypsa_network.calculate_dependent_values()
         self._add_modular_flag("transformers")
         self._rename_pypsa_component("transformers")
         self._fix_capacity_non_extendable_attribute("transformers", "s_nom")

@@ -160,7 +160,7 @@ def test_line_preprocessing(line_network: Network) -> None:
     assert line_network.lines.loc["line_line1", "capital_cost"] == 0.0
     assert line_network.lines.loc["line_line1", "s_nom_mod"] > 0.0
     # v_nom=1 kV → x_pu = x_ohm / 1² = x_ohm (no conversion)
-    assert abs(line_network.lines.loc["line_line1", "x"] - 0.1) < 1e-9
+    assert abs(line_network.lines.loc["line_line1", "x_pu"] - 0.1) < 1e-9
 
 
 def test_line_register(line_network: Network) -> None:
@@ -171,8 +171,8 @@ def test_line_register(line_network: Network) -> None:
     assert "lines" in components
     line_data = components["lines"]
     assert line_data.gems_model_id == "line"
-    assert "x" in line_data.pypsa_params_to_gems_params
-    assert line_data.pypsa_params_to_gems_params["x"] == "x"
+    assert "x_pu" in line_data.pypsa_params_to_gems_params
+    assert line_data.pypsa_params_to_gems_params["x_pu"] == "x"
     assert "bus0" in line_data.pypsa_params_to_gems_connections
     assert "bus1" in line_data.pypsa_params_to_gems_connections
     assert line_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")

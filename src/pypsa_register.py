@@ -149,7 +149,7 @@ class PyPSARegister:
             self.pypsa_network.components.lines.dynamic,
             "line",
             {
-                "x": "x",
+                "x_pu": "x",
                 "s_nom_min": "s_nom_min",
                 "s_nom_max": "s_nom_max",
                 "s_nom_mod": "s_nom_mod",
