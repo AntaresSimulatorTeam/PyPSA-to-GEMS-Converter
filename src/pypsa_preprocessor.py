@@ -78,9 +78,6 @@ class PyPSAPreprocessor:
             if not all(c.static[col] == expected):
                 raise ValueError(f"Converter supports only {type_label} with {desc}")
 
-        if len(self.pypsa_network.components.lines.static) != 0:
-            raise ValueError("Converter does not support Lines yet")
-
         ### PyPSA components : GlobalConstraint
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
@@ -155,8 +152,18 @@ class PyPSAPreprocessor:
             df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
 
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
-        ### Handling PyPSA objects without carriers
         df = getattr(self.pypsa_network, component_type)
+
+        if len(df) == 0:
+            return
+
+        if "carrier" not in df.columns:
+            # Lines and transformers have no carrier column — skip carrier processing
+            self._rename_pypsa_component(component_type)
+            if non_extendable:
+                self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
+            return
+
         # Ensure scalar carrier (MultiIndex + join can misalign; map is reliable)
         carrier_series = df["carrier"].apply(_carrier_scalar)
         carrier_series = carrier_series.where(carrier_series != "", "null")
@@ -196,9 +203,62 @@ class PyPSAPreprocessor:
         if non_extendable:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 
+    def _add_bus_theta_bounds(self) -> None:
+        """Add theta angle bounds to buses for DC LOPF. Fix reference bus angle to 0."""
+        buses_df = self.pypsa_network.buses
+        if len(buses_df) == 0:
+            return
+        buses_df["theta_min"] = float("-inf")
+        buses_df["theta_max"] = float("inf")
+
+        index = buses_df.index
+        names = index.get_level_values(-1) if isinstance(index, pd.MultiIndex) else index
+
+        ref_bus_name = names[0]
+        if "control" in buses_df.columns:
+            for name in list(dict.fromkeys(names)):
+                mask = (index.get_level_values(-1) == name) if isinstance(index, pd.MultiIndex) else (index == name)
+                if buses_df.loc[mask, "control"].iloc[0] == "Slack":
+                    ref_bus_name = name
+                    break
+
+        ref_mask = (index.get_level_values(-1) == ref_bus_name) if isinstance(index, pd.MultiIndex) else (index == ref_bus_name)
+        buses_df.loc[ref_mask, "theta_min"] = 0.0
+        buses_df.loc[ref_mask, "theta_max"] = 0.0
+
+    def _compute_line_reactance_pu(self) -> None:
+        """Convert line reactance from Ohm to per-unit on 1 MVA base: x_pu = x_ohm / v_nom_kV²."""
+        lines = self.pypsa_network.lines
+        if len(lines) == 0:
+            return
+        buses = self.pypsa_network.buses
+        index = buses.index
+        if isinstance(index, pd.MultiIndex):
+            v_nom_series = buses["v_nom"].groupby(level=-1).first()
+        else:
+            v_nom_series = buses["v_nom"]
+        bus0_names = lines["bus0"].map(lambda b: b if not isinstance(b, tuple) else b[-1])
+        lines["x"] = lines["x"] / bus0_names.map(v_nom_series) ** 2
+
+    def _add_modular_flag(self, component_type: str) -> None:
+        """Compute modular expansion flag and ensure s_nom_mod is positive."""
+        df = getattr(self.pypsa_network, component_type)
+        if len(df) == 0:
+            return
+        df["modular"] = (df["s_nom_extendable"] & (df["s_nom_mod"] > 0)).astype(float)
+        df.loc[df["s_nom_mod"] == 0, "s_nom_mod"] = 1.0
+
     def _preprocess_pypsa_components(self) -> None:
         self._preprocess_pypsa_component("loads", False, "/")
         self._preprocess_pypsa_component("generators", True, "p_nom")
         self._preprocess_pypsa_component("stores", True, "e_nom")
         self._preprocess_pypsa_component("storage_units", True, "p_nom")
         self._preprocess_pypsa_component("links", True, "p_nom")
+        self._add_bus_theta_bounds()
+        self._compute_line_reactance_pu()
+        self._add_modular_flag("lines")
+        self._preprocess_pypsa_component("lines", True, "s_nom")
+        if len(self.pypsa_network.transformers) > 0:
+            self.pypsa_network.calculate_dependent_values()
+        self._add_modular_flag("transformers")
+        self._preprocess_pypsa_component("transformers", True, "s_nom")

@@ -762,3 +762,53 @@ def test_store_ext() -> None:
         get_gems_study_objective("store_test_case_ext"),
         rel_tol=1e-6,
     )
+
+
+@pytest.mark.parametrize(
+    "s_nom, x, study_name",
+    [
+        (100.0, 0.1, "line_fixed_100"),
+        (50.0, 0.2, "line_fixed_50"),
+    ],
+)
+def test_line_fixed(s_nom: float, x: float, study_name: str) -> None:
+    logger.info("Starting test_line_fixed: fixed-capacity line, s_nom=%s, x=%s", s_nom, x)
+    network = Network(name="LineTest", snapshots=[i for i in range(5)])
+    network.add("Bus", "bus1", v_nom=1.0)
+    network.add("Bus", "bus2", v_nom=1.0)
+    network.add("Load", "load1", bus="bus2", p_set=30.0, q_set=0)
+    network.add(
+        "Generator",
+        "gen1",
+        bus="bus1",
+        p_nom_extendable=False,
+        p_nom=200.0,
+        marginal_cost=10.0,
+        active=1,
+        committable=False,
+        marginal_cost_quadratic=0,
+    )
+    network.add(
+        "Line",
+        "line1",
+        bus0="bus1",
+        bus1="bus2",
+        x=x,
+        s_nom=s_nom,
+        s_nom_extendable=False,
+        s_max_pu=1.0,
+    )
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        logger=logger,
+        study_dir=current_dir / "tmp" / study_name,
+        series_file_format=".tsv",
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(study_name),
+        rel_tol=1e-4,
+    )
+
