@@ -154,16 +154,6 @@ class PyPSAPreprocessor:
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
         df = getattr(self.pypsa_network, component_type)
 
-        if len(df) == 0:
-            return
-
-        if "carrier" not in df.columns:
-            # Lines and transformers have no carrier column — skip carrier processing
-            self._rename_pypsa_component(component_type)
-            if non_extendable:
-                self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
-            return
-
         # Ensure scalar carrier (MultiIndex + join can misalign; map is reliable)
         carrier_series = df["carrier"].apply(_carrier_scalar)
         carrier_series = carrier_series.where(carrier_series != "", "null")
@@ -257,8 +247,10 @@ class PyPSAPreprocessor:
         self._add_bus_theta_bounds()
         self._compute_line_reactance_pu()
         self._add_modular_flag("lines")
-        self._preprocess_pypsa_component("lines", True, "s_nom")
+        self._rename_pypsa_component("lines")
+        self._fix_capacity_non_extendable_attribute("lines", "s_nom")
         if len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()
         self._add_modular_flag("transformers")
-        self._preprocess_pypsa_component("transformers", True, "s_nom")
+        self._rename_pypsa_component("transformers")
+        self._fix_capacity_non_extendable_attribute("transformers", "s_nom")
