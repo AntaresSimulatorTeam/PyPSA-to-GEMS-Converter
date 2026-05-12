@@ -1,0 +1,60 @@
+name: Update Library SHA256 Checksums
+
+on:
+  push:
+    branches:
+      - 'release/**'
+      - 'hotfix/**'
+    paths:
+      - 'resources/pypsa_models/*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-checksums:
+    name: Check and update library SHA256 checksums
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check and update SHA256 checksums
+        id: checksums
+        run: |
+          changed=false
+
+          while IFS= read -r yml_file; do
+            dir=$(dirname "$yml_file")
+            base=$(basename "$yml_file")
+            sha_file="${yml_file}.sha256"
+            current_hash=$(cd "$dir" && sha256sum "$base")
+
+            if [ ! -f "$sha_file" ]; then
+              echo "$base: no checksum file found — generating"
+              echo "$current_hash" > "$sha_file"
+              changed=true
+            else
+              stored_hash=$(cat "$sha_file")
+              if [ "$current_hash" = "$stored_hash" ]; then
+                echo "$base: checksum unchanged"
+              else
+                echo "$base: checksum changed — updating"
+                echo "$current_hash" > "$sha_file"
+                changed=true
+              fi
+            fi
+          done < <(find resources/pypsa_models/ -name "*.yml")
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Commit updated checksums
+        if: steps.checksums.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add $(find . -name "*.sha256" -not -path "./.git/*")
+          git commit -m "chore: update library SHA256 checksums [skip ci]"
+          git push
