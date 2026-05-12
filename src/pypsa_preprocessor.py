@@ -152,8 +152,8 @@ class PyPSAPreprocessor:
             df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
 
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
+        ### Handling PyPSA objects without carriers
         df = getattr(self.pypsa_network, component_type)
-
         # Ensure scalar carrier (MultiIndex + join can misalign; map is reliable)
         carrier_series = df["carrier"].apply(_carrier_scalar)
         carrier_series = carrier_series.where(carrier_series != "", "null")

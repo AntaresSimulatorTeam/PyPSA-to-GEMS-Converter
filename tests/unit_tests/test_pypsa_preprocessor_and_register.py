@@ -99,8 +99,6 @@ def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> 
 
 def test_bus_theta_bounds_added(base_network: Network) -> None:
     logger.info("Running test_bus_theta_bounds_added")
-    import math
-
     PyPSAPreprocessor(base_network).network_preprocessing()
     buses = base_network.buses
 
