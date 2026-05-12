@@ -1,0 +1,173 @@
+name: Check Antares Simulator Update
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    outputs:
+      latest_version: ${{ steps.latest.outputs.version }}
+      issue_number: ${{ steps.create_issue.outputs.issue_number }}
+      new_issue: ${{ steps.create_issue.outputs.new_issue }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Read current version
+        id: current
+        run: |
+          VERSION=$(jq -r '.antares_version' dependencies.json)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current version: $VERSION"
+
+      - name: Fetch latest stable Antares release
+        id: latest
+        run: |
+          TAGS=$(curl -sf \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/AntaresSimulatorTeam/Antares_Simulator/tags?per_page=50")
+
+          if [ -z "$TAGS" ]; then
+            echo "ERROR: Could not fetch tags from GitHub API"
+            exit 1
+          fi
+
+          LATEST=$(echo "$TAGS" \
+            | jq -r '.[].name' \
+            | grep -v -i -E 'rc|alpha|beta|continuous|nightly' \
+            | sed 's/^v//' \
+            | sort -V \
+            | tail -1)
+
+          if [ -z "$LATEST" ]; then
+            echo "ERROR: Could not parse latest stable version"
+            exit 1
+          fi
+
+          echo "version=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Latest stable version: $LATEST"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          LATEST="${{ steps.latest.outputs.version }}"
+          echo "Current: $CURRENT  |  Latest: $LATEST"
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "update=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date."
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+            echo "New version detected: $LATEST"
+          fi
+
+      - name: Create GitHub Issue
+        id: create_issue
+        if: steps.compare.outputs.update == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const latest = '${{ steps.latest.outputs.version }}';
+            const current = '${{ steps.current.outputs.version }}';
+            const title = `[ANTARES UPDATE] New release: v${latest}`;
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const duplicate = existing.data.find(i => i.title.includes(`v${latest}`));
+            if (duplicate) {
+              console.log(`Issue already exists: #${duplicate.number} - skipping.`);
+              core.setOutput('issue_number', String(duplicate.number));
+              core.setOutput('new_issue', 'false');
+              return;
+            }
+
+            const body = [
+              '> This issue was automatically created by the `check-antares-update` workflow.',
+              '',
+              '## New Version Detected',
+              '',
+              '| | |',
+              '|---|---|',
+              `| **Previous version** | \`${current}\` |`,
+              `| **New version** | \`${latest}\` |`,
+              `| **Release page** | https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/tag/v${latest} |`,
+              '',
+              '## Release Notes Summary',
+              '',
+              '_Paste relevant changelog entries here before triaging._',
+              '',
+              '## Triage',
+              '',
+              '- [ ] Release notes reviewed',
+              '- [ ] P2G-01 issue opened (if converter logic or `pypsa_models` library are affected)',
+              '- [ ] No action needed (if release has no impact on the converter)',
+              '',
+              '---',
+              '',
+              '_E2E test results against this version will be posted below by the workflow._',
+            ].join('\n');
+
+            const result = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['antares-update'],
+            });
+
+            core.setOutput('issue_number', String(result.data.number));
+            core.setOutput('new_issue', 'true');
+            console.log(`Issue created: #${result.data.number} - ${result.data.html_url}`);
+
+  e2e-new-version:
+    name: E2E Tests against Antares v${{ needs.check-update.outputs.latest_version }}
+    needs: check-update
+    if: needs.check-update.outputs.new_issue == 'true'
+    uses: ./.github/workflows/run-e2e-tests.yml
+    with:
+      antares_version: ${{ needs.check-update.outputs.latest_version }}
+      artifact_name: e2e-failures-antares-${{ needs.check-update.outputs.latest_version }}
+
+  post-results:
+    name: Post E2E results to issue
+    runs-on: ubuntu-22.04
+    needs: [check-update, e2e-new-version]
+    if: always() && needs.check-update.outputs.new_issue == 'true'
+
+    steps:
+      - name: Post results to issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const outcome = '${{ needs.e2e-new-version.outputs.test_outcome }}';
+            const version = '${{ needs.check-update.outputs.latest_version }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const icon = outcome === 'success' ? '✅' : '❌';
+            const status = outcome === 'success' ? 'passed' : 'failed';
+
+            const body = [
+              `## E2E Test Results — Antares v${version}`,
+              '',
+              `${icon} E2E tests **${status}** against Antares v${version}.`,
+              '',
+              `[View full run](${runUrl})`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number('${{ needs.check-update.outputs.issue_number }}'),
+              body: body,
+            });
