@@ -240,9 +240,11 @@ class PyPSAPreprocessor:
         self._add_bus_theta_bounds()
         if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()
-        self._add_modular_flag("lines")
-        self._rename_pypsa_component("lines")
-        self._fix_capacity_non_extendable_attribute("lines", "s_nom")
-        self._add_modular_flag("transformers")
-        self._rename_pypsa_component("transformers")
-        self._fix_capacity_non_extendable_attribute("transformers", "s_nom")
+        if len(self.pypsa_network.lines) > 0:
+            self._add_modular_flag("lines")
+            self._rename_pypsa_component("lines")
+            self._fix_capacity_non_extendable_attribute("lines", "s_nom")
+        if len(self.pypsa_network.transformers) > 0:
+            self._add_modular_flag("transformers")
+            self._rename_pypsa_component("transformers")
+            self._fix_capacity_non_extendable_attribute("transformers", "s_nom")
