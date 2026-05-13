@@ -64,7 +64,13 @@ jobs:
 
       - name: Run end-to-end tests
         id: run_tests
-        run: python -m pytest tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
+        run: |
+          mkdir -p tmp
+          set -o pipefail
+          python -m pytest tests/e2e/end_2_end_tests.py \
+            -v -s --log-cli-level=INFO --tb=short -rA \
+            --junitxml=tmp/pytest-junit.xml \
+            2>&1 | tee tmp/pytest.log
         continue-on-error: true
 
       - name: Upload test artifacts on failure
@@ -73,8 +79,11 @@ jobs:
         with:
           name: ${{ inputs.artifact_name }}
           path: |
+            tmp/pytest.log
+            tmp/pytest-junit.xml
             tmp/
             **/*.log
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Cleanup

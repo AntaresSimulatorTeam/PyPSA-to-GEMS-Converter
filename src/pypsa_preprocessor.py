@@ -88,13 +88,25 @@ class PyPSAPreprocessor:
 
     def _add_fictitious_carrier(self) -> None:
         """Add fictitious carrier to the network"""
-        self.pypsa_network.add(
-            "Carrier",
-            "null",
-            co2_emissions=0,
-            max_growth=any_to_float(inf),
+        # PyPSA >=1.2.0 raises a TypeError when add() reports a duplicate against a
+        # MultiIndex (scenarios) network, so check existence ourselves before adding.
+        carriers_index = self.pypsa_network.carriers.index
+        existing_names = (
+            carriers_index.get_level_values(-1) if isinstance(carriers_index, pd.MultiIndex) else carriers_index
         )
-        self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
+        if "null" not in existing_names:
+            self.pypsa_network.add(
+                "Carrier",
+                "null",
+                co2_emissions=0,
+                max_growth=any_to_float(inf),
+            )
+        updated_index = self.pypsa_network.carriers.index
+        self.pypsa_network.carriers["carrier"] = (
+            updated_index.get_level_values(-1)
+            if isinstance(updated_index, pd.MultiIndex)
+            else updated_index.values
+        )
 
     def _rename_buses(self) -> None:
         """
@@ -162,8 +174,16 @@ class PyPSAPreprocessor:
         carrier_series = carrier_series.where(carrier_series != "", "null")
         df["carrier"] = carrier_series
 
+        # PyPSA >=1.2.0 promotes network.carriers to a MultiIndex (scenario, name)
+        # once set_scenarios() has been called. Project to a flat-on-name view for
+        # the join so values are picked up via the scalar `carrier` column on `df`.
+        carriers_for_join = self.pypsa_network.carriers
+        if isinstance(carriers_for_join.index, pd.MultiIndex):
+            carriers_for_join = carriers_for_join.copy()
+            carriers_for_join.index = carriers_for_join.index.get_level_values(-1)
+            carriers_for_join = carriers_for_join[~carriers_for_join.index.duplicated(keep="first")]
         joined = df.join(
-            self.pypsa_network.carriers,
+            carriers_for_join,
             on="carrier",
             how="left",
             rsuffix="_carrier",
