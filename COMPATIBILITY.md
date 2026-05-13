@@ -32,10 +32,8 @@ When a new PyPSA version introduces features that the converter does not yet sup
 
 | PyPSA Component | Limitation | Enforced |
 |---|---|---|
-| Lines | Not yet supported | Yes — `ValueError` since 0.0.1 |
-| Transformers | Not yet supported | No — silently ignored |
-| LineTypes | Not yet supported | No — silently ignored |
-| TransformerTypes | Not yet supported | No — silently ignored |
+| LineTypes | Supported implicitly — `type` is resolved into `x`/`x_pu` by `calculate_dependent_values()` before conversion | N/A |
+| TransformerTypes | Supported implicitly — `type` is resolved into `x_pu_eff` by `calculate_dependent_values()` before conversion | N/A |
 | ShuntImpedances | Not used in DC LOPF | No — silently ignored |
 
 ### Network-Level Constraints
@@ -146,6 +144,69 @@ Parameters not relevant for DC LOPF (silently ignored):
 | `terrain_factor` | Metadata for pre-computing `capital_cost` — not used in the LP |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
+
+#### Line
+
+Parameters relevant for DC LOPF but not yet implemented:
+
+| Parameter | Note |
+|---|---|
+| `overnight_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `discount_rate` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `fom_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `active` | Only active lines are built — inactive ones are dropped by the converter |
+| `build_year` | Only meaningful with multi-investment periods — already blocked |
+| `lifetime` | Only meaningful with multi-investment periods — already blocked |
+
+Parameters not relevant for DC LOPF (silently ignored):
+
+| Parameter | Note |
+|---|---|
+| `type` | Resolved into `x`/`x_pu` by `calculate_dependent_values()` before conversion — not read directly |
+| `r` | AC resistive parameter — not used in DC LOPF |
+| `g` | AC shunt conductance — not used in DC LOPF |
+| `b` | AC susceptance — not used in DC LOPF |
+| `s_nom` | Handled by converter: non-extendable → `s_nom_min = s_nom_max = s_nom` |
+| `s_nom_extendable` | Handled by converter: `False` → fixed capacity; `True` → use `s_nom_min`/`s_nom_max` |
+| `s_nom_set` | Handled by converter: when set → `s_nom_min = s_nom_max = s_nom_set` |
+| `length` | Used for type-based reactance scaling — absorbed by `calculate_dependent_values()` |
+| `terrain_factor` | Metadata — must be pre-multiplied into `capital_cost` by the user |
+| `num_parallel` | Only used when `type` is set — absorbed by `calculate_dependent_values()` |
+| `v_ang_min` | Placeholder in PyPSA — not used in optimisation |
+| `v_ang_max` | Placeholder in PyPSA — not used in optimisation |
+
+#### Transformer
+
+Parameters relevant for DC LOPF but not yet implemented:
+
+| Parameter | Note |
+|---|---|
+| `overnight_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `discount_rate` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `fom_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `active` | Only active transformers are built — inactive ones are dropped by the converter |
+| `build_year` | Only meaningful with multi-investment periods — already blocked |
+| `lifetime` | Only meaningful with multi-investment periods — already blocked |
+
+Parameters not relevant for DC LOPF (silently ignored):
+
+| Parameter | Note |
+|---|---|
+| `type` | Resolved into `x_pu_eff` by `calculate_dependent_values()` before conversion — not read directly |
+| `model` | AC admittance model (t or pi) — not used in DC LOPF |
+| `r` | AC resistive parameter — not used in DC LOPF |
+| `g` | AC shunt conductance — not used in DC LOPF |
+| `b` | AC susceptance — not used in DC LOPF |
+| `tap_ratio` | Absorbed into `x_pu_eff` by `calculate_dependent_values()` |
+| `tap_side` | AC power flow only — not used in DC LOPF |
+| `tap_position` | Only used when `type` is set — absorbed by `calculate_dependent_values()` |
+| `phase_shift` | Not used in DC LOPF optimisation |
+| `s_nom` | Handled by converter: non-extendable → `s_nom_min = s_nom_max = s_nom` |
+| `s_nom_extendable` | Handled by converter: `False` → fixed capacity; `True` → use `s_nom_min`/`s_nom_max` |
+| `s_nom_set` | Handled by converter: when set → `s_nom_min = s_nom_max = s_nom_set` |
+| `num_parallel` | Only used when `type` is set — absorbed by `calculate_dependent_values()` |
+| `v_ang_min` | Placeholder in PyPSA — not used in optimisation |
+| `v_ang_max` | Placeholder in PyPSA — not used in optimisation |
 
 #### StorageUnit
 
