@@ -582,6 +582,7 @@ library:
           upper-bound: max_hours * p_nom_max
         - id: spill
           lower-bound: 0
+          upper-bound: inflow
       ports:
         - id: p_balance_port
           type: flow

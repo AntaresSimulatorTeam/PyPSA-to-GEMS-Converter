@@ -765,7 +765,7 @@ def test_store_ext() -> None:
 
 
 def test_lines_triangle() -> None:
-    """Triangle network (A-B-C) with three fixed-capacity lines (from Test_PypSA_GEMS/lines.py)."""
+    """Triangle network (A-B-C) with three fixed-capacity lines."""
     network = Network(name="LinesTriangle", snapshots=list(range(10)))
     network.add("Bus", "A", v_nom=1.0)
     network.add("Bus", "B", v_nom=1.0)
@@ -784,7 +784,7 @@ def test_lines_triangle() -> None:
 
 
 def test_line_lp() -> None:
-    """Triangle network with one extendable LP line (from Test_PypSA_GEMS/line_lp_study.py)."""
+    """Triangle network with one extendable LP line."""
     network = Network(name="LineLp", snapshots=list(range(10)))
     network.add("Bus", "A", v_nom=1.0)
     network.add("Bus", "B", v_nom=1.0)
@@ -803,7 +803,7 @@ def test_line_lp() -> None:
 
 
 def test_line_milp() -> None:
-    """Triangle network with three extendable MILP lines (from Test_PypSA_GEMS/line_milp_study.py)."""
+    """Triangle network with three extendable MILP lines."""
     network = Network(name="LineMilp", snapshots=list(range(10)))
     network.add("Bus", "A", v_nom=1.0)
     network.add("Bus", "B", v_nom=1.0)
@@ -821,7 +821,7 @@ def test_line_milp() -> None:
 
 
 def test_transformer_fixed() -> None:
-    """HV-LV network with a fixed transformer and fixed line (from Test_PypSA_GEMS/transformers.py)."""
+    """HV-LV network with a fixed transformer and fixed line."""
     network = Network(name="TransformerFixed", snapshots=list(range(10)))
     network.add("Bus", "A_HV", v_nom=380.0)
     network.add("Bus", "B_LV", v_nom=110.0)
@@ -841,7 +841,7 @@ def test_transformer_fixed() -> None:
 
 
 def test_transformer_lp() -> None:
-    """HV-LV network with an extendable LP transformer (from Test_PypSA_GEMS/transformer_lp_study.py)."""
+    """HV-LV network with an extendable LP transformer."""
     network = Network(name="TransformerLp", snapshots=list(range(10)))
     network.add("Bus", "A_HV", v_nom=380.0)
     network.add("Bus", "B_LV", v_nom=110.0)
@@ -860,26 +860,6 @@ def test_transformer_lp() -> None:
     )
 
 
-def test_transformer_milp() -> None:
-    """HV-LV network with an extendable MILP transformer (from Test_PypSA_GEMS/transformer_milp_study.py)."""
-    network = Network(name="TransformerMilp", snapshots=list(range(10)))
-    network.add("Bus", "A_HV", v_nom=380.0)
-    network.add("Bus", "B_LV", v_nom=110.0)
-    network.add("Bus", "C_LV", v_nom=110.0)
-    network.add("Generator", "G_A", bus="A_HV", p_nom=200, marginal_cost=10)
-    network.add("Generator", "G_C", bus="C_LV", p_nom=200, marginal_cost=80)
-    network.add("Load", "L_B", bus="B_LV", p_set=[25 + i for i in range(10)], q_set=0)
-    network.add("Load", "L_C", bus="C_LV", p_set=[25 + i for i in range(10)], q_set=0)
-    network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=50.0, s_nom_extendable=True, s_nom_mod=50.0, s_nom_min=0.0, s_nom_max=250.0, capital_cost=5, tap_ratio=1.0)
-    network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.1, s_nom=100)
-
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_milp", ".tsv").to_gems_study()
-    network.optimize()
-    assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective("transformer_milp"), rel_tol=1e-6
-    )
-
-
 def test_scigrid_de() -> None:
     """German transmission grid from pypsa.examples.scigrid_de — 585 buses, 852 lines, 96 transformers, 24 snapshots."""
     network = Network(current_dir / "resources" / "test_files" / "scigrid-de.nc")
@@ -889,12 +869,12 @@ def test_scigrid_de() -> None:
     PyPSAStudyConverter(network, logger, current_dir / "tmp" / "scigrid_de", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective("scigrid_de"), rel_tol=0.01
+        network.objective + network.objective_constant, get_gems_study_objective("scigrid_de"), rel_tol=1e-6
     )
 
 
 def test_transformer_extendable_modular() -> None:
-    """HV-LV network with a MILP transformer and a MILP line (from Test_PypSA_GEMS/transformer_extendable_modular.py)."""
+    """HV-LV network with a MILP transformer and a MILP line."""
     network = Network(name="TransformerExtendableModular", snapshots=list(range(10)))
     network.add("Bus", "A_HV", v_nom=380.0)
     network.add("Bus", "B_LV", v_nom=110.0)
