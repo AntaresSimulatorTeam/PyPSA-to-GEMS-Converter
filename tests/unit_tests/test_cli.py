@@ -101,7 +101,7 @@ def minimal_netcdf_path(tmp_path: Path) -> Path:
         p_max_pu=1.0,
     )
     path = tmp_path / "minimal.nc"
-    network.export_to_netcdf(path)
+    network.export_to_netcdf(str(path))
     return path
 
 
