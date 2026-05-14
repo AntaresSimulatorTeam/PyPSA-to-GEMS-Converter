@@ -219,7 +219,9 @@ class PyPSAPreprocessor:
             slack_buses = [str(names[0])]
 
         for slack_bus in slack_buses:
-            mask = (index.get_level_values(-1) == slack_bus) if isinstance(index, pd.MultiIndex) else (index == slack_bus)
+            mask = (
+                (index.get_level_values(-1) == slack_bus) if isinstance(index, pd.MultiIndex) else (index == slack_bus)
+            )
             buses_df.loc[mask, "theta_min"] = 0.0
             buses_df.loc[mask, "theta_max"] = 0.0
 

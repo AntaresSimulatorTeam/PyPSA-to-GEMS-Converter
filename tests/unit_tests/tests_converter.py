@@ -1,3 +1,15 @@
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+
 import logging
 from pathlib import Path
 
@@ -41,14 +53,14 @@ def test_converter_deterministic_study() -> None:
     )
     network.add("Generator", "gen3", bus="bus 1", p_nom_extendable=False, marginal_cost=50, p_nom=200, p_max_pu=0.9)
 
-    PyPSAStudyConverter(network, logger, Path("tmp") / "test_one", "csv").to_gems_study()
+    PyPSAStudyConverter(network, Path("tmp") / "test_one", "csv").to_gems_study()
     logger.info("Converted deterministic study to test_one")
 
     # test if optimi-config isn't generated
     assert not (Path("tmp") / "test_one" / "systems" / "input" / "optim-config.yml").exists()
 
     network.set_scenarios({"low": 0.5, "high": 0.5})
-    PyPSAStudyConverter(network, logger, Path("tmp") / "test_two", "csv").to_gems_study()
+    PyPSAStudyConverter(network, Path("tmp") / "test_two", "csv").to_gems_study()
     logger.info("Converted scenario study to test_two")
 
     # test if optimi-config is generated

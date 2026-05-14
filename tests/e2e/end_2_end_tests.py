@@ -97,7 +97,7 @@ def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lin
     logger.info("Preprocessed network; converting to GEMS study %s", study_name)
     # Copy before optimize(): get_gems_study_objective needs an un-optimized network (no HiGHS state).
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     logger.info("Comparing PyPSA vs GEMS objective for %s", study_name)
     assert math.isclose(get_original_pypsa_study_objective(network), get_gems_study_objective(study_name), rel_tol=1e-6)
@@ -130,7 +130,6 @@ def test_load_gen() -> None:
 
     PyPSAStudyConverter(
         pypsa_network=network,
-        logger=logger,
         study_dir=current_dir / "tmp" / "test_two_study_one",
         series_file_format=".tsv",
     ).to_gems_study()
@@ -179,7 +178,7 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
     )
 
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
 
     network.optimize()
@@ -241,7 +240,7 @@ def test_load_gen_emissions(ratio: float, sense: str, study_name: str) -> None:
     network.add("GlobalConstraint", name="co2_budget", sense=sense, constant=quota)
 
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
@@ -276,7 +275,6 @@ def test_load_gen_pmin() -> None:
     )
     PyPSAStudyConverter(
         pypsa_network=network,
-        logger=logger,
         study_dir=current_dir / "tmp" / "test_five_study_one",
         series_file_format=".tsv",
     ).to_gems_study()
@@ -316,7 +314,6 @@ def test_load_gen_sum() -> None:
 
     PyPSAStudyConverter(
         pypsa_network=network,
-        logger=logger,
         study_dir=current_dir / "tmp" / "test_six_study_one",
         series_file_format=".tsv",
     ).to_gems_study()
@@ -373,7 +370,6 @@ def test_load_gen_link() -> None:
 
     PyPSAStudyConverter(
         pypsa_network=network,
-        logger=logger,
         study_dir=current_dir / "tmp" / "test_seven_study_one",
         series_file_format=".tsv",
     ).to_gems_study()
@@ -443,7 +439,7 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
     )
 
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
@@ -532,7 +528,7 @@ def test_storage_unit(
     )
 
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
@@ -620,7 +616,7 @@ def test_storage_unit_ext(
         cyclic_state_of_charge_per_period=True,
     )
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
 
@@ -688,7 +684,7 @@ def test_store(e_initial: float, standing_loss: float, study_name: str) -> None:
         e_cyclic=True,
     )
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     network.optimize()
     assert math.isclose(
@@ -752,7 +748,6 @@ def test_store_ext() -> None:
 
     PyPSAStudyConverter(
         pypsa_network=network,
-        logger=logger,
         study_dir=current_dir / "tmp" / "store_test_case_ext",
         series_file_format=".tsv",
     ).to_gems_study()
@@ -776,7 +771,7 @@ def test_lines_triangle() -> None:
     network.add("Line", "BC", bus0="B", bus1="C", x=0.1, s_nom=100)
     network.add("Line", "AC", bus0="A", bus1="C", x=0.1, s_nom=100)
 
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "line_triangle", ".tsv").to_gems_study()
+    PyPSAStudyConverter(network, current_dir / "tmp" / "line_triangle", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective("line_triangle"), rel_tol=1e-6
@@ -793,9 +788,11 @@ def test_line_lp() -> None:
     network.add("Load", "L_C", bus="C", p_set=[50 + i * 5 for i in range(10)], q_set=0)
     network.add("Line", "AB", bus0="A", bus1="B", x=0.1, s_nom=100, capital_cost=0)
     network.add("Line", "BC", bus0="B", bus1="C", x=0.1, s_nom=100, capital_cost=0)
-    network.add("Line", "AC", bus0="A", bus1="C", x=0.1, s_nom_extendable=True, s_nom_min=0, s_nom_max=200, capital_cost=500)
+    network.add(
+        "Line", "AC", bus0="A", bus1="C", x=0.1, s_nom_extendable=True, s_nom_min=0, s_nom_max=200, capital_cost=500
+    )
 
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "line_lp", ".tsv").to_gems_study()
+    PyPSAStudyConverter(network, current_dir / "tmp" / "line_lp", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective("line_lp"), rel_tol=1e-6
@@ -811,9 +808,20 @@ def test_line_milp() -> None:
     network.add("Generator", "G_A", bus="A", p_nom=200, marginal_cost=10)
     network.add("Load", "L_C", bus="C", p_set=[50 + i * 5 for i in range(10)], q_set=0)
     for line_id, b0, b1 in [("AB", "A", "B"), ("BC", "B", "C"), ("AC", "A", "C")]:
-        network.add("Line", line_id, bus0=b0, bus1=b1, x=0.1, s_nom_extendable=True, s_nom_mod=50.0, s_nom_min=0.0, s_nom_max=200.0, capital_cost=800)
+        network.add(
+            "Line",
+            line_id,
+            bus0=b0,
+            bus1=b1,
+            x=0.1,
+            s_nom_extendable=True,
+            s_nom_mod=50.0,
+            s_nom_min=0.0,
+            s_nom_max=200.0,
+            capital_cost=800,
+        )
 
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "line_milp", ".tsv").to_gems_study()
+    PyPSAStudyConverter(network, current_dir / "tmp" / "line_milp", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective("line_milp"), rel_tol=1e-6
@@ -833,7 +841,7 @@ def test_transformer_fixed() -> None:
     network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=150.0, tap_ratio=1.0)
     network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.1, s_nom=100)
 
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_fixed", ".tsv").to_gems_study()
+    PyPSAStudyConverter(network, current_dir / "tmp" / "transformer_fixed", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective("transformer_fixed"), rel_tol=1e-6
@@ -850,10 +858,22 @@ def test_transformer_lp() -> None:
     network.add("Generator", "G_C", bus="C_LV", p_nom=50, marginal_cost=80)
     network.add("Load", "L_B", bus="B_LV", p_set=[25 + i for i in range(10)], q_set=0)
     network.add("Load", "L_C", bus="C_LV", p_set=[25 + i for i in range(10)], q_set=0)
-    network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=150.0, s_nom_extendable=True, s_nom_min=0.0, s_nom_max=300.0, capital_cost=500, tap_ratio=1.0)
+    network.add(
+        "Transformer",
+        "T_AB",
+        bus0="A_HV",
+        bus1="B_LV",
+        x=0.20,
+        s_nom=150.0,
+        s_nom_extendable=True,
+        s_nom_min=0.0,
+        s_nom_max=300.0,
+        capital_cost=500,
+        tap_ratio=1.0,
+    )
     network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.1, s_nom=100)
 
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_lp", ".tsv").to_gems_study()
+    PyPSAStudyConverter(network, current_dir / "tmp" / "transformer_lp", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective("transformer_lp"), rel_tol=1e-6
@@ -866,7 +886,7 @@ def test_scigrid_de() -> None:
     # scigrid_de has cyclic_state_of_charge=False; converter requires True
     network.storage_units["cyclic_state_of_charge"] = True
 
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "scigrid_de", ".tsv").to_gems_study()
+    PyPSAStudyConverter(network, current_dir / "tmp" / "scigrid_de", ".tsv").to_gems_study()
     network.optimize()
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective("scigrid_de"), rel_tol=1e-6
@@ -883,12 +903,37 @@ def test_transformer_extendable_modular() -> None:
     network.add("Generator", "G_C", bus="C_LV", p_nom=200, marginal_cost=80)
     network.add("Load", "L_B", bus="B_LV", p_set=[25 + i for i in range(10)], q_set=0)
     network.add("Load", "L_C", bus="C_LV", p_set=[25 + i for i in range(10)], q_set=0)
-    network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=50.0, s_nom_extendable=True, s_nom_mod=50.0, s_nom_min=0.0, s_nom_max=250.0, capital_cost=5.0, tap_ratio=1.0)
-    network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.10, s_nom_extendable=True, s_nom_mod=30.0, s_nom_min=0.0, s_nom_max=150.0, capital_cost=3.0)
-
-    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_extendable_modular", ".tsv").to_gems_study()
-    network.optimize()
-    assert math.isclose(
-        network.objective + network.objective_constant, get_gems_study_objective("transformer_extendable_modular"), rel_tol=1e-6
+    network.add(
+        "Transformer",
+        "T_AB",
+        bus0="A_HV",
+        bus1="B_LV",
+        x=0.20,
+        s_nom=50.0,
+        s_nom_extendable=True,
+        s_nom_mod=50.0,
+        s_nom_min=0.0,
+        s_nom_max=250.0,
+        capital_cost=5.0,
+        tap_ratio=1.0,
+    )
+    network.add(
+        "Line",
+        "BC",
+        bus0="B_LV",
+        bus1="C_LV",
+        x=0.10,
+        s_nom_extendable=True,
+        s_nom_mod=30.0,
+        s_nom_min=0.0,
+        s_nom_max=150.0,
+        capital_cost=3.0,
     )
 
+    PyPSAStudyConverter(network, current_dir / "tmp" / "transformer_extendable_modular", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective("transformer_extendable_modular"),
+        rel_tol=1e-6,
+    )
