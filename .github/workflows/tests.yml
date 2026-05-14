@@ -18,21 +18,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen --group dev
 
       - name: Run unit tests
         id: run_unit_tests
         run: |
-          pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
+          uv run pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
 
       - name: Resolve Antares version for downstream E2E job
         id: read_version

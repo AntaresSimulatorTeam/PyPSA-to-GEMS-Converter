@@ -42,6 +42,18 @@ Repository = "https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter"
 [project.scripts]
 pypsa-to-gems = "src.cli:main"
 
+[dependency-groups]
+dev = [
+    "pytest==7.0.1",
+    "pytest-xdist==3.8.0",
+    "highspy>=1.5.0",
+    "ruff~=0.9.6",
+    "mypy~=1.15.0",
+    "pre-commit~=4.1.0",
+    "pandas-stubs>=2.0.0",
+    "types-PyYAML>=6.0.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src", "src.*"]
