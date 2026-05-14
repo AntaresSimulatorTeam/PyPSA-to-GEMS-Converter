@@ -762,3 +762,133 @@ def test_store_ext() -> None:
         get_gems_study_objective("store_test_case_ext"),
         rel_tol=1e-6,
     )
+
+
+def test_lines_triangle() -> None:
+    """Triangle network (A-B-C) with three fixed-capacity lines."""
+    network = Network(name="LinesTriangle", snapshots=list(range(10)))
+    network.add("Bus", "A", v_nom=1.0)
+    network.add("Bus", "B", v_nom=1.0)
+    network.add("Bus", "C", v_nom=1.0)
+    network.add("Generator", "G_A", bus="A", p_nom=200, marginal_cost=10)
+    network.add("Load", "L_C", bus="C", p_set=[50 + i * 5 for i in range(10)], q_set=0)
+    network.add("Line", "AB", bus0="A", bus1="B", x=0.1, s_nom=100)
+    network.add("Line", "BC", bus0="B", bus1="C", x=0.1, s_nom=100)
+    network.add("Line", "AC", bus0="A", bus1="C", x=0.1, s_nom=100)
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "line_triangle", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("line_triangle"), rel_tol=1e-6
+    )
+
+
+def test_line_lp() -> None:
+    """Triangle network with one extendable LP line."""
+    network = Network(name="LineLp", snapshots=list(range(10)))
+    network.add("Bus", "A", v_nom=1.0)
+    network.add("Bus", "B", v_nom=1.0)
+    network.add("Bus", "C", v_nom=1.0)
+    network.add("Generator", "G_A", bus="A", p_nom=200, marginal_cost=10)
+    network.add("Load", "L_C", bus="C", p_set=[50 + i * 5 for i in range(10)], q_set=0)
+    network.add("Line", "AB", bus0="A", bus1="B", x=0.1, s_nom=100, capital_cost=0)
+    network.add("Line", "BC", bus0="B", bus1="C", x=0.1, s_nom=100, capital_cost=0)
+    network.add("Line", "AC", bus0="A", bus1="C", x=0.1, s_nom_extendable=True, s_nom_min=0, s_nom_max=200, capital_cost=500)
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "line_lp", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("line_lp"), rel_tol=1e-6
+    )
+
+
+def test_line_milp() -> None:
+    """Triangle network with three extendable MILP lines."""
+    network = Network(name="LineMilp", snapshots=list(range(10)))
+    network.add("Bus", "A", v_nom=1.0)
+    network.add("Bus", "B", v_nom=1.0)
+    network.add("Bus", "C", v_nom=1.0)
+    network.add("Generator", "G_A", bus="A", p_nom=200, marginal_cost=10)
+    network.add("Load", "L_C", bus="C", p_set=[50 + i * 5 for i in range(10)], q_set=0)
+    for line_id, b0, b1 in [("AB", "A", "B"), ("BC", "B", "C"), ("AC", "A", "C")]:
+        network.add("Line", line_id, bus0=b0, bus1=b1, x=0.1, s_nom_extendable=True, s_nom_mod=50.0, s_nom_min=0.0, s_nom_max=200.0, capital_cost=800)
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "line_milp", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("line_milp"), rel_tol=1e-6
+    )
+
+
+def test_transformer_fixed() -> None:
+    """HV-LV network with a fixed transformer and fixed line."""
+    network = Network(name="TransformerFixed", snapshots=list(range(10)))
+    network.add("Bus", "A_HV", v_nom=380.0)
+    network.add("Bus", "B_LV", v_nom=110.0)
+    network.add("Bus", "C_LV", v_nom=110.0)
+    network.add("Generator", "G_A", bus="A_HV", p_nom=200, marginal_cost=10)
+    network.add("Generator", "G_C", bus="C_LV", p_nom=50, marginal_cost=80)
+    network.add("Load", "L_B", bus="B_LV", p_set=[25 + i for i in range(10)], q_set=0)
+    network.add("Load", "L_C", bus="C_LV", p_set=[25 + i for i in range(10)], q_set=0)
+    network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=150.0, tap_ratio=1.0)
+    network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.1, s_nom=100)
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_fixed", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("transformer_fixed"), rel_tol=1e-6
+    )
+
+
+def test_transformer_lp() -> None:
+    """HV-LV network with an extendable LP transformer."""
+    network = Network(name="TransformerLp", snapshots=list(range(10)))
+    network.add("Bus", "A_HV", v_nom=380.0)
+    network.add("Bus", "B_LV", v_nom=110.0)
+    network.add("Bus", "C_LV", v_nom=110.0)
+    network.add("Generator", "G_A", bus="A_HV", p_nom=200, marginal_cost=10)
+    network.add("Generator", "G_C", bus="C_LV", p_nom=50, marginal_cost=80)
+    network.add("Load", "L_B", bus="B_LV", p_set=[25 + i for i in range(10)], q_set=0)
+    network.add("Load", "L_C", bus="C_LV", p_set=[25 + i for i in range(10)], q_set=0)
+    network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=150.0, s_nom_extendable=True, s_nom_min=0.0, s_nom_max=300.0, capital_cost=500, tap_ratio=1.0)
+    network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.1, s_nom=100)
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_lp", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("transformer_lp"), rel_tol=1e-6
+    )
+
+
+def test_scigrid_de() -> None:
+    """German transmission grid from pypsa.examples.scigrid_de — 585 buses, 852 lines, 96 transformers, 24 snapshots."""
+    network = Network(current_dir / "resources" / "test_files" / "scigrid-de.nc")
+    # scigrid_de has cyclic_state_of_charge=False; converter requires True
+    network.storage_units["cyclic_state_of_charge"] = True
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "scigrid_de", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("scigrid_de"), rel_tol=1e-6
+    )
+
+
+def test_transformer_extendable_modular() -> None:
+    """HV-LV network with a MILP transformer and a MILP line."""
+    network = Network(name="TransformerExtendableModular", snapshots=list(range(10)))
+    network.add("Bus", "A_HV", v_nom=380.0)
+    network.add("Bus", "B_LV", v_nom=110.0)
+    network.add("Bus", "C_LV", v_nom=110.0)
+    network.add("Generator", "G_A", bus="A_HV", p_nom=200, marginal_cost=10)
+    network.add("Generator", "G_C", bus="C_LV", p_nom=200, marginal_cost=80)
+    network.add("Load", "L_B", bus="B_LV", p_set=[25 + i for i in range(10)], q_set=0)
+    network.add("Load", "L_C", bus="C_LV", p_set=[25 + i for i in range(10)], q_set=0)
+    network.add("Transformer", "T_AB", bus0="A_HV", bus1="B_LV", x=0.20, s_nom=50.0, s_nom_extendable=True, s_nom_mod=50.0, s_nom_min=0.0, s_nom_max=250.0, capital_cost=5.0, tap_ratio=1.0)
+    network.add("Line", "BC", bus0="B_LV", bus1="C_LV", x=0.10, s_nom_extendable=True, s_nom_mod=30.0, s_nom_min=0.0, s_nom_max=150.0, capital_cost=3.0)
+
+    PyPSAStudyConverter(network, logger, current_dir / "tmp" / "transformer_extendable_modular", ".tsv").to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective("transformer_extendable_modular"), rel_tol=1e-6
+    )
+

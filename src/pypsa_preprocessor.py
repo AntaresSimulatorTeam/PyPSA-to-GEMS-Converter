@@ -78,9 +78,6 @@ class PyPSAPreprocessor:
             if not all(c.static[col] == expected):
                 raise ValueError(f"Converter supports only {type_label} with {desc}")
 
-        if len(self.pypsa_network.components.lines.static) != 0:
-            raise ValueError("Converter does not support Lines yet")
-
         ### PyPSA components : GlobalConstraint
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
@@ -196,9 +193,58 @@ class PyPSAPreprocessor:
         if non_extendable:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 
+    def _add_bus_theta_bounds(self) -> None:
+        """Add theta angle bounds to buses for DC LOPF. Fix reference bus angle to 0."""
+        if len(self.pypsa_network.buses) == 0:
+            return
+
+        self.pypsa_network.determine_network_topology()
+
+        # Re-fetch after determine_network_topology(), which may replace the internal DataFrame
+        buses_df = self.pypsa_network.components.buses.static
+
+        buses_df["theta_min"] = float("-inf")
+        buses_df["theta_max"] = float("inf")
+
+        index = buses_df.index
+        names = index.get_level_values(-1) if isinstance(index, pd.MultiIndex) else index
+
+        slack_buses: list[str] = []
+        for name in dict.fromkeys(names):
+            mask = (index.get_level_values(-1) == name) if isinstance(index, pd.MultiIndex) else (index == name)
+            if buses_df.loc[mask, "control"].iloc[0] == "Slack":
+                slack_buses.append(str(name))
+
+        if not slack_buses:
+            slack_buses = [str(names[0])]
+
+        for slack_bus in slack_buses:
+            mask = (index.get_level_values(-1) == slack_bus) if isinstance(index, pd.MultiIndex) else (index == slack_bus)
+            buses_df.loc[mask, "theta_min"] = 0.0
+            buses_df.loc[mask, "theta_max"] = 0.0
+
+    def _add_modular_flag(self, component_type: str) -> None:
+        """Compute modular expansion flag and ensure s_nom_mod is positive."""
+        df = getattr(self.pypsa_network, component_type)
+        if len(df) == 0:
+            return
+        df["modular"] = (df["s_nom_extendable"] & (df["s_nom_mod"] > 0)).astype(float)
+        df.loc[df["s_nom_mod"] == 0, "s_nom_mod"] = 1.0
+
     def _preprocess_pypsa_components(self) -> None:
         self._preprocess_pypsa_component("loads", False, "/")
         self._preprocess_pypsa_component("generators", True, "p_nom")
         self._preprocess_pypsa_component("stores", True, "e_nom")
         self._preprocess_pypsa_component("storage_units", True, "p_nom")
         self._preprocess_pypsa_component("links", True, "p_nom")
+        self._add_bus_theta_bounds()
+        if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
+            self.pypsa_network.calculate_dependent_values()
+        if len(self.pypsa_network.lines) > 0:
+            self._add_modular_flag("lines")
+            self._rename_pypsa_component("lines")
+            self._fix_capacity_non_extendable_attribute("lines", "s_nom")
+        if len(self.pypsa_network.transformers) > 0:
+            self._add_modular_flag("transformers")
+            self._rename_pypsa_component("transformers")
+            self._fix_capacity_non_extendable_attribute("transformers", "s_nom")
