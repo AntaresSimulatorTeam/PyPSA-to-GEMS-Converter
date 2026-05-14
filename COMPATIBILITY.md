@@ -51,7 +51,7 @@ When a new PyPSA version introduces features that the converter does not yet sup
 |---|---|---|
 | Constraint type | Only `primary_energy` type supported | Yes — `ValueError` since 0.0.1 |
 | Carrier attribute | Only `co2_emissions` supported | Yes — `ValueError` since 0.0.1 |
-| Sense `>=` | Only `<=` and `==` supported | Yes — `ValueError` since 0.0.1 |
+| Sense | Only `<=` and `==` supported | Yes — `ValueError` since 0.0.1 |
 
 ### Unsupported Parameters per Component
 
