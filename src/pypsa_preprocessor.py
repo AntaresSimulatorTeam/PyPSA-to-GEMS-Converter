@@ -84,14 +84,19 @@ class PyPSAPreprocessor:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"] == "co2_emissions"
 
     def _add_fictitious_carrier(self) -> None:
-        """Add fictitious carrier to the network"""
-        self.pypsa_network.add(
-            "Carrier",
-            "null",
-            co2_emissions=0,
-            max_growth=any_to_float(inf),
-        )
-        self.pypsa_network.carriers["carrier"] = self.pypsa_network.carriers.index.values
+        """Add fictitious carrier to the network if it does not already exist."""
+        idx = self.pypsa_network.carriers.index
+        existing = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
+        if "null" not in existing:
+            self.pypsa_network.add(
+                "Carrier",
+                "null",
+                co2_emissions=0,
+                max_growth=any_to_float(inf),
+            )
+        idx = self.pypsa_network.carriers.index
+        carrier_names = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
+        self.pypsa_network.carriers["carrier"] = carrier_names
 
     def _rename_buses(self) -> None:
         """
@@ -159,12 +164,13 @@ class PyPSAPreprocessor:
         carrier_series = carrier_series.where(carrier_series != "", "null")
         df["carrier"] = carrier_series
 
-        joined = df.join(
-            self.pypsa_network.carriers,
-            on="carrier",
-            how="left",
-            rsuffix="_carrier",
-        )
+        # PyPSA ≥1.2 set_scenarios expands carriers to (scenario, name) MultiIndex.
+        # Drop the scenario level so the join key (carrier name) matches the index.
+        carriers = self.pypsa_network.carriers
+        if isinstance(carriers.index, pd.MultiIndex):
+            carriers = carriers.reset_index(level=0, drop=True)
+            carriers = carriers[~carriers.index.duplicated(keep="first")]
+        joined = df.join(carriers, on="carrier", how="left", rsuffix="_carrier")
         # Set co2_emissions from scalar carrier map (join with MultiIndex left can yield NaN).
         # Prefer snapshot taken before set_scenarios;
         # PyPSA overwrite carrier co2_emissions after expansion.
