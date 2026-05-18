@@ -84,36 +84,29 @@ class PyPSAPreprocessor:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"] == "co2_emissions"
 
     def _add_fictitious_carrier(self) -> None:
-        """Add fictitious carrier to the network if it does not already exist."""
-        idx = self.pypsa_network.carriers.index
+        """Add fictitious carrier (co2_emissions=0) for components with no carrier.
+
+        n.add() on a scenarios network collapses the MultiIndex to a flat Index with
+        tuple keys, so we insert directly into the DataFrame instead.
+        """
+        carriers_df = self.pypsa_network.carriers
+        idx = carriers_df.index
         existing = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
-        if "null" not in existing:
-            if isinstance(idx, pd.MultiIndex):
-                # n.add() on a scenarios network collapses the MultiIndex to a flat
-                # Index with tuple keys, corrupting co2_emissions lookups. Insert directly.
-                scenarios = idx.get_level_values(0).unique()
-                carriers_df = self.pypsa_network.carriers
-                null_data = {
-                    col: ("" if carriers_df[col].dtype == object else 0.0)
-                    for col in carriers_df.columns
-                }
-                null_data["co2_emissions"] = 0.0
-                null_data["max_growth"] = any_to_float(inf)
-                null_idx = pd.MultiIndex.from_tuples(
-                    [(s, "null") for s in scenarios], names=idx.names
-                )
-                null_df = pd.DataFrame(null_data, index=null_idx)
-                self.pypsa_network.carriers = pd.concat([self.pypsa_network.carriers, null_df])
-            else:
-                self.pypsa_network.add(
-                    "Carrier",
-                    "null",
-                    co2_emissions=0,
-                    max_growth=any_to_float(inf),
-                )
-        idx = self.pypsa_network.carriers.index
-        carrier_names = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
-        self.pypsa_network.carriers["carrier"] = carrier_names
+        if "null" in existing:
+            return
+        if isinstance(idx, pd.MultiIndex):
+            scenarios = idx.get_level_values(0).unique()
+            null_data = {
+                col: ("" if carriers_df[col].dtype == object else 0.0)
+                for col in carriers_df.columns
+            }
+            null_data["co2_emissions"] = 0.0
+            null_data["max_growth"] = any_to_float(inf)
+            null_idx = pd.MultiIndex.from_tuples([(s, "null") for s in scenarios], names=idx.names)
+            null_df = pd.DataFrame(null_data, index=null_idx)
+            self.pypsa_network.carriers = pd.concat([carriers_df, null_df])
+        else:
+            self.pypsa_network.add("Carrier", "null", co2_emissions=0, max_growth=any_to_float(inf))
 
     def _rename_buses(self) -> None:
         """
