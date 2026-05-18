@@ -192,23 +192,13 @@ class PyPSAPreprocessor:
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
         ### Handling PyPSA objects without carriers
         df = getattr(self.pypsa_network, component_type)
-        # Ensure scalar carrier (MultiIndex + join can misalign; map is reliable)
         carrier_series = df["carrier"].apply(_carrier_scalar)
         carrier_series = carrier_series.where(carrier_series != "", "null")
         df["carrier"] = carrier_series
 
-        # PyPSA ≥1.2 set_scenarios expands carriers to (scenario, name) MultiIndex.
-        # Drop the scenario level so the join key (carrier name) matches the index.
-        carriers = self.pypsa_network.carriers
-        if isinstance(carriers.index, pd.MultiIndex):
-            carriers = carriers.reset_index(level=0, drop=True)
-            carriers = carriers[~carriers.index.duplicated(keep="first")]
-        joined = df.join(carriers, on="carrier", how="left", rsuffix="_carrier")
-        if "co2_emissions_carrier" in joined.columns:
-            joined = joined.drop(columns=["co2_emissions_carrier"])
-        joined["co2_emissions"] = self._carrier_co2_by_scenario(carrier_series)
+        df["co2_emissions"] = self._carrier_co2_by_scenario(carrier_series)
 
-        setattr(self.pypsa_network, component_type, joined)
+        setattr(self.pypsa_network, component_type, df)
 
         self._rename_pypsa_component(component_type)
 
