@@ -44,18 +44,6 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[st
     if hasattr(pypsa_network, "has_scenarios") and pypsa_network.has_scenarios:
         return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
 
-    # Snapshot carrier co2_emissions before set_scenarios
-    # PyPSA overwrite/reset them after expansion.
-    if hasattr(pypsa_network, "carriers") and "co2_emissions" in getattr(pypsa_network.carriers, "columns", []):
-        carriers_df = pypsa_network.carriers
-        idx = carriers_df.index
-        names = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
-        pypsa_network._carrier_co2_snapshot = {
-            str(names[i]): float(carriers_df["co2_emissions"].iloc[i]) for i in range(len(carriers_df))
-        }
-    else:
-        pypsa_network._carrier_co2_snapshot = {}
-
     # No scenarios: add single default scenario so all studies use the same multi-index path
     pypsa_network.set_scenarios({"default": 1})
     return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())

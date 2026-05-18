@@ -88,12 +88,29 @@ class PyPSAPreprocessor:
         idx = self.pypsa_network.carriers.index
         existing = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
         if "null" not in existing:
-            self.pypsa_network.add(
-                "Carrier",
-                "null",
-                co2_emissions=0,
-                max_growth=any_to_float(inf),
-            )
+            if isinstance(idx, pd.MultiIndex):
+                # n.add() on a scenarios network collapses the MultiIndex to a flat
+                # Index with tuple keys, corrupting co2_emissions lookups. Insert directly.
+                scenarios = idx.get_level_values(0).unique()
+                carriers_df = self.pypsa_network.carriers
+                null_data = {
+                    col: ("" if carriers_df[col].dtype == object else 0.0)
+                    for col in carriers_df.columns
+                }
+                null_data["co2_emissions"] = 0.0
+                null_data["max_growth"] = any_to_float(inf)
+                null_idx = pd.MultiIndex.from_tuples(
+                    [(s, "null") for s in scenarios], names=idx.names
+                )
+                null_df = pd.DataFrame(null_data, index=null_idx)
+                self.pypsa_network.carriers = pd.concat([self.pypsa_network.carriers, null_df])
+            else:
+                self.pypsa_network.add(
+                    "Carrier",
+                    "null",
+                    co2_emissions=0,
+                    max_growth=any_to_float(inf),
+                )
         idx = self.pypsa_network.carriers.index
         carrier_names = idx.get_level_values(-1) if isinstance(idx, pd.MultiIndex) else idx
         self.pypsa_network.carriers["carrier"] = carrier_names
@@ -156,6 +173,22 @@ class PyPSAPreprocessor:
             df.loc[df[capa_str + "_extendable"] == False, field] = df[capa_str]
             df.loc[df[capa_str + "_extendable"] == False, "capital_cost"] = 0.0
 
+    def _carrier_co2_by_scenario(self, carrier_series: pd.Series) -> pd.Series:
+        """Return co2_emissions for each component row, preserving per-scenario variation."""
+        carriers = self.pypsa_network.carriers
+        if "co2_emissions" not in carriers.columns:
+            return pd.Series(0.0, index=carrier_series.index)
+        if isinstance(carriers.index, pd.MultiIndex):
+            co2_col = carriers["co2_emissions"]
+            scenarios = carrier_series.index.get_level_values(0)
+            return pd.Series(
+                [float(co2_col.get((s, c), 0.0)) for s, c in zip(scenarios, carrier_series)],
+                index=carrier_series.index,
+            )
+        co2_map: dict[str, float] = carriers["co2_emissions"].to_dict()
+        co2_map.setdefault("null", 0.0)
+        return carrier_series.map(co2_map).fillna(0.0)
+
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
         ### Handling PyPSA objects without carriers
         df = getattr(self.pypsa_network, component_type)
@@ -171,26 +204,9 @@ class PyPSAPreprocessor:
             carriers = carriers.reset_index(level=0, drop=True)
             carriers = carriers[~carriers.index.duplicated(keep="first")]
         joined = df.join(carriers, on="carrier", how="left", rsuffix="_carrier")
-        # Set co2_emissions from scalar carrier map (join with MultiIndex left can yield NaN).
-        # Prefer snapshot taken before set_scenarios;
-        # PyPSA overwrite carrier co2_emissions after expansion.
-        co2_map = getattr(self.pypsa_network, "_carrier_co2_snapshot", None)
-        if co2_map is None and "co2_emissions" in self.pypsa_network.carriers.columns:
-            carriers_df = self.pypsa_network.carriers
-            names = carriers_df.index
-            co2_map = {}
-            for i in range(len(carriers_df)):
-                k = str(names[i])
-                if k not in co2_map:
-                    co2_map[k] = float(carriers_df["co2_emissions"].iloc[i])
-        if co2_map is not None:
-            co2_map = dict(co2_map)
-            co2_map.setdefault("null", 0.0)
-            joined["co2_emissions"] = carrier_series.astype(str).map(co2_map).fillna(0.0)
-        elif "co2_emissions_carrier" in joined.columns:
-            joined["co2_emissions"] = joined["co2_emissions_carrier"]
         if "co2_emissions_carrier" in joined.columns:
             joined = joined.drop(columns=["co2_emissions_carrier"])
+        joined["co2_emissions"] = self._carrier_co2_by_scenario(carrier_series)
 
         setattr(self.pypsa_network, component_type, joined)
 
