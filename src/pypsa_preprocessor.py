@@ -169,8 +169,6 @@ class PyPSAPreprocessor:
     def _carrier_co2_by_scenario(self, carrier_series: pd.Series) -> pd.Series:
         """Return co2_emissions for each component row, preserving per-scenario variation."""
         carriers = self.pypsa_network.carriers
-        if "co2_emissions" not in carriers.columns:
-            return pd.Series(0.0, index=carrier_series.index)
         if isinstance(carriers.index, pd.MultiIndex):
             co2_col = carriers["co2_emissions"]
             scenarios = carrier_series.index.get_level_values(0)
@@ -179,7 +177,6 @@ class PyPSAPreprocessor:
                 index=carrier_series.index,
             )
         co2_map: dict[str, float] = carriers["co2_emissions"].to_dict()
-        co2_map.setdefault("null", 0.0)
         return carrier_series.map(co2_map).fillna(0.0)
 
     def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
@@ -189,9 +186,8 @@ class PyPSAPreprocessor:
         carrier_series = carrier_series.where(carrier_series != "", "null")
         df["carrier"] = carrier_series
 
-        df["co2_emissions"] = self._carrier_co2_by_scenario(carrier_series)
-
-        setattr(self.pypsa_network, component_type, df)
+        if component_type in ("generators", "stores", "storage_units"):
+            df["co2_emissions"] = self._carrier_co2_by_scenario(carrier_series)
 
         self._rename_pypsa_component(component_type)
 
