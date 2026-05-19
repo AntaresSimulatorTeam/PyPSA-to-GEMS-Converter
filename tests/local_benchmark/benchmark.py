@@ -102,7 +102,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     start_time_conversion = time.time()
     logger.info("Converting PyPSA network to GEMS study")
     PyPSAStudyConverter(
-        pypsa_network=network, logger=logger, study_dir=PROJECT_ROOT / "tmp" / study_name, series_file_format=".tsv"
+        pypsa_network=network, study_dir=PROJECT_ROOT / "tmp" / study_name, series_file_format=".tsv"
     ).to_gems_study()
     end_time_conversion = time.time() - start_time_conversion
     benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = end_time_conversion

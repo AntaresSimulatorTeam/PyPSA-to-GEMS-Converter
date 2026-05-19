@@ -1,15 +1,65 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pypsa-to-gems-converter"
 version = "0.0.1"
-license = {text = "MPL-2.0"}
-dependencies = ["pandas==2.2.3", "polars>=0.20.0", "pyarrow", "pypsa==1.0.0", "pyyaml==6.0.2", "pydantic==2.11.7"]
+description = "Convert PyPSA networks into GEMS study folders for modelling and simulation."
+readme = "README.md"
+license = "MPL-2.0"
+license-files = ["LICENSE", "AUTHORS.txt"]
+authors = [
+    { name = "Dusan Paripovic @dusanparipovic" },
+    { name = "Nikola Ilic @nikolaredstork" },
+    { name = "Thomas Bittar @tbittar" },
+    { name = "Antoine Oustry @aoustry"}
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pandas==2.2.3",
+    "polars>=0.20.0",
+    "pyarrow",
+    "pypsa==1.0.0",
+    "pyyaml==6.0.2",
+    "pydantic==2.12.5",
+]
+classifiers = [
+    # Classifiers here: https://pypi.org/classifiers/
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Repository = "https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter"
+"Bug Tracker" = "https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter/issues"
+
+[project.scripts]
+pypsa-to-gems = "src.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest==7.0.1",
+    "pytest-xdist==3.8.0",
+    "highspy>=1.5.0",
+    "ruff~=0.9.6",
+    "mypy~=1.15.0",
+    "pre-commit~=4.1.0",
+    "pandas-stubs>=2.0.0",
+    "types-PyYAML>=6.0.0",
+]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src", "src.*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.ipynb"]
 
 [tool.ruff]
 line-length = 120

@@ -21,12 +21,14 @@ from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
 from src.utils import check_time_series_format, determine_pypsa_study_type
 
+CONVERTER_LOGGER_NAME = "pypsa_to_gems_converter"
+_CONVERTER_LOG = logging.getLogger(CONVERTER_LOGGER_NAME)
+
 
 class PyPSAStudyConverter:
     def __init__(
         self,
         pypsa_network: Network,
-        logger: logging.Logger,
         study_dir: Path,
         series_file_format: str,
         solver_name: str = "highs",
@@ -35,8 +37,12 @@ class PyPSAStudyConverter:
         Initialize processor. The network is deep-copied internally so the caller's
         object is never mutated. Note: do not pass a network that has been optimized
         (network.optimize()), as it contains non-copyable solver state (e.g. HiGHS).
+
+        Logging uses the logger named ``pypsa_to_gems_converter``. To see INFO/DEBUG
+        messages, configure the standard library (e.g. ``logging.basicConfig``) or attach
+        handlers to that logger or the root logger.
         """
-        self.logger = logger
+        self.logger = _CONVERTER_LOG
         self.study_dir = study_dir
         self.pypsa_network = copy.deepcopy(pypsa_network)
         self.pypsalib_id = "pypsa_models"
