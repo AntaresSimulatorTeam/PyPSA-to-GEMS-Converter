@@ -1,3 +1,15 @@
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+
 import logging
 from pathlib import Path
 
@@ -87,7 +99,6 @@ def test_write_and_register_time_series_two_stage_stochastic_with_scenario_overr
 
     PyPSAStudyConverter(
         scenario_network,
-        logger,
         Path("tmp") / "test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides",
         "csv",
     ).to_gems_study()
