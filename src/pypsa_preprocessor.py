@@ -17,6 +17,10 @@ from pypsa import Network
 
 from src.utils import any_to_float
 
+# Component types that have an emission_factor parameter in the GEMS model.
+# Add a type here when its GEMS model gains emission_factor.
+_EMISSION_FACTOR_COMPONENTS: frozenset[str] = frozenset({"generators", "stores", "storage_units"})
+
 
 def _carrier_scalar(val: Any) -> str:
     """Extract scalar carrier name (PyPSA with scenarios store carrier as array per row)."""
@@ -179,19 +183,23 @@ class PyPSAPreprocessor:
         co2_map: dict[str, float] = carriers["co2_emissions"].to_dict()
         return carrier_series.map(co2_map).fillna(0.0)
 
-    def _preprocess_pypsa_component(self, component_type: str, non_extendable: bool, attribute_name: str) -> None:
-        ### Handling PyPSA objects without carriers
+    def _preprocess_pypsa_component(self, component_type: str, attribute_name: str | None = None) -> None:
+        """Normalize carriers, rename, and optionally compute co2_emissions and fix capacity.
+
+        co2_emissions is added only for types listed in _EMISSION_FACTOR_COMPONENTS.
+        attribute_name controls capacity fixing: pass None to skip (e.g. loads).
+        """
         df = getattr(self.pypsa_network, component_type)
         carrier_series = df["carrier"].apply(_carrier_scalar)
         carrier_series = carrier_series.where(carrier_series != "", "null")
         df["carrier"] = carrier_series
 
-        if component_type in ("generators", "stores", "storage_units"):
+        if component_type in _EMISSION_FACTOR_COMPONENTS:
             df["co2_emissions"] = self._carrier_co2_by_scenario(carrier_series)
 
         self._rename_pypsa_component(component_type)
 
-        if non_extendable:
+        if attribute_name is not None:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 
     def _add_bus_theta_bounds(self) -> None:
@@ -233,11 +241,11 @@ class PyPSAPreprocessor:
         df.loc[df["s_nom_mod"] == 0, "s_nom_mod"] = 1.0
 
     def _preprocess_pypsa_components(self) -> None:
-        self._preprocess_pypsa_component("loads", False, "/")
-        self._preprocess_pypsa_component("generators", True, "p_nom")
-        self._preprocess_pypsa_component("stores", True, "e_nom")
-        self._preprocess_pypsa_component("storage_units", True, "p_nom")
-        self._preprocess_pypsa_component("links", True, "p_nom")
+        self._preprocess_pypsa_component("loads")
+        self._preprocess_pypsa_component("generators", "p_nom")
+        self._preprocess_pypsa_component("stores", "e_nom")
+        self._preprocess_pypsa_component("storage_units", "p_nom")
+        self._preprocess_pypsa_component("links", "p_nom")
         self._add_bus_theta_bounds()
         if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()
