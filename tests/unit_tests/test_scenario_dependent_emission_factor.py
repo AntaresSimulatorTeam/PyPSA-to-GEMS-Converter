@@ -9,16 +9,13 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # This file is part of the Antares project.
-import logging
 from pathlib import Path
 
-import pandas as pd  # type: ignore[import-untyped]
+import pandas as pd
 import pytest
-from pypsa import Network  # type: ignore[import-untyped]
+from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
-
-logger = logging.getLogger(__name__)
 
 
 def _build_three_scenario_network() -> Network:
@@ -70,7 +67,6 @@ def test_scenario_dependent_emission_factor_tsv_created(tmp_path: Path) -> None:
 
     PyPSAStudyConverter(
         pypsa_network=network,
-        logger=logger,
         study_dir=study_dir,
         series_file_format=".tsv",
     ).to_gems_study()
@@ -102,7 +98,6 @@ def test_uniform_emission_factor_writes_scalar(tmp_path: Path) -> None:
     study_dir = tmp_path / "uniform_emission_study"
     PyPSAStudyConverter(
         pypsa_network=n,
-        logger=logger,
         study_dir=study_dir,
         series_file_format=".tsv",
     ).to_gems_study()
