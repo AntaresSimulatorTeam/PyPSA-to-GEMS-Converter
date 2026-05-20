@@ -80,7 +80,7 @@ def test_scenario_dependent_emission_factor_tsv_created(tmp_path: Path) -> None:
     assert len(df) == 1, "Expected a single data row (static scenario parameter)"
     assert df.shape[1] == 3, f"Expected 3 scenario columns, got {df.shape[1]}"
     values = df.iloc[0].tolist()
-    assert values == pytest.approx(sorted([0.1, 0.2, 0.5]))
+    assert values == [0.1, 0.2, 0.5]
 
 
 def test_uniform_emission_factor_writes_scalar(tmp_path: Path) -> None:
