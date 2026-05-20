@@ -12,7 +12,7 @@
 from pathlib import Path
 
 import pandas as pd
-import pytest
+import yaml
 from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
@@ -72,15 +72,17 @@ def test_scenario_dependent_emission_factor_tsv_created(tmp_path: Path) -> None:
     ).to_gems_study()
 
     # The renamed component is "generator_gas_gen"; pypsa param is "co2_emissions"
-    tsv_path = study_dir / "systems" / "input" / "data-series" / "ScenarioEmissionTest_generator_gas_gen_co2_emissions.tsv"
+    tsv_path = (
+        study_dir / "systems" / "input" / "data-series" / "ScenarioEmissionTest_generator_gas_gen_co2_emissions.tsv"
+    )
     assert tsv_path.exists(), f"Expected scenario emission_factor TSV at {tsv_path}"
 
     # TSV is written without a header (include_header=False); the single row IS the data.
     df = pd.read_csv(tsv_path, sep="\t", header=None)
     assert len(df) == 1, "Expected a single data row (static scenario parameter)"
     assert df.shape[1] == 3, f"Expected 3 scenario columns, got {df.shape[1]}"
-    values = sorted(df.iloc[0].tolist())
-    assert values == pytest.approx(sorted([0.1, 0.2, 0.5]))
+    values = df.iloc[0].tolist()
+    assert values == [0.1, 0.2, 0.5]
 
 
 def test_uniform_emission_factor_writes_scalar(tmp_path: Path) -> None:
@@ -105,3 +107,15 @@ def test_uniform_emission_factor_writes_scalar(tmp_path: Path) -> None:
     series_dir = study_dir / "systems" / "input" / "data-series"
     tsv_files = list(series_dir.glob("*co2_emissions*")) if series_dir.exists() else []
     assert tsv_files == [], f"Expected no scenario emission TSV, found {tsv_files}"
+
+    system_yml_path = study_dir / "systems" / "input" / "system.yml"
+    system_data = yaml.safe_load(system_yml_path.read_text(encoding="utf-8"))
+    components = system_data["system"]["components"]
+
+    # Component ids are of the form "generator_<original_name>".
+    coal_gen = next(c for c in components if c["id"] == "generator_coal_gen")
+    params = {p["id"]: p for p in (coal_gen.get("parameters") or [])}
+    assert "emission_factor" in params, f"Expected emission_factor in generator_coal_gen parameters: {params.keys()}"
+    assert params["emission_factor"]["value"] == 0.3
+    assert params["emission_factor"].get("scenario_dependent", False) is False
+    assert params["emission_factor"].get("time_dependent", False) is False

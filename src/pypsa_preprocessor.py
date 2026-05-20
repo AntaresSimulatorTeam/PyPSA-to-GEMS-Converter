@@ -100,10 +100,7 @@ class PyPSAPreprocessor:
             return
         if isinstance(idx, pd.MultiIndex):
             scenarios = idx.get_level_values(0).unique()
-            null_data = {
-                col: ("" if carriers_df[col].dtype == object else 0.0)
-                for col in carriers_df.columns
-            }
+            null_data = {col: ("" if carriers_df[col].dtype == object else 0.0) for col in carriers_df.columns}
             null_data["co2_emissions"] = 0.0
             null_data["max_growth"] = any_to_float(inf)
             null_idx = pd.MultiIndex.from_tuples([(s, "null") for s in scenarios], names=idx.names)
