@@ -5,8 +5,6 @@ on:
     branches:
       - 'release/**'
       - 'hotfix/**'
-    paths:
-      - 'resources/pypsa_models/*.yml'
   workflow_dispatch:
 
 permissions:

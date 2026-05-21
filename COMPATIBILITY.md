@@ -4,7 +4,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 
 | Converter | PyPSA | Antares-Simulator | Notes |
 |-----------|-------|-------------------|-------|
-| 0.0.1     | 1.0.0 | 9.3.7             | Initial release |
+| 0.0.1     | 1.2.0 | 9.3.7             | Initial release |
 
 ## Versioning Policy
 
@@ -18,7 +18,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
   - **Minor** — Bug fix or improvement to an existing model
   - **Patch** — Non-functional change (rename variable/parameter, internal refactor)
 
-- **PyPSA** — tracked version in `requirements.txt` (pinned via `pypsa==x.y.z`). The version against which E2E tests are run.
+- **PyPSA** — tracked version in `pyproject.toml` (`dependencies`, pinned via `pypsa==x.y.z`). The version against which E2E tests are run.
 
 - **Antares-Simulator** — tracked version in `dependencies.json` (`antares_version`). The version downloaded by CI and used for E2E tests.
 
@@ -35,6 +35,7 @@ When a new PyPSA version introduces features that the converter does not yet sup
 | LineTypes | Supported implicitly — `type` is resolved into `x`/`x_pu` by `calculate_dependent_values()` before conversion | N/A |
 | TransformerTypes | Supported implicitly — `type` is resolved into `x_pu_eff` by `calculate_dependent_values()` before conversion | N/A |
 | ShuntImpedances | Not used in DC LOPF | No — silently ignored |
+| Process | New component introduced in PyPSA 1.1.0 — no equivalent GEMS model exists yet | No — silently ignored |
 
 ### Network-Level Constraints
 
@@ -75,6 +76,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
 | `p_nom_mod` | Modular integer capacity expansion — not implemented |
 | `p_set` | Fixed active power output — not implemented |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
 | `committable` | Unit commitment (MILP) — not supported, enforced to be False |
 | `start_up_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
@@ -118,6 +122,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
 | `p_nom_mod` | Modular integer capacity expansion — not implemented |
 | `p_set` | Fixed dispatch set point — not implemented |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not implemented |
 | `committable` | Unit commitment (MILP) — not implemented |
 | `start_up_cost` | Unit commitment parameter — not implemented (requires `committable=True` support) |
@@ -151,9 +158,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 
 | Parameter | Note |
 |---|---|
-| `overnight_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
-| `discount_rate` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
-| `fom_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `overnight_cost` | Available from PyPSA 1.1.0, not implemented |
+| `discount_rate` | Available from PyPSA 1.1.0, not implemented |
+| `fom_cost` | Available from PyPSA 1.1.0, not implemented |
 | `active` | Only active lines are built — inactive ones are dropped by the converter |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
@@ -181,9 +188,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 
 | Parameter | Note |
 |---|---|
-| `overnight_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
-| `discount_rate` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
-| `fom_cost` | Available from PyPSA 1.1.0 — not supported in 1.0.0 |
+| `overnight_cost` | Available from PyPSA 1.1.0, not implemented |
+| `discount_rate` | Available from PyPSA 1.1.0, not implemented |
+| `fom_cost` | Available from PyPSA 1.1.0, not implemented |
 | `active` | Only active transformers are built — inactive ones are dropped by the converter |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
@@ -216,6 +223,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 |---|---|
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
 | `p_nom_mod` | Modular integer capacity expansion — not implemented |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `p_dispatch_set` | Fixed active power dispatch set point — not implemented |
 | `p_store_set` | Fixed active power charging set point — not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
@@ -247,6 +257,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 |---|---|
 | `e_nom_extendable` | Not validated — converter uses `e_nom_min`/`e_nom_max` directly |
 | `e_nom_mod` | Modular integer capacity expansion — not implemented |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
+| `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `e_set` | Fixed energy level set point for optimisation — not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
 | `sign` | Only `sign = 1` supported — enforced |
@@ -278,5 +291,5 @@ Parameters not relevant for DC LOPF (silently ignored):
 |-----------|----------------|--------------|
 | Converter | 0.0.1 | `pyproject.toml` |
 | PyPSA Models Library | 1.0.0 | `resources/pypsa_models/pypsa_models.yml` |
-| PyPSA | 1.0.0 | `requirements.txt` |
+| PyPSA | 1.2.0 | `pyproject.toml` |
 | Antares-Simulator | 9.3.7 | `dependencies.json` |
