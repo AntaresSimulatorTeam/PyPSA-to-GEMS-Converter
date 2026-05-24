@@ -16,6 +16,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.patches import Patch
 from pypsa import Network
 
 # Project root: tests/utils.py -> parents[1] = project root
@@ -151,6 +152,10 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         "build_optimization_problem_time_pypsa",
         "pypsa_optimization_time",
         "total_time_pypsa",
+        "modeler_parsing_time",
+        "modeler_build_time",
+        "modeler_solve_time",
+        "modeler_writing_time",
         "modeler_total_time",
         "number_of_constraints_pypsa",
         "number_of_constraints_modeler",
@@ -192,31 +197,49 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Shunt Impedances: {int(_n(row['number_of_shunt_impedances']))}")
 
     print("\n⏱️  TIMING INFORMATION:")
-    print(f"  Parsing Time: {_n(row['parsing_time']):.4f} s")
+    print(f"  Parsing Time (PyPSA .nc load): {_n(row['parsing_time']):.4f} s")
     print(f"  Preprocessing Time (PyPSA): {_n(row['preprocessing_time_pypsa_network']):.4f} s")
     print(f"  PyPSA to GEMS Conversion Time: {_n(row['pypsa_to_gems_conversion_time']):.4f} s")
     print(f"  Build Optimization Problem Time (PyPSA): {_n(row['build_optimization_problem_time_pypsa']):.4f} s")
     print(f"  PyPSA Optimization Time: {_n(row['pypsa_optimization_time']):.4f} s")
     print(f"  PyPSA Total Time: {_n(row['total_time_pypsa']):.4f} s")
-    print(f"  Modeler Total Time: {_n(row['modeler_total_time']):.4f} s")
+    modeler_parsing = _n(row.get("modeler_parsing_time"))
+    modeler_writing = _n(row.get("modeler_writing_time"))
+    print(f"  Modeler Parsing Time (YAML load): {modeler_parsing:.4f} s")
+    print(f"  Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
+    print(f"  Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
+    print(f"  Modeler Writing Time (simulation table): {modeler_writing:.4f} s")
+    # modeler_total_time in CSV = parsing + build + solve + writing (Antares binary)
+    print(f"  Modeler (parsing+build+solve+writing) Time: {_n(row['modeler_total_time']):.4f} s")
+    preproc = _n(row.get("preprocessing_time_pypsa_network"))
+    conversion = _n(row.get("pypsa_to_gems_conversion_time"))
+    full_modeler_path = preproc + conversion + _n(row["modeler_total_time"])
+    print(f"  Full Modeler Path (preproc + conversion + parsing + build + solve + writing): {full_modeler_path:.4f} s")
 
-    n_const_pypsa = _n(row["number_of_constraints_pypsa"])
-    n_const_modeler = _n(row["number_of_constraints_modeler"])
-    n_var_pypsa = _n(row["number_of_variables_pypsa"])
-    n_var_modeler = _n(row["number_of_variables_modeler"])
+    # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
+    has_modeler_stats = "number_of_constraints_modeler" in row.index and "number_of_variables_modeler" in row.index
+    n_const_pypsa = _n(row.get("number_of_constraints_pypsa"))
+    n_var_pypsa = _n(row.get("number_of_variables_pypsa"))
     print("\n📈 OPTIMIZATION PROBLEM SIZE:")
     print(f"  PyPSA Constraints: {int(n_const_pypsa)}")
-    print(f"  Modeler Constraints: {int(n_const_modeler)}")
-    if n_const_modeler:
-        print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
-    else:
-        print("  Constraints Ratio (PyPSA/Modeler): N/A")
     print(f"  PyPSA Variables: {int(n_var_pypsa)}")
-    print(f"  Modeler Variables: {int(n_var_modeler)}")
-    if n_var_modeler:
-        print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+    if has_modeler_stats:
+        n_const_modeler = _n(row.get("number_of_constraints_modeler"))
+        n_var_modeler = _n(row.get("number_of_variables_modeler"))
+        print(f"  Modeler Constraints: {int(n_const_modeler)}")
+        if n_const_modeler:
+            print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
+        else:
+            print("  Constraints Ratio (PyPSA/Modeler): N/A")
+        print(f"  Modeler Variables: {int(n_var_modeler)}")
+        if n_var_modeler:
+            print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+        else:
+            print("  Variables Ratio (PyPSA/Modeler): N/A")
     else:
-        print("  Variables Ratio (PyPSA/Modeler): N/A")
+        n_const_modeler = 0
+        n_var_modeler = 0
+        print("  Modeler constraints/variables: N/A (not reported by this Antares version)")
 
     pypsa_obj = _n(row["pypsa_objective"])
     modeler_obj = _n(row["modeler_objective_value"])
@@ -233,114 +256,250 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Modeler Solver Parameters: {row['modeler_solver_parameters']}")
 
     total_pypsa = _n(row["total_time_pypsa"])
-    total_modeler = _n(row["modeler_total_time"])
+    total_modeler = _n(row["modeler_total_time"])  # parsing+build+solve+writing (Antares binary)
+    full_modeler_path = preproc + conversion + total_modeler
     print("\n📊 PERFORMANCE COMPARISON:")
-    time_ratio = total_pypsa / total_modeler if total_modeler else float("nan")
-    print(f"  Time Ratio (PyPSA/Modeler): {time_ratio:.4f}x")
-    if pd.notna(time_ratio) and time_ratio > 0:
-        if time_ratio < 1:
-            print(f"  → PyPSA is {1 / time_ratio:.2f}x faster")
+    time_ratio_binary = total_pypsa / total_modeler if total_modeler else float("nan")
+    print(f"  Time Ratio PyPSA / Modeler (parsing+build+solve+writing): {time_ratio_binary:.4f}x")
+    time_ratio_full = total_pypsa / full_modeler_path if full_modeler_path else float("nan")
+    print(f"  Time Ratio PyPSA / Full modeler path: {time_ratio_full:.4f}x")
+    if pd.notna(time_ratio_binary) and time_ratio_binary > 0:
+        if time_ratio_binary < 1:
+            print(f"  → PyPSA is {1 / time_ratio_binary:.2f}x faster (vs modeler binary)")
         else:
-            print(f"  → Modeler is {time_ratio:.2f}x faster")
-    else:
+            print(f"  → Modeler binary is {time_ratio_binary:.2f}x faster")
+    if pd.notna(time_ratio_full) and time_ratio_full > 0:
+        if time_ratio_full < 1:
+            print(f"  → PyPSA is {1 / time_ratio_full:.2f}x faster (vs full modeler path)")
+        else:
+            print(f"  → Full modeler path is {time_ratio_full:.2f}x faster")
+    if pd.isna(time_ratio_binary) and pd.isna(time_ratio_full):
         print("  → N/A (missing or invalid times)")
 
     print("\n" + "=" * 80)
 
-    # Create visualizations
-    plt.figure(figsize=(16, 12))
+    # Create visualizations: top row (4 plots) + bottom row (3 plots + wide end-to-end)
+    fig = plt.figure(figsize=(20, 12))
+    from matplotlib.gridspec import GridSpec
+
+    gs = GridSpec(2, 8, figure=fig, hspace=0.6, wspace=0.5)
 
     # 1. Objective Value Comparison
-    ax1 = plt.subplot(2, 3, 1)
+    ax1 = fig.add_subplot(gs[0, 0:2])
     categories = ["PyPSA", "Modeler"]
     objectives = [pypsa_obj, modeler_obj]
     bars = ax1.bar(categories, objectives, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax1.set_ylabel("Objective Value", fontsize=11)
-    ax1.set_title("Objective Value Comparison", fontsize=12, fontweight="bold")
+    ax1.set_title("Objective Value Comparison", fontsize=12, fontweight="bold", pad=10)
     ax1.grid(True, alpha=0.3, axis="y")
     # Add value labels on bars
     for bar, val in zip(bars, objectives):
         height = bar.get_height()
         ax1.text(bar.get_x() + bar.get_width() / 2.0, height, f"{val:.2e}", ha="center", va="bottom", fontsize=9)
 
-    # 2. Time Comparison
-    ax2 = plt.subplot(2, 3, 2)
-    times = [total_pypsa, total_modeler]
-    bars = ax2.bar(categories, times, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
+    # Used in ax2, ax6 (modeler pie), ax7 (modeler pipeline stack)
+    preproc_time = _n(row.get("preprocessing_time_pypsa_network"))
+    conversion_time = _n(row.get("pypsa_to_gems_conversion_time"))
+    modeler_parsing_time_plot = _n(row.get("modeler_parsing_time"))
+    modeler_writing_time_plot = _n(row.get("modeler_writing_time"))
+    # PyPSA parsing = loading the .nc file; tracked separately, NOT included in build time
+    pypsa_parsing_time_plot = _n(row.get("parsing_time"))
+
+    # 2. Total time: parsing+build+solve for PyPSA (no writing); parsing+build+solve+writing for Modeler
+    ax2 = fig.add_subplot(gs[0, 2:4])
+    pypsa_build = _n(row["build_optimization_problem_time_pypsa"])
+    pypsa_solve = _n(row["pypsa_optimization_time"])
+    modeler_build = _n(row.get("modeler_build_time"))
+    modeler_solve = _n(row.get("modeler_solve_time"))
+    if modeler_build == 0 and modeler_solve == 0 and total_modeler > 0:
+        modeler_build = 0.0
+        modeler_solve = total_modeler
+
+    # PyPSA: parsing (.nc load) / build / solve — no writing (results stay in-memory)
+    # Modeler: parsing (YAML load) / build / solve / writing (simulation table to disk)
+    bottom_pypsa: float = 0.0
+    bottom_modeler: float = 0.0
+    layer_defs = [
+        ("Parsing", pypsa_parsing_time_plot, modeler_parsing_time_plot, "#2e86ab"),
+        ("Build", pypsa_build, modeler_build, "steelblue"),
+        ("Solve", pypsa_solve, modeler_solve, "coral"),
+        ("Writing", 0.0, modeler_writing_time_plot, "#f18f01"),
+    ]
+    bar_refs = []
+    for label, pypsa_val, mod_val, color in layer_defs:
+        b = ax2.bar(
+            ["PyPSA", "Modeler"],
+            [pypsa_val, mod_val],
+            bottom=[bottom_pypsa, bottom_modeler],
+            label=label,
+            color=color,
+            alpha=0.8,
+            edgecolor="black",
+        )
+        bar_refs.append(b)
+        bottom_pypsa += pypsa_val
+        bottom_modeler += mod_val
+
     ax2.set_ylabel("Time (seconds)", fontsize=11)
-    ax2.set_title("Total Time Comparison", fontsize=12, fontweight="bold")
+    ax2.set_title("Time Comparison (Build + Solve)", fontsize=12, fontweight="bold", pad=10)
     ax2.grid(True, alpha=0.3, axis="y")
-    for bar, val in zip(bars, times):
-        height = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width() / 2.0, height, f"{val:.3f}s", ha="center", va="bottom", fontsize=9)
+    for i, total_h in enumerate([bottom_pypsa, bottom_modeler]):
+        if total_h > 0:
+            ax2.text(i, total_h, f"{total_h:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax2.legend(fontsize=9)
 
     # 3. Constraints Comparison
-    ax3 = plt.subplot(2, 3, 3)
+    ax3 = fig.add_subplot(gs[0, 4:6])
     constraints = [int(n_const_pypsa), int(n_const_modeler)]
     bars = ax3.bar(categories, constraints, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax3.set_ylabel("Number of Constraints", fontsize=11)
-    ax3.set_title("Constraints Comparison", fontsize=12, fontweight="bold")
+    ax3.set_title("Constraints Comparison", fontsize=12, fontweight="bold", pad=10)
     ax3.grid(True, alpha=0.3, axis="y")
     for bar, val in zip(bars, constraints):
         height = bar.get_height()
         ax3.text(bar.get_x() + bar.get_width() / 2.0, height, f"{val:,}", ha="center", va="bottom", fontsize=9)
 
     # 4. Variables Comparison
-    ax4 = plt.subplot(2, 3, 4)
+    ax4 = fig.add_subplot(gs[0, 6:8])
     variables = [int(n_var_pypsa), int(n_var_modeler)]
     bars = ax4.bar(categories, variables, color=["steelblue", "coral"], alpha=0.7, edgecolor="black")
     ax4.set_ylabel("Number of Variables", fontsize=11)
-    ax4.set_title("Variables Comparison", fontsize=12, fontweight="bold")
+    ax4.set_title("Variables Comparison", fontsize=12, fontweight="bold", pad=10)
     ax4.grid(True, alpha=0.3, axis="y")
     for bar, val in zip(bars, variables):
         height = bar.get_height()
         ax4.text(bar.get_x() + bar.get_width() / 2.0, height, f"{val:,}", ha="center", va="bottom", fontsize=9)
 
-    # 5. Time Breakdown (PyPSA)
-    ax5 = plt.subplot(2, 3, 5)
-    pypsa_times = {
-        "Preprocessing": _n(row["preprocessing_time_pypsa_network"]),
-        "Conversion": _n(row["pypsa_to_gems_conversion_time"]),
-        "Build Model": _n(row["build_optimization_problem_time_pypsa"]),
-        "Optimization": _n(row["pypsa_optimization_time"]),
-    }
-    ax5.pie(
-        list(pypsa_times.values()),
-        labels=list(pypsa_times.keys()),
-        autopct="%1.1f%%",
-        startangle=90,
-        colors=plt.cm.Set3.colors,
-    )
-    ax5.set_title("PyPSA Time Breakdown", fontsize=12, fontweight="bold")
+    # 5. PyPSA Time Breakdown (parsing / preprocessing / build / solve) — no writing phase
+    ax5 = fig.add_subplot(gs[1, 0:2])
+    pypsa_pie_labels = ["Parsing (.nc)", "Preprocessing", "Build", "Solve"]
+    pypsa_pie_vals = [
+        pypsa_parsing_time_plot,
+        preproc_time,
+        _n(row["build_optimization_problem_time_pypsa"]),
+        _n(row["pypsa_optimization_time"]),
+    ]
+    pypsa_pie_colors = ["#2e86ab", "#5c7a29", "steelblue", "coral"]
+    filtered_pypsa = [(lbl, v, c) for lbl, v, c in zip(pypsa_pie_labels, pypsa_pie_vals, pypsa_pie_colors) if v > 0]
+    if filtered_pypsa:
+        fp_labels, fp_vals, fp_colors = zip(*filtered_pypsa)
+        ax5.pie(fp_vals, labels=fp_labels, autopct="%1.1f%%", startangle=90, colors=fp_colors)
+    else:
+        ax5.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax5.transAxes)
+    ax5.set_title("PyPSA Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
-    # 6. Objective Difference
-    ax6 = plt.subplot(2, 3, 6)
-    diff_pct = obj_diff_pct
-    colors_bar = ["green" if abs(diff_pct) < 0.01 else "orange" if abs(diff_pct) < 1 else "red"]
-    bars = ax6.bar(["Objective\nDifference"], [diff_pct], color=colors_bar, alpha=0.7, edgecolor="black")
-    ax6.axhline(y=0, color="black", linestyle="-", linewidth=1)
-    ax6.set_ylabel("Relative Difference (%)", fontsize=11)
-    ax6.set_title("Objective Difference\n(PyPSA - Modeler) / Modeler × 100%", fontsize=12, fontweight="bold")
-    ax6.grid(True, alpha=0.3, axis="y")
-    for bar, val in zip(bars, [diff_pct]):
-        height = bar.get_height()
-        ax6.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height,
-            f"{val:+.4f}%",
-            ha="center",
-            va="bottom" if val >= 0 else "top",
-            fontsize=10,
-            fontweight="bold",
+    # 6. Modeler Time Breakdown (parsing / build / solve / writing)
+    ax6 = fig.add_subplot(gs[1, 2:4])
+    _modeler_build = _n(row.get("modeler_build_time"))
+    _modeler_solve = _n(row.get("modeler_solve_time"))
+    if _modeler_build == 0 and _modeler_solve == 0 and total_modeler > 0:
+        _modeler_build = 0.0
+        _modeler_solve = total_modeler
+    modeler_pie_labels = ["Parsing (YAML + systems)", "Build", "Solve", "Writing sim. table"]
+    modeler_pie_vals = [modeler_parsing_time_plot, _modeler_build, _modeler_solve, modeler_writing_time_plot]
+    modeler_pie_colors = ["#2e86ab", "steelblue", "coral", "#f18f01"]
+    # Only include non-zero slices
+    filtered = [(lbl, v, c) for lbl, v, c in zip(modeler_pie_labels, modeler_pie_vals, modeler_pie_colors) if v > 0]
+    if filtered:
+        f_labels, f_vals, f_colors = zip(*filtered)
+        ax6.pie(f_vals, labels=f_labels, autopct="%1.1f%%", startangle=90, colors=f_colors)
+    else:
+        ax6.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax6.transAxes)
+    ax6.set_title("Modeler Time Breakdown (binary)", fontsize=12, fontweight="bold", pad=10)
+
+    # 7. Modeler only: full pipeline stack (preprocessing / conversion / parsing / build / solve / writing)
+    ax7 = fig.add_subplot(gs[1, 4:6])
+    modeler_build_time = _n(row.get("modeler_build_time"))
+    modeler_solve_time = _n(row.get("modeler_solve_time"))
+    if modeler_build_time == 0 and modeler_solve_time == 0 and total_modeler > 0:
+        modeler_build_time = 0.0
+        modeler_solve_time = total_modeler
+    modeler_stages = ["Preprocessing", "Conversion", "Parsing", "Build", "Solve", "Writing sim. table"]
+    modeler_stage_times = [
+        preproc_time,
+        conversion_time,
+        modeler_parsing_time_plot,
+        modeler_build_time,
+        modeler_solve_time,
+        modeler_writing_time_plot,
+    ]
+    # Distinct colors for modeler pipeline stages
+    colors_stack = ["#2e86ab", "#a23b72", "#5c7a29", "#f18f01", "#c73e1d", "#6b4c9a"]
+    left: float = 0.0
+    total_pipeline = sum(modeler_stage_times)
+    legend_handles = []
+    legend_labels = []
+
+    for i, (stage, t) in enumerate(zip(modeler_stages, modeler_stage_times)):
+        if t > 0:
+            bar = ax7.bar(
+                0,
+                t,
+                width=0.5,
+                bottom=left,
+                color=colors_stack[i],
+                alpha=0.85,
+                edgecolor="black",
+            )
+            legend_handles.append(bar.patches[0])
+            left += t
+        else:
+            legend_handles.append(Patch(facecolor=colors_stack[i], alpha=0.85, edgecolor="black"))
+        pct = f" ({100 * t / total_pipeline:.1f}%)" if total_pipeline else ""
+        legend_labels.append(f"{stage}: {t:.3f}s{pct}")
+    ax7.set_xlim(-0.5, 0.5)
+    ax7.set_xticks([0])
+    ax7.set_xticklabels(["Modeler"])
+    ax7.set_ylabel("Time (seconds)", fontsize=11)
+    if total_pipeline > 0:
+        ax7.text(0, total_pipeline, f"{total_pipeline:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax7.set_title("Modeler Full Pipeline", fontsize=12, fontweight="bold", pad=10)
+    ax7.legend(legend_handles, legend_labels, title="Stage", fontsize=9)
+    ax7.grid(True, alpha=0.3, axis="y")
+
+    # 8. End-to-end comparison: full PyPSA path vs full Modeler path (side-by-side stacked bars)
+    # PyPSA:   Parsing (.nc) / Preprocessing / Build / Solve
+    # Modeler: Preprocessing / Conversion / Parsing (YAML) / Build / Solve / Writing sim. table
+    ax8 = fig.add_subplot(gs[1, 6:8])
+    e2e_layer_defs = [
+        # (label,               pypsa_val,              modeler_val,                   color)
+        ("Parsing (.nc)", pypsa_parsing_time_plot, 0.0, "#2e86ab"),
+        ("Preprocessing", preproc_time, preproc_time, "#5c7a29"),
+        ("Conversion", 0.0, conversion_time, "#a23b72"),
+        ("Parsing (YAML)", 0.0, modeler_parsing_time_plot, "#4db6d0"),
+        ("Build", pypsa_build, modeler_build_time, "steelblue"),
+        ("Solve", pypsa_solve, modeler_solve_time, "coral"),
+        ("Writing sim. table", 0.0, modeler_writing_time_plot, "#f18f01"),
+    ]
+    bot_pypsa: float = 0.0
+    bot_modeler: float = 0.0
+    for e2e_label, e2e_pypsa, e2e_mod, e2e_color in e2e_layer_defs:
+        ax8.bar(
+            ["PyPSA", "Modeler"],
+            [e2e_pypsa, e2e_mod],
+            bottom=[bot_pypsa, bot_modeler],
+            label=e2e_label,
+            color=e2e_color,
+            alpha=0.8,
+            edgecolor="black",
         )
+        bot_pypsa += e2e_pypsa
+        bot_modeler += e2e_mod
+    for i, total_h in enumerate([bot_pypsa, bot_modeler]):
+        if total_h > 0:
+            ax8.text(i, total_h, f"{total_h:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax8.set_ylabel("Time (seconds)", fontsize=11)
+    ax8.set_title("End-to-end Comparison (Full Path)", fontsize=12, fontweight="bold", pad=10)
+    ax8.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
+    ax8.grid(True, alpha=0.3, axis="y")
 
-    plt.suptitle(
+    fig.suptitle(
         f"Benchmark Analysis - Study Row {row_number}: {row['pypsa_network_name']}",
         fontsize=14,
         fontweight="bold",
         y=0.995,
     )
-    plt.tight_layout(rect=(0, 0, 1, 0.99))
+    fig.tight_layout(rect=(0, 0, 0.97, 0.99))
     plt.show()
 
     return df
