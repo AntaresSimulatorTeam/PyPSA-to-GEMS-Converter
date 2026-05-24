@@ -14,10 +14,9 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
 from pypsa import Network
 
-from src.dependencies import get_antares_problem_generator_bin
+from src.dependencies import get_antares_problem_generator_bin, get_antares_xpansion_benders_bin
 from src.pypsa_converter import PyPSAStudyConverter
 
 current_dir = Path(__file__).resolve().parents[2]
@@ -70,7 +69,7 @@ def test_2_stage_stochastic_study() -> None:
     ).to_gems_study()
 
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
-    # benders_bin = get_antares_xpansion_benders_bin(current_dir)
+    benders_bin = get_antares_xpansion_benders_bin(current_dir)
     # modeler_bin = get_antares_modeler_bin(current_dir)
     problem_generator_bin = get_antares_problem_generator_bin(current_dir)
 
@@ -90,6 +89,9 @@ def test_2_stage_stochastic_study() -> None:
         print("================================")
         output_dir = study_dir / "systems" / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Error running problem generator: {e}")
+        raise e
 
     option_json = {
         "LOG_LEVEL": 0,
@@ -116,7 +118,6 @@ def test_2_stage_stochastic_study() -> None:
     options_path.write_text(json.dumps(option_json, indent=2), encoding="utf-8")
 
     (output_dir / "area.txt").touch(exist_ok=True)
-    """
     result = subprocess.run(
         [str(benders_bin), str(options_path)],
         capture_output=True,
@@ -130,7 +131,6 @@ def test_2_stage_stochastic_study() -> None:
     print("stdout:", result.stdout)
     print("stderr:", result.stderr)
     print("================================")
-    """
 
     # network.optimize()
     # print(f"PyPSA objective: {network.objective + network.objective_constant}")
