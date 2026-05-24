@@ -1,5 +1,6 @@
 Github identifiers of authors, in alphabetical order:
 
+aoustry
 dusanparipovic
 nikolaredstork
 tbittar

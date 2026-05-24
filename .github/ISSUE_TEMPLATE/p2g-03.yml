@@ -1,0 +1,130 @@
+name: "P2G-03 — PyPSA evolution impact on converter"
+description: Track updates to the PyPSA-to-GEMS converter triggered by a new PyPSA release
+title: "[P2G-03] PyPSA update — converter impact"
+labels: ["P2G-03", "pypsa-update"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Process P2G-03** — Triggered by a new PyPSA release that impacts the PyPSA-to-GEMS converter's data extraction logic, API usage, or solver behaviour.
+
+        > **Deviation from standard workflow — Step 3:** PyPSA API and solver behaviour analysis is required before implementation. Explicitly analyse how the new PyPSA API changes affect data extraction (`pypsa_preprocessor.py`, `pypsa_register.py`); verify solver behaviour consistency; document whether backward compatibility with the previous PyPSA version is feasible.
+
+  - type: input
+    id: pypsa_new_version
+    attributes:
+      label: New PyPSA Version
+      placeholder: "e.g. 1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: pypsa_previous_version
+    attributes:
+      label: Previous Tracked Version
+      placeholder: "e.g. 1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: trigger
+    attributes:
+      label: Trigger
+      description: What changed in the new PyPSA release? Link to the changelog or release notes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api_analysis
+    attributes:
+      label: PyPSA API & Solver Behaviour Analysis
+      description: |
+        P2G-03 Step 3 deviation — complete before implementation:
+        - Which PyPSA API surfaces changed? (Network attributes, component accessors, optimisation interface)
+        - How does this impact data extraction in `pypsa_preprocessor.py` and `pypsa_register.py`?
+        - Are solver behaviour or result formats affected?
+        - Is backward compatibility with the previous PyPSA version feasible?
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact on Converter
+      description: |
+        Which converter modules need updating?
+        - Mapping logic (`pypsa_converter.py`, `pypsa_register.py`)
+        - Preprocessing (`pypsa_preprocessor.py`)
+        - Study generation (`gems_study_writer.py`, `gems_model_builder.py`)
+        - PyPSA models library (`pypsa_models.yml`)
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation_strategy
+    attributes:
+      label: Validation Strategy
+      description: |
+        How will correctness be validated after the PyPSA upgrade?
+        - Which test networks will be used for before/after comparison?
+        - Are objective function values expected to change? If so, why?
+        - Which E2E tests confirm equivalence?
+    validations:
+      required: true
+
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Process Checklist
+      value: |
+        ### Step 1 — Issue Creation
+        - [x] Issue created and linked to process P2G-03
+
+        ### Step 2 — Triage
+        - [ ] Process confirmed applicable
+        - [ ] Assigned to responsible contributor
+        - [ ] Priority and milestone set (if applicable)
+
+        ### Step 3 — Impact Analysis ⚠️ API and solver behaviour analysis required before implementation
+        - [ ] PyPSA changelog reviewed in full
+        - [ ] API changes affecting data extraction identified (`pypsa_preprocessor.py`, `pypsa_register.py`)
+        - [ ] Solver behaviour consistency verified
+        - [ ] Impact on mapping logic assessed (`pypsa_converter.py`)
+        - [ ] Impact on `pypsa_models.yml` assessed
+        - [ ] Backward compatibility with previous PyPSA version assessed
+        - [ ] Breaking vs backward-compatible changes identified
+
+        ### Step 4 — Implementation
+        - [ ] Converter code updated (`src/`) to align with new PyPSA API
+        - [ ] `pypsa_models.yml` updated if component structure or parameters changed
+        - [ ] `requirements.txt` updated to new PyPSA version
+        - [ ] Backward compatibility maintained unless explicitly intended as breaking
+        - [ ] New PyPSA features NOT yet supported by the converter identified
+        - [ ] Assertion added to `_check_converter_limitations()` (`src/pypsa_preprocessor.py`) for each unsupported feature
+
+        ### Step 5 — Testing & Validation
+        - [ ] Unit tests pass (`pytest tests/unit_tests/`)
+        - [ ] If results are expected to change: before/after comparison documented
+        - [ ] If results must not change: E2E tests confirm objective values are identical (within tolerance)
+        - [ ] E2E tests pass against current Antares binary (`pytest tests/e2e/`)
+
+        ### Step 6 — CI Validation
+        - [ ] Code quality passes (`ruff`, `mypy`)
+        - [ ] E2E tests pass in CI
+
+        ### Step 7 — Review & Merge
+        - [ ] PR reviewed; documentation changes included
+
+        ### Step 8 — Versioning
+        - [ ] `requirements.txt` updated to new PyPSA version
+        - [ ] `pyproject.toml` version bumped (Minor — PyPSA version update)
+        - [ ] `version` field in `resources/pypsa_models/pypsa_models.yml` bumped if library changed
+        - [ ] Changelog entry added with new version header if library changed (`CHANGELOG-pypsa_models_library.md`)
+
+        ### Step 9 — Supporting Files
+        - [ ] `COMPATIBILITY.md` version table updated with new PyPSA version mapping
+        - [ ] `COMPATIBILITY.md` limitations table updated — new unsupported features added with current converter version in "Enforced since" column
+        - [ ] `AGENTS.md` reviewed for impact and updated if needed
+
+        ### Step 10 — Release
+        - [ ] If a release is needed: follow the release process in the Developer Guidelines
