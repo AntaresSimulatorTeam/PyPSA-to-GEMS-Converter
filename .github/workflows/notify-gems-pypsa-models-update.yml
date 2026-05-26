@@ -1,0 +1,84 @@
+name: Notify GEMS — PyPSA Models Library Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'resources/pypsa_models/pypsa_models.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Check PyPSA models library version and notify GEMS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Read PyPSA converter pypsa models library version and GEMS pypsa models library version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GEMS_REPO_PAT }}
+        run: |
+          CURR=$(python3 -c "import yaml; print(yaml.safe_load(open('resources/pypsa_models/pypsa_models.yml'))['library']['version'])")
+          echo "version=$CURR" >> "$GITHUB_OUTPUT"
+
+          # Read the version currently in the GEMS repo (empty string if file absent or API unavailable)
+          GEMS_VERSION=$(gh api "repos/${{ github.repository_owner }}/GEMS/contents/libraries/pypsa_models.yml" \
+            --jq '.content' 2>/dev/null \
+            | base64 -d 2>/dev/null \
+            | python3 -c "import yaml,sys; print(yaml.safe_load(sys.stdin).get('library', {}).get('version', ''))" \
+            2>/dev/null || echo "")
+
+          echo "Current: $CURR  |  GEMS: $GEMS_VERSION"
+          if [ "$CURR" = "$GEMS_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create issue in GEMS repository
+        if: steps.version.outputs.changed == 'true'
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GEMS_REPO_PAT }}
+          script: |
+            const version       = '${{ steps.version.outputs.version }}';
+            const converterOwner = context.repo.owner;
+            const converterRepo  = context.repo.repo;
+            const title = `[PYPSA MODELS] New library version: v${version}`;
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: converterOwner,
+              repo: 'GEMS',
+              state: 'open',
+            });
+
+            const duplicate = existing.data.find(i => i.title.includes(`v${version}`));
+            if (duplicate) {
+              console.log(`Issue already exists: #${duplicate.number} — skipping.`);
+              return;
+            }
+
+            const body = [
+              `PyPSA models library updated to \`v${version}\` in [${converterRepo}](https://github.com/${converterOwner}/${converterRepo}).`,
+              '',
+              `Changelog: https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/CHANGELOG-pypsa_models_library.md`,
+              '',
+              'Update `libraries/pypsa_models.yml` in GEMS accordingly.',
+            ].join('\n');
+
+            const result = await github.rest.issues.create({
+              owner: converterOwner,
+              repo: 'GEMS',
+              title: title,
+              body: body,
+            });
+
+            console.log(`Issue created: #${result.data.number} — ${result.data.html_url}`);
