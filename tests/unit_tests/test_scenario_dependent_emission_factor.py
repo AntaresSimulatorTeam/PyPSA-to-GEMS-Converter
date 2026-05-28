@@ -69,6 +69,7 @@ def test_scenario_dependent_emission_factor_tsv_created(tmp_path: Path) -> None:
         pypsa_network=network,
         study_dir=study_dir,
         series_file_format=".tsv",
+        solver_name="coin",
     ).to_gems_study()
 
     # The renamed component is "generator_gas_gen"; pypsa param is "co2_emissions"
@@ -102,6 +103,7 @@ def test_uniform_emission_factor_writes_scalar(tmp_path: Path) -> None:
         pypsa_network=n,
         study_dir=study_dir,
         series_file_format=".tsv",
+        solver_name="coin",
     ).to_gems_study()
 
     series_dir = study_dir / "systems" / "input" / "data-series"
