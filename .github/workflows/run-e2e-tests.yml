@@ -104,8 +104,6 @@ jobs:
           ANTARES_VERSION="${{ inputs.antares_version }}"
           XPANSION_VERSION="${{ inputs.antares_xpansion_version }}"
           BASE_XPANSION="${XPANSION_VERSION%%-rc*}"
-          BASE_XPANSION="${BASE_XPANSION%%-alpha*}"
-          BASE_XPANSION="${BASE_XPANSION%%-beta*}"
           rm -f "antares-${ANTARES_VERSION}-Ubuntu-22.04.tar.gz"
           rm -rf "antares-${ANTARES_VERSION}-Ubuntu-22.04"
           rm -f "antaresXpansion-${BASE_XPANSION}-ubuntu-22.04.tar.gz"
