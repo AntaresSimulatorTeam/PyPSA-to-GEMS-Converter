@@ -78,6 +78,18 @@ The directory layout follows the conventions expected by the GEMS modeler: <br/>
 
 For the full list of unsupported components, component restrictions, and network-level constraints, see [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations).
 
+## Installation
+
+pip:
+```bash
+pip install pypsa-to-gems-converter
+```
+
+uv:
+```bash
+uv add 
+```
+
 ## Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler
 - Build or load a PyPSA network 
 ```python
