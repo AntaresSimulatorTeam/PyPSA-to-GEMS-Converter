@@ -111,7 +111,7 @@ def _build_two_stage_test_network() -> Network:
 def test_2_stage_stochastic_study(tmp_path: Path) -> None:
     pypsa_network = _build_two_stage_test_network()
     pypsa_start = time.perf_counter()
-    status, condition = pypsa_network.optimize(solver_name="highs", include_objective_constant=True)
+    status, condition = pypsa_network.optimize(solver_name="cbc", include_objective_constant=True)
     pypsa_elapsed = time.perf_counter() - pypsa_start
     logger.info("==============================================")
     logger.info("PyPSA stochastic solve:")

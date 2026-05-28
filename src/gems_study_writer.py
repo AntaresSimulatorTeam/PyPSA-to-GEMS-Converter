@@ -251,7 +251,6 @@ class GemsStudyWriter:
                     "optimality_gap = 0",
                     "relative_gap = 1e-6",
                     "max_iteration = 5",
-                    "timelimit = 300",
                     f"solver = {solver_display}",
                     "log_level = 0",
                     "",
