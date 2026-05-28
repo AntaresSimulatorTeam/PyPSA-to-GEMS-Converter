@@ -17,7 +17,6 @@ from pypsa import Network
 
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
-from tests.utils import replace_lines_by_links
 
 logger = logging.getLogger(__name__)
 
@@ -217,29 +216,3 @@ def test_transformer_register(transformer_network: Network) -> None:
     assert trafo_data.pypsa_params_to_gems_params["x_pu_eff"] == "x_pu_eff"
     assert trafo_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")
     assert trafo_data.pypsa_params_to_gems_connections["bus1"] == ("bus1_p_port", "p_balance_port")
-
-
-def test_replace_lines_by_links_creates_links_and_removes_lines() -> None:
-    logger.info("Running test_replace_lines_by_links_creates_links_and_removes_lines")
-    network = Network(name="Line_Network", snapshots=[0, 1])
-
-    network.add("Carrier", "carrier", co2_emissions=0)
-    network.add("Bus", "bus1", v_nom=1, carrier="carrier")
-    network.add("Bus", "bus2", v_nom=1, carrier="carrier")
-
-    network.add(
-        "Line",
-        "line1",
-        bus0="bus1",
-        bus1="bus2",
-        s_nom_extendable=False,
-        s_nom=100,
-        x=0.1,
-        r=0.01,
-    )
-
-    network = replace_lines_by_links(network)
-
-    assert len(network.lines) == 0
-    assert len(network.links) == 1
-    assert "line1-link-bus1-bus2" in network.links.index

@@ -23,6 +23,7 @@ dependencies = [
     "pypsa==1.2.0",
     "pyyaml==6.0.2",
     "pydantic==2.12.5",
+    "gemspy @ git+https://github.com/AntaresSimulatorTeam/GemsPy.git@develop",
 ]
 classifiers = [
     # Classifiers here: https://pypi.org/classifiers/

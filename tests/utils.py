@@ -64,160 +64,212 @@ def extend_quota(network: Network) -> Network:
     return network
 
 
-def replace_lines_by_links(network: Network) -> Network:
-    """
-    Replace lines in a PyPSA network with equivalent links.
-
-    This function converts transmission lines to links, which allows for more
-    flexible modeling of power flow constraints. Each line is replaced with
-    two links (one for each direction) to maintain bidirectional flow capability.
-    """
-
-    # Create a copy of the lines DataFrame to iterate over
-    lines = network.lines.copy()
-
-    # For each line, create two links (one for each direction)
-    for idx, line in lines.iterrows():
-        # Get line parameters
-        bus0 = line["bus0"]
-        bus1 = line["bus1"]
-        s_nom = line["s_nom"]
-        efficiency = 1.0
-
-        # Add forward link
-        network.add(
-            "Link",
-            f"{idx}-link-{bus0}-{bus1}",
-            bus0=bus0,
-            bus1=bus1,
-            p_min_pu=-1,
-            p_max_pu=1,
-            p_nom=s_nom,  # Use line capacity as link capacity
-            efficiency=efficiency,
-        )
-    network.remove("Line", lines.index)
-    return network
-
-
-def preprocess_network(network: Network, quota: bool, lines_to_links: bool) -> Network:
+def preprocess_network(network: Network, quota: bool) -> Network:
     if quota:
         network = extend_quota(network)
-    if lines_to_links:
-        network = replace_lines_by_links(network)
     return network
 
 
-def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -> pd.DataFrame:
-    """
-    Analyze and plot benchmark results for a specific study.
+def resolve_project_root(start: Path | None = None) -> Path:
+    """Find repository root (works from tests/, notebook cwd, or project root)."""
+    start = start or Path.cwd()
+    for directory in (start, *start.parents):
+        if (directory / "pyproject.toml").is_file():
+            return directory
+    return PROJECT_ROOT
 
-    Parameters:
-    -----------
-    row_number : int
-        Row number (0-indexed) of the study to analyze
-    results_file : Path, optional
-        Path to the results CSV file. If None, will try to find it automatically.
-    """
-    # Load data
-    if results_file is None:
-        results_file = get_results_path()
 
-    if not results_file.exists():
-        raise FileNotFoundError(f"Results file not found: {results_file}")
+def benchmark_numeric(value: Any, default: float = 0) -> float:
+    """Coerce a CSV cell to float for display; use default if missing or invalid."""
+    v = pd.to_numeric(value, errors="coerce")
+    return default if pd.isna(v) else float(v)
 
-    df_all = pd.read_csv(results_file)
 
-    if row_number < 0 or row_number >= len(df_all):
-        raise ValueError(f"Row number must be between 0 and {len(df_all) - 1}. Total studies available: {len(df_all)}")
+def get_results_path() -> Path:
+    """Path to the Antares modeler benchmark CSV."""
+    return resolve_project_root() / "tmp" / "benchmark_results" / "all_studies_results.csv"
 
-    df = df_all.iloc[[row_number]].copy()
-    row = df.iloc[0]
 
-    # Coerce numeric columns (CSV may have mixed types or strings)
-    numeric_cols = [
-        "parsing_time",
-        "number_of_time_steps",
-        "number_of_buses",
-        "number_of_generators",
-        "number_of_loads",
-        "number_of_links",
-        "number_of_storage_units",
-        "number_of_stores",
-        "number_of_lines",
-        "number_of_transformers",
-        "number_of_shunt_impedances",
-        "preprocessing_time_pypsa_network",
-        "pypsa_to_gems_conversion_time",
-        "build_optimization_problem_time_pypsa",
-        "pypsa_optimization_time",
-        "total_time_pypsa",
-        "modeler_parsing_time",
-        "modeler_build_time",
-        "modeler_solve_time",
-        "modeler_writing_time",
-        "modeler_total_time",
-        "gemspy_parsing_time",
-        "gemspy_build_time",
-        "gemspy_solve_time",
-        "gemspy_writing_time",
-        "gemspy_total_time",
-        "number_of_constraints_pypsa",
-        "number_of_constraints_modeler",
-        "number_of_constraints_gemspy",
-        "number_of_variables_pypsa",
-        "number_of_variables_modeler",
-        "number_of_variables_gemspy",
-        "pypsa_objective",
-        "modeler_objective_value",
-        "gemspy_objective_value",
-    ]
+def get_xpansion_results_path() -> Path:
+    """Path to the PyPSA vs Antares Xpansion benchmark CSV."""
+    return resolve_project_root() / "tmp" / "benchmark_results" / "xpansion_benchmark_results.csv"
+
+
+def load_benchmark_results(results_file: Path | None = None) -> pd.DataFrame:
+    path = results_file or get_results_path()
+    if not path.exists():
+        raise FileNotFoundError(f"Results file not found: {path}")
+    return pd.read_csv(path)
+
+
+def load_xpansion_benchmark_results(results_file: Path | None = None) -> pd.DataFrame:
+    path = results_file or get_xpansion_results_path()
+    if not path.exists():
+        raise FileNotFoundError(f"Results file not found: {path}")
+    return pd.read_csv(path)
+
+
+def list_benchmark_studies(
+    df: pd.DataFrame | None = None,
+    results_file: Path | None = None,
+) -> pd.DataFrame:
+    """Print available Antares modeler benchmark rows and return the underlying dataframe."""
+    if df is None:
+        df = load_benchmark_results(results_file)
+    path = results_file or get_results_path()
+    print(f"Results file: {path}")
+    print(f"Total studies: {len(df)}\n")
+    for idx in range(len(df)):
+        print(f"  Row {idx}: {benchmark_study_label(df.iloc[idx])}")
+    return df
+
+
+def list_xpansion_benchmark_studies(
+    df: pd.DataFrame | None = None,
+    results_file: Path | None = None,
+) -> pd.DataFrame:
+    """Print available Xpansion benchmark rows and return the underlying dataframe."""
+    if df is None:
+        df = load_xpansion_benchmark_results(results_file)
+    path = results_file or get_xpansion_results_path()
+    print(f"Results file: {path}")
+    print(f"Total studies: {len(df)}\n")
+    for idx in range(len(df)):
+        print(f"  Row {idx}: {benchmark_study_label(df.iloc[idx])}")
+    return df
+
+
+MODELER_BENCHMARK_NUMERIC_COLS = [
+    "parsing_time",
+    "number_of_time_steps",
+    "number_of_buses",
+    "number_of_generators",
+    "number_of_loads",
+    "number_of_links",
+    "number_of_storage_units",
+    "number_of_stores",
+    "number_of_lines",
+    "number_of_transformers",
+    "number_of_shunt_impedances",
+    "preprocessing_time_pypsa_network",
+    "pypsa_to_gems_conversion_time",
+    "build_optimization_problem_time_pypsa",
+    "pypsa_optimization_time",
+    "total_time_pypsa",
+    "modeler_parsing_time",
+    "modeler_build_time",
+    "modeler_solve_time",
+    "modeler_writing_time",
+    "modeler_total_time",
+    "gemspy_parsing_time",
+    "gemspy_build_time",
+    "gemspy_solve_time",
+    "gemspy_writing_time",
+    "gemspy_total_time",
+    "number_of_constraints_pypsa",
+    "number_of_constraints_modeler",
+    "number_of_constraints_gemspy",
+    "number_of_variables_pypsa",
+    "number_of_variables_modeler",
+    "number_of_variables_gemspy",
+    "pypsa_objective",
+    "modeler_objective_value",
+    "gemspy_objective_value",
+]
+
+XPANSION_BENCHMARK_NUMERIC_COLS = [
+    "parsing_time",
+    "number_of_time_steps",
+    "preprocessing_time_pypsa_network",
+    "pypsa_build_seconds",
+    "pypsa_solve_seconds",
+    "pypsa_total_objective",
+    "number_of_variables_pypsa",
+    "number_of_constraints_pypsa",
+    "pypsa_to_gems_conversion_time",
+    "xpansion_problem_generator_seconds",
+    "number_of_variables_xpansion",
+    "number_of_constraints_xpansion",
+    "xpansion_benders_seconds",
+    "xpansion_overall_cost",
+    "xpansion_run_duration_seconds",
+]
+
+
+def _coerce_benchmark_row(row: pd.Series, numeric_cols: list[str]) -> pd.Series:
+    out = row.copy()
     for col in numeric_cols:
-        if col in row.index:
-            row[col] = pd.to_numeric(row[col], errors="coerce")
+        if col in out.index:
+            out[col] = pd.to_numeric(out[col], errors="coerce")
+    return out
 
-    def _n(val: Any, default: float = 0) -> float:
-        """Coerce to float for display; use default if missing/invalid."""
-        v = pd.to_numeric(val, errors="coerce")
-        return default if pd.isna(v) else float(v)
 
-    # Print overview statistics
+def get_modeler_benchmark_row(row_number: int, results_file: Path | None = None) -> pd.Series:
+    df_all = load_benchmark_results(results_file)
+    if row_number < 0 or row_number >= len(df_all):
+        raise ValueError(f"Row number must be between 0 and {len(df_all) - 1}. Total studies: {len(df_all)}")
+    return _coerce_benchmark_row(df_all.iloc[row_number], MODELER_BENCHMARK_NUMERIC_COLS)
+
+
+def get_xpansion_benchmark_row(row_number: int, results_file: Path | None = None) -> pd.Series:
+    df_all = load_xpansion_benchmark_results(results_file)
+    if row_number < 0 or row_number >= len(df_all):
+        raise ValueError(f"Row number must be between 0 and {len(df_all) - 1}. Total studies: {len(df_all)}")
+    return _coerce_benchmark_row(df_all.iloc[row_number], XPANSION_BENCHMARK_NUMERIC_COLS)
+
+
+def benchmark_study_label(row: pd.Series) -> str:
+    """Human-readable study name for prints and plot titles (no raw .nc paths)."""
+    network_name = row.get("pypsa_network_name")
+    if pd.notna(network_name) and str(network_name).strip() and str(network_name) != "Unnamed Network":
+        return str(network_name)
+    filename = str(row.get("pypsa_filename", ""))
+    if filename == "__tiny_synthetic__":
+        return "Tiny 2-scenario (synthetic)"
+    if filename and filename not in ("N/A", "nan"):
+        return Path(filename).stem.replace("_", " ")
+    return "Benchmark study"
+
+
+def print_modeler_benchmark_summary(row: pd.Series, row_number: int = 0) -> None:
+    """Print text summary for an Antares modeler benchmark row (PyPSA / Antares Modeler / GemsPy)."""
+    _n = benchmark_numeric
+
     print("=" * 80)
     print(f"BENCHMARK ANALYSIS - STUDY ROW {row_number}")
     print("=" * 80)
 
     print("\n📊 NETWORK INFORMATION:")
-    print(f"  Simulation file: {row.get('pypsa_filename', 'N/A')}")
-    print(f"  Network Name: {row['pypsa_network_name']}")
-    print(f"  Number of Time Steps: {int(_n(row['number_of_time_steps']))}")
-    print(f"  PyPSA Version: {row['pypsa_version']}")
-    print(f"  Antares Version: {row['antares_version']}")
+    print(f"  Study: {benchmark_study_label(row)}")
+    print(f"  Number of Time Steps: {int(_n(row.get('number_of_time_steps')))}")
+    print(f"  PyPSA Version: {row.get('pypsa_version', 'N/A')}")
+    print(f"  Antares Version: {row.get('antares_version', 'N/A')}")
 
     print("\n🔧 NETWORK COMPONENTS:")
-    print(f"  Buses: {int(_n(row['number_of_buses']))}")
-    print(f"  Generators: {int(_n(row['number_of_generators']))}")
-    print(f"  Loads: {int(_n(row['number_of_loads']))}")
-    print(f"  Links: {int(_n(row['number_of_links']))}")
-    print(f"  Storage Units: {int(_n(row['number_of_storage_units']))}")
-    print(f"  Stores: {int(_n(row['number_of_stores']))}")
-    print(f"  Lines: {int(_n(row['number_of_lines']))}")
-    print(f"  Transformers: {int(_n(row['number_of_transformers']))}")
-    print(f"  Shunt Impedances: {int(_n(row['number_of_shunt_impedances']))}")
+    print(f"  Buses: {int(_n(row.get('number_of_buses')))}")
+    print(f"  Generators: {int(_n(row.get('number_of_generators')))}")
+    print(f"  Loads: {int(_n(row.get('number_of_loads')))}")
+    print(f"  Links: {int(_n(row.get('number_of_links')))}")
+    print(f"  Storage Units: {int(_n(row.get('number_of_storage_units')))}")
+    print(f"  Stores: {int(_n(row.get('number_of_stores')))}")
+    print(f"  Lines: {int(_n(row.get('number_of_lines')))}")
+    print(f"  Transformers: {int(_n(row.get('number_of_transformers')))}")
+    print(f"  Shunt Impedances: {int(_n(row.get('number_of_shunt_impedances')))}")
 
     print("\n⏱️  TIMING INFORMATION:")
-    print(f"  Parsing Time (PyPSA .nc load): {_n(row['parsing_time']):.4f} s")
-    print(f"  Preprocessing Time (PyPSA): {_n(row['preprocessing_time_pypsa_network']):.4f} s")
-    print(f"  PyPSA to GEMS Conversion Time: {_n(row['pypsa_to_gems_conversion_time']):.4f} s")
-    print(f"  Build Optimization Problem Time (PyPSA): {_n(row['build_optimization_problem_time_pypsa']):.4f} s")
-    print(f"  PyPSA Optimization Time: {_n(row['pypsa_optimization_time']):.4f} s")
-    print(f"  PyPSA Total Time: {_n(row['total_time_pypsa']):.4f} s")
+    print(f"  Parsing Time (PyPSA .nc load): {_n(row.get('parsing_time')):.4f} s")
+    print(f"  Preprocessing Time (PyPSA): {_n(row.get('preprocessing_time_pypsa_network')):.4f} s")
+    print(f"  PyPSA to GEMS Conversion Time: {_n(row.get('pypsa_to_gems_conversion_time')):.4f} s")
+    print(f"  Build Optimization Problem Time (PyPSA): {_n(row.get('build_optimization_problem_time_pypsa')):.4f} s")
+    print(f"  PyPSA Optimization Time: {_n(row.get('pypsa_optimization_time')):.4f} s")
+    print(f"  PyPSA Total Time: {_n(row.get('total_time_pypsa')):.4f} s")
     modeler_parsing = _n(row.get("modeler_parsing_time"))
     modeler_writing = _n(row.get("modeler_writing_time"))
-    print(f"  Modeler Parsing Time (YAML load): {modeler_parsing:.4f} s")
-    print(f"  Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
-    print(f"  Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
-    print(f"  Modeler Writing Time (simulation table): {modeler_writing:.4f} s")
-    # modeler_total_time in CSV = parsing + build + solve + writing (Antares binary)
-    print(f"  Modeler (parsing+build+solve+writing) Time: {_n(row['modeler_total_time']):.4f} s")
+    print(f"  Antares Modeler Parsing Time (YAML load): {modeler_parsing:.4f} s")
+    print(f"  Antares Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
+    print(f"  Antares Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
+    print(f"  Antares Modeler Writing Time (simulation table): {modeler_writing:.4f} s")
+    print(f"  Antares Modeler (parsing+build+solve+writing) Time: {_n(row.get('modeler_total_time')):.4f} s")
     gemspy_total = _n(row.get("gemspy_total_time"))
     if gemspy_total:
         print(f"  GemsPy Parsing Time (study+config): {_n(row.get('gemspy_parsing_time')):.4f} s")
@@ -227,17 +279,15 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         print(f"  GemsPy (parsing+build+solve+writing) Time: {gemspy_total:.4f} s")
     preproc = _n(row.get("preprocessing_time_pypsa_network"))
     conversion = _n(row.get("pypsa_to_gems_conversion_time"))
-    full_modeler_path = preproc + conversion + _n(row["modeler_total_time"])
+    full_modeler_path = preproc + conversion + _n(row.get("modeler_total_time"))
     print(
         f"  Antares Modeler, including conversion time (preproc + conversion + parsing + build + solve + writing): {full_modeler_path:.4f} s"
     )
     if gemspy_total:
-        full_gemspy_path = preproc + conversion + gemspy_total
         print(
-            f"  Full GemsPy Path (preproc + conversion + parsing + build + solve + writing): {full_gemspy_path:.4f} s"
+            f"  Full GemsPy Path (preproc + conversion + parsing + build + solve + writing): {preproc + conversion + gemspy_total:.4f} s"
         )
 
-    # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
     has_modeler_stats = "number_of_constraints_modeler" in row.index and "number_of_variables_modeler" in row.index
     n_const_pypsa = _n(row.get("number_of_constraints_pypsa"))
     n_var_pypsa = _n(row.get("number_of_variables_pypsa"))
@@ -252,47 +302,44 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     if has_modeler_stats:
         n_const_modeler = _n(row.get("number_of_constraints_modeler"))
         n_var_modeler = _n(row.get("number_of_variables_modeler"))
-        print(f"  Modeler Constraints: {int(n_const_modeler)}")
+        print(f"  Antares Modeler Constraints: {int(n_const_modeler)}")
         if n_const_modeler:
-            print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
+            print(f"  Constraints Ratio (PyPSA/Antares Modeler): {n_const_pypsa / n_const_modeler:.4f}")
         else:
-            print("  Constraints Ratio (PyPSA/Modeler): N/A")
-        print(f"  Modeler Variables: {int(n_var_modeler)}")
+            print("  Constraints Ratio (PyPSA/Antares Modeler): N/A")
+        print(f"  Antares Modeler Variables: {int(n_var_modeler)}")
         if n_var_modeler:
-            print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+            print(f"  Variables Ratio (PyPSA/Antares Modeler): {n_var_pypsa / n_var_modeler:.4f}")
         else:
-            print("  Variables Ratio (PyPSA/Modeler): N/A")
+            print("  Variables Ratio (PyPSA/Antares Modeler): N/A")
     else:
-        n_const_modeler = 0
-        n_var_modeler = 0
-        print("  Modeler constraints/variables: N/A (not reported by this Antares version)")
+        print("  Antares Modeler constraints/variables: N/A (not reported by this Antares version)")
 
-    pypsa_obj = _n(row["pypsa_objective"])
-    modeler_obj = _n(row["modeler_objective_value"])
+    pypsa_obj = _n(row.get("pypsa_objective"))
+    modeler_obj = _n(row.get("modeler_objective_value"))
     gemspy_obj = _n(row.get("gemspy_objective_value"))
     print("\n🎯 OBJECTIVE VALUES:")
     print(f"  PyPSA Objective: {pypsa_obj:.6f}")
-    print(f"  Modeler Objective: {modeler_obj:.6f}")
+    print(f"  Antares Modeler Objective: {modeler_obj:.6f}")
     if gemspy_obj:
         print(f"  GemsPy Objective: {gemspy_obj:.6f}")
     obj_diff = pypsa_obj - modeler_obj
     obj_diff_pct = (obj_diff / modeler_obj) * 100 if modeler_obj else 0.0
-    print(f"  Difference: {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
+    print(f"  Difference (PyPSA - Antares Modeler): {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
 
     print("\n⚙️  SOLVER INFORMATION:")
-    print(f"  PyPSA Solver: {row['solver_name_pypsa']} {row['solver_version_pypsa']}")
-    print(f"  Modeler Solver: {row['modeler_solver_name']}")
-    print(f"  Modeler Solver Parameters: {row['modeler_solver_parameters']}")
+    print(f"  PyPSA Solver: {row.get('solver_name_pypsa', 'N/A')} {row.get('solver_version_pypsa', '')}")
+    print(f"  Antares Modeler Solver: {row.get('modeler_solver_name', 'N/A')}")
+    print(f"  Antares Modeler Solver Parameters: {row.get('modeler_solver_parameters', 'N/A')}")
     if "gemspy_solver_name" in row.index:
         print(f"  GemsPy Solver: {row.get('gemspy_solver_name', 'N/A')}")
         print(f"  GemsPy Solver Parameters: {row.get('gemspy_solver_parameters', 'N/A')}")
 
-    total_pypsa = _n(row["total_time_pypsa"])
-    total_modeler = _n(row["modeler_total_time"])  # parsing+build+solve+writing (Antares binary)
-    full_modeler_path = preproc + conversion + total_modeler
+    total_pypsa = _n(row.get("total_time_pypsa"))
+    total_modeler = _n(row.get("modeler_total_time"))
     print("\n📊 PERFORMANCE COMPARISON:")
     time_ratio_binary = total_pypsa / total_modeler if total_modeler else float("nan")
-    print(f"  Time Ratio PyPSA / Modeler (parsing+build+solve+writing): {time_ratio_binary:.4f}x")
+    print(f"  Time Ratio PyPSA / Antares Modeler (parsing+build+solve+writing): {time_ratio_binary:.4f}x")
     time_ratio_full = total_pypsa / full_modeler_path if full_modeler_path else float("nan")
     print(f"  Time Ratio PyPSA / Antares Modeler, including conversion time: {time_ratio_full:.4f}x")
     if pd.notna(time_ratio_binary) and time_ratio_binary > 0:
@@ -309,6 +356,244 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         print("  → N/A (missing or invalid times)")
 
     print("\n" + "=" * 80)
+
+
+def print_xpansion_benchmark_summary(row: pd.Series, row_number: int = 0) -> None:
+    """Print text summary for a PyPSA vs Antares Xpansion benchmark row."""
+    _n = benchmark_numeric
+
+    print("=" * 80)
+    print(f"XPANSION BENCHMARK - STUDY ROW {row_number}")
+    print("=" * 80)
+
+    print("\n📊 STUDY INFORMATION:")
+    print(f"  Study: {benchmark_study_label(row)}")
+    print(f"  Time steps: {int(_n(row.get('number_of_time_steps')))}")
+    print(f"  PyPSA version: {row.get('pypsa_version', 'N/A')}")
+    print(f"  Antares version: {row.get('antares_version', 'N/A')}")
+    print(f"  Antares Xpansion version: {row.get('antares_xpansion_version', 'N/A')}")
+
+    print("\n⏱️  TIMING:")
+    parsing = _n(row.get("parsing_time"))
+    preproc = _n(row.get("preprocessing_time_pypsa_network"))
+    conversion = _n(row.get("pypsa_to_gems_conversion_time"))
+    pypsa_build = _n(row.get("pypsa_build_seconds"))
+    pypsa_solve = _n(row.get("pypsa_solve_seconds"))
+    pg_time = _n(row.get("xpansion_problem_generator_seconds"))
+    benders_time = _n(row.get("xpansion_benders_seconds"))
+    pypsa_total = parsing + preproc + pypsa_build + pypsa_solve
+    xpansion_total = preproc + conversion + pg_time + benders_time
+    print(f"  Parsing (.nc / synthetic): {parsing:.4f} s")
+    print(f"  Preprocessing: {preproc:.4f} s")
+    print(f"  PyPSA build: {pypsa_build:.4f} s")
+    print(f"  PyPSA solve: {pypsa_solve:.4f} s")
+    print(f"  PyPSA path total (parse+preproc+build+solve): {pypsa_total:.4f} s")
+    print(f"  Conversion to GEMS study: {conversion:.4f} s")
+    print(f"  Problem generator: {pg_time:.4f} s")
+    print(f"  Benders: {benders_time:.4f} s")
+    print(f"  Xpansion path total (preproc+conversion+PG+Benders): {xpansion_total:.4f} s")
+    if row.get("xpansion_run_duration_seconds") is not None and not pd.isna(row.get("xpansion_run_duration_seconds")):
+        print(f"  Xpansion reported run duration: {_n(row.get('xpansion_run_duration_seconds')):.4f} s")
+
+    print("\n📈 PROBLEM SIZE:")
+    n_var_pypsa = int(_n(row.get("number_of_variables_pypsa")))
+    n_cons_pypsa = int(_n(row.get("number_of_constraints_pypsa")))
+    n_var_xp = _n(row.get("number_of_variables_xpansion"))
+    n_cons_xp = _n(row.get("number_of_constraints_xpansion"))
+    print(f"  PyPSA variables: {n_var_pypsa}")
+    print(f"  PyPSA constraints: {n_cons_pypsa}")
+    if n_var_xp:
+        print(f"  Antares Xpansion variables: {int(n_var_xp)}")
+        if n_var_pypsa:
+            print(f"  Variables ratio (PyPSA/Antares Xpansion): {n_var_pypsa / n_var_xp:.4f}")
+    else:
+        print("  Antares Xpansion variables: N/A")
+    if n_cons_xp:
+        print(f"  Antares Xpansion constraints: {int(n_cons_xp)}")
+        if n_cons_pypsa:
+            print(f"  Constraints ratio (PyPSA/Antares Xpansion): {n_cons_pypsa / n_cons_xp:.4f}")
+    else:
+        print("  Antares Xpansion constraints: N/A")
+
+    pypsa_obj = _n(row.get("pypsa_total_objective"))
+    xp_obj = _n(row.get("xpansion_overall_cost"))
+    print("\n🎯 OBJECTIVES:")
+    print(f"  PyPSA total objective: {pypsa_obj:.6f}")
+    print(f"  Antares Xpansion overall cost: {xp_obj:.6f}")
+    if xp_obj:
+        diff = pypsa_obj - xp_obj
+        print(f"  Difference (PyPSA - Antares Xpansion): {diff:.6f} ({(diff / xp_obj) * 100:+.4f}%)")
+    print(f"  PyPSA status: {row.get('pypsa_status', 'N/A')} / {row.get('pypsa_condition', 'N/A')}")
+    print(f"  Antares Xpansion problem status: {row.get('xpansion_problem_status', 'N/A')}")
+
+    if pypsa_total and xpansion_total:
+        ratio = pypsa_total / xpansion_total
+        print("\n📊 PERFORMANCE:")
+        print(f"  Time ratio PyPSA / Antares Xpansion (paths above): {ratio:.4f}x")
+        if ratio < 1:
+            print(f"  → PyPSA path is {1 / ratio:.2f}x faster")
+        else:
+            print(f"  → Antares Xpansion path is {ratio:.2f}x faster")
+
+    print("\n" + "=" * 80)
+
+
+def plot_xpansion_benchmark_study(row: pd.Series, row_number: int = 0) -> None:
+    """Plot PyPSA vs Antares Xpansion comparison for one benchmark row."""
+    _n = benchmark_numeric
+    from matplotlib.gridspec import GridSpec
+
+    pypsa_obj = _n(row.get("pypsa_total_objective"))
+    xp_obj = _n(row.get("xpansion_overall_cost"))
+    n_var_pypsa = int(_n(row.get("number_of_variables_pypsa")))
+    n_cons_pypsa = int(_n(row.get("number_of_constraints_pypsa")))
+    n_var_xp = int(_n(row.get("number_of_variables_xpansion")))
+    n_cons_xp = int(_n(row.get("number_of_constraints_xpansion")))
+
+    parsing = _n(row.get("parsing_time"))
+    preproc = _n(row.get("preprocessing_time_pypsa_network"))
+    conversion = _n(row.get("pypsa_to_gems_conversion_time"))
+    pypsa_build = _n(row.get("pypsa_build_seconds"))
+    pypsa_solve = _n(row.get("pypsa_solve_seconds"))
+    pg_time = _n(row.get("xpansion_problem_generator_seconds"))
+    benders_time = _n(row.get("xpansion_benders_seconds"))
+
+    study_label = benchmark_study_label(row)
+    fig = plt.figure(figsize=(18, 11))
+    size_header = (
+        f"Variables — PyPSA: {n_var_pypsa:,}   |   Antares Xpansion: {n_var_xp:,}\n"
+        f"Constraints — PyPSA: {n_cons_pypsa:,}   |   Antares Xpansion: {n_cons_xp:,}"
+    )
+    fig.text(
+        0.5,
+        0.98,
+        f"PyPSA vs Antares Xpansion — {study_label}\n{size_header}",
+        ha="center",
+        va="top",
+        fontsize=11,
+        fontweight="bold",
+    )
+    gs = GridSpec(2, 3, figure=fig, top=0.86, hspace=0.45, wspace=0.35)
+    categories = ["PyPSA", "Antares Xpansion"]
+    colors = ["steelblue", "coral"]
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    bars = ax1.bar(categories, [pypsa_obj, xp_obj], color=colors, alpha=0.7, edgecolor="black")
+    ax1.set_title("Objective", fontweight="bold")
+    ax1.set_ylabel("Cost")
+    ax1.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(bars, [pypsa_obj, xp_obj]):
+        ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.2e}", ha="center", va="bottom", fontsize=9)
+
+    ax2 = fig.add_subplot(gs[0, 1])
+    stack_layers = [
+        ("Parsing", parsing, 0.0),
+        ("Preproc", preproc, preproc),
+        ("Build / Convert", pypsa_build, conversion),
+        ("Solve / PG+Benders", pypsa_solve, pg_time + benders_time),
+    ]
+    bottom = [0.0, 0.0]
+    layer_colors = ["#2e86ab", "#5c7a29", "steelblue", "coral"]
+    for i, (label, py_v, xp_v) in enumerate(stack_layers):
+        ax2.bar(
+            categories,
+            [py_v, xp_v],
+            bottom=bottom,
+            label=label,
+            color=layer_colors[i % len(layer_colors)],
+            alpha=0.85,
+            edgecolor="black",
+        )
+        bottom[0] += py_v
+        bottom[1] += xp_v
+    for i, total in enumerate(bottom):
+        if total > 0:
+            ax2.text(i, total, f"{total:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax2.set_title("Wall-clock breakdown", fontweight="bold")
+    ax2.set_ylabel("Time (s)")
+    ax2.legend(fontsize=8)
+    ax2.grid(True, alpha=0.3, axis="y")
+
+    ax3 = fig.add_subplot(gs[0, 2])
+    cons_bars = ax3.bar(categories, [n_cons_pypsa, n_cons_xp], color=colors, alpha=0.7, edgecolor="black")
+    ax3.set_title("Constraints", fontweight="bold")
+    ax3.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(cons_bars, [n_cons_pypsa, n_cons_xp]):
+        ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:,}", ha="center", va="bottom", fontsize=9)
+
+    ax4 = fig.add_subplot(gs[1, 0])
+    var_bars = ax4.bar(categories, [n_var_pypsa, n_var_xp], color=colors, alpha=0.7, edgecolor="black")
+    ax4.set_title("Variables", fontweight="bold")
+    ax4.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(var_bars, [n_var_pypsa, n_var_xp]):
+        ax4.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:,}", ha="center", va="bottom", fontsize=9)
+
+    ax5 = fig.add_subplot(gs[1, 1])
+    pypsa_layers = [("Parse", parsing), ("Preproc", preproc), ("Build", pypsa_build), ("Solve", pypsa_solve)]
+    xp_layers = [("Preproc", preproc), ("Convert", conversion), ("PG", pg_time), ("Benders", benders_time)]
+    py_pie = [(lbl, v) for lbl, v in pypsa_layers if v > 0]
+    if py_pie:
+        ax5.pie([v for _, v in py_pie], labels=[lbl for lbl, _ in py_pie], autopct="%1.1f%%", startangle=90)
+    ax5.set_title("PyPSA time breakdown", fontweight="bold")
+
+    ax6 = fig.add_subplot(gs[1, 2])
+    xp_pie = [(lbl, v) for lbl, v in xp_layers if v > 0]
+    if xp_pie:
+        ax6.pie([v for _, v in xp_pie], labels=[lbl for lbl, _ in xp_pie], autopct="%1.1f%%", startangle=90)
+    ax6.set_title("Antares Xpansion time breakdown", fontweight="bold")
+
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    plt.show()
+
+
+def analyze_xpansion_benchmark_study(
+    row_number: int,
+    results_file: Path | None = None,
+    *,
+    plot: bool = True,
+    return_dataframe: bool = False,
+) -> pd.DataFrame | None:
+    """Print (and optionally plot) one row from the Xpansion benchmark CSV."""
+    df_all = load_xpansion_benchmark_results(results_file)
+    row = get_xpansion_benchmark_row(row_number, results_file)
+    print_xpansion_benchmark_summary(row, row_number)
+    if plot:
+        plot_xpansion_benchmark_study(row, row_number)
+    if return_dataframe:
+        return df_all.iloc[[row_number]].copy()
+    return None
+
+
+def analyze_benchmark_study(
+    row_number: int,
+    results_file: Path | None = None,
+    *,
+    return_dataframe: bool = False,
+) -> pd.DataFrame | None:
+    """
+    Analyze and plot benchmark results for a specific study.
+
+    Parameters:
+    -----------
+    row_number : int
+        Row number (0-indexed) of the study to analyze
+    results_file : Path, optional
+        Path to the results CSV file. If None, will try to find it automatically.
+    """
+    df_all = load_benchmark_results(results_file)
+    row = get_modeler_benchmark_row(row_number, results_file)
+    df = df_all.iloc[[row_number]].copy()
+    _n = benchmark_numeric
+
+    print_modeler_benchmark_summary(row, row_number)
+
+    pypsa_obj = _n(row.get("pypsa_objective"))
+    modeler_obj = _n(row.get("modeler_objective_value"))
+    total_modeler = _n(row.get("modeler_total_time"))
+    n_const_pypsa = _n(row.get("number_of_constraints_pypsa"))
+    n_const_modeler = _n(row.get("number_of_constraints_modeler"))
+    n_var_pypsa = _n(row.get("number_of_variables_pypsa"))
+    n_var_modeler = _n(row.get("number_of_variables_modeler"))
 
     # Create visualizations: top row (4 plots) + bottom row (3 plots + wide end-to-end)
     fig = plt.figure(figsize=(20, 12))
@@ -342,7 +627,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     gemspy_solve = _n(row.get("gemspy_solve_time"))
     gemspy_writing_time_plot = _n(row.get("gemspy_writing_time"))
 
-    # 2. Total time: parsing+build+solve for PyPSA (no writing); parsing+build+solve+writing for Modeler
+    # 2. Total time: parsing+build+solve for PyPSA (no writing); parsing+build+solve+writing for Antares Modeler
     ax2 = fig.add_subplot(gs[0, 2:4])
     pypsa_build = _n(row["build_optimization_problem_time_pypsa"])
     pypsa_solve = _n(row["pypsa_optimization_time"])
@@ -353,7 +638,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         modeler_solve = total_modeler
 
     # PyPSA: parsing (.nc load) / build / solve — no writing (results stay in-memory)
-    # Modeler: parsing (YAML load) / build / solve / writing (simulation table to disk)
+    # Antares Modeler: parsing (YAML load) / build / solve / writing (simulation table to disk)
     bottom_pypsa: float = 0.0
     bottom_modeler: float = 0.0
     bottom_gemspy: float = 0.0
@@ -461,9 +746,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         ax7.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax7.transAxes)
     ax7.set_title("GemsPy Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
-    # 8. End-to-end comparison: full PyPSA vs full Modeler vs full GemsPy (stacked bars)
+    # 8. End-to-end comparison: full PyPSA vs full Antares Modeler vs full GemsPy (stacked bars)
     # PyPSA:   Parsing (.nc) / Preprocessing / Build / Solve
-    # Modeler: Preprocessing / Conversion / Parsing (YAML) / Build / Solve / Writing sim. table
+    # Antares Modeler: Preprocessing / Conversion / Parsing (YAML) / Build / Solve / Writing sim. table
     # GemsPy:  Preprocessing / Conversion / Parsing (study+config) / Build / Solve / Writing sim. table
     ax8 = fig.add_subplot(gs[1, 6:8])
     e2e_layer_defs = [
@@ -501,7 +786,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     ax8.grid(True, alpha=0.3, axis="y")
 
     fig.suptitle(
-        f"Benchmark Analysis - Study Row {row_number}: {row['pypsa_network_name']}",
+        f"Benchmark Analysis - Study Row {row_number}: {benchmark_study_label(row)}",
         fontsize=14,
         fontweight="bold",
         y=0.995,
@@ -509,17 +794,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     fig.tight_layout(rect=(0, 0, 0.97, 0.99))
     plt.show()
 
-    return df
-
-
-def get_results_path() -> Path:
-    """Get the path to the benchmark results CSV file."""
-    current_dir = Path().resolve()
-    for parent in current_dir.parents:
-        if (parent / "tmp" / "benchmark_results" / "all_studies_results.csv").exists():
-            return parent / "tmp" / "benchmark_results" / "all_studies_results.csv"
-
-    return Path("tmp") / "benchmark_results" / "all_studies_results.csv"
+    if return_dataframe:
+        return df
+    return None
 
 
 def get_objective_value(file_name: Path) -> float:

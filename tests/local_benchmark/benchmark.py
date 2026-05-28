@@ -114,7 +114,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     # ==================================================================================
     logger.info("Preprocessing PyPSA network")
     start_time_preprocessing = time.time()
-    network = preprocess_network(network, True, True)
+    network = preprocess_network(network, True)
     end_time_preprocessing = time.time() - start_time_preprocessing
     benchmark_data_frame.loc[0, "preprocessing_time_pypsa_network"] = end_time_preprocessing
 
@@ -292,7 +292,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     last = optim_config.time_scope.last_time_step
     timesteps = list(range(first, last + 1))
     block = TimeBlock(0, timesteps)
-    scenario_ids = list(range(optim_config.scenario_scope.nb_scenarios))
+    # GemsPy (develop) exposes the resolved scenario indices via `scenario_ids`.
+    # Default is [0] when no scenario selection is provided.
+    scenario_ids = optim_config.scenario_scope.scenario_ids
 
     t_build = time.time()
     problem = build_problem(study, block, scenario_ids, optim_config=optim_config)
