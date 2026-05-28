@@ -37,6 +37,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Log resolved versions
+        run: |
+          echo "### Resolved dependency versions" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependency | Version |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Antares Simulator | ${{ inputs.antares_version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Antares Xpansion  | ${{ inputs.antares_xpansion_version }} |" >> "$GITHUB_STEP_SUMMARY"
+          PYPSA_VERSION="${{ inputs.pypsa_version }}"
+          if [ -n "${PYPSA_VERSION}" ]; then
+            echo "| PyPSA (override)  | ${PYPSA_VERSION} |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo ""
+          echo "Antares Simulator : ${{ inputs.antares_version }}"
+          echo "Antares Xpansion  : ${{ inputs.antares_xpansion_version }}"
+          echo "PyPSA override    : ${PYPSA_VERSION:-<none>}"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -49,19 +65,30 @@ jobs:
         if: inputs.pypsa_version != ''
         run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
 
+      - name: Log installed Python packages
+        run: |
+          echo "--- Python environment ---"
+          uv run python --version
+          uv run pip show pypsa antares-solver 2>/dev/null || true
+          echo "--- Key packages ---"
+          uv run pip list | grep -iE "pypsa|antares|gems|linopy|pandas|numpy" || true
+
       - name: Download Antares release
         run: |
           VERSION="${{ inputs.antares_version }}"
           ARCHIVE="antares-${VERSION}-Ubuntu-22.04.tar.gz"
+          URL="https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${VERSION}/${ARCHIVE}"
           echo "Downloading Antares v${VERSION}..."
-          curl -L -f -o "${ARCHIVE}" \
-            "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${VERSION}/${ARCHIVE}"
+          echo "URL: ${URL}"
+          curl -L -f -o "${ARCHIVE}" "${URL}"
           echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
 
       - name: Extract Antares binaries
         run: |
           VERSION="${{ inputs.antares_version }}"
           tar -xzf "antares-${VERSION}-Ubuntu-22.04.tar.gz"
+          echo "Antares binaries:"
+          ls -lh "antares-${VERSION}-Ubuntu-22.04/bin/" 2>/dev/null || ls -lh "antares-${VERSION}-Ubuntu-22.04/" 2>/dev/null || true
 
       - name: Download Antares Xpansion release
         run: |
@@ -72,9 +99,10 @@ jobs:
           BASE_VERSION="${BASE_VERSION%%-alpha*}"
           BASE_VERSION="${BASE_VERSION%%-beta*}"
           ARCHIVE="antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
-          echo "Downloading Antares Xpansion v${VERSION}..."
-          curl -L -f -o "${ARCHIVE}" \
-            "https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/${ARCHIVE}"
+          URL="https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/${ARCHIVE}"
+          echo "Downloading Antares Xpansion v${VERSION} (archive: ${ARCHIVE})..."
+          echo "URL: ${URL}"
+          curl -L -f -o "${ARCHIVE}" "${URL}"
           echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
 
       - name: Extract Antares Xpansion binaries
@@ -84,6 +112,26 @@ jobs:
           BASE_VERSION="${BASE_VERSION%%-alpha*}"
           BASE_VERSION="${BASE_VERSION%%-beta*}"
           tar -xzf "antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
+          echo "Xpansion binaries:"
+          ls -lh "antaresXpansion-${BASE_VERSION}-ubuntu-22.04/bin/" 2>/dev/null || ls -lh "antaresXpansion-${BASE_VERSION}-ubuntu-22.04/" 2>/dev/null || true
+
+      - name: Verify binary paths
+        run: |
+          ANTARES_VERSION="${{ inputs.antares_version }}"
+          XPANSION_VERSION="${{ inputs.antares_xpansion_version }}"
+          BASE_XPANSION="${XPANSION_VERSION%%-rc*}"
+          BASE_XPANSION="${BASE_XPANSION%%-alpha*}"
+          BASE_XPANSION="${BASE_XPANSION%%-beta*}"
+          ANTARES_MODELER="antares-${ANTARES_VERSION}-Ubuntu-22.04/bin/antares-modeler"
+          ANTARES_PG="antares-${ANTARES_VERSION}-Ubuntu-22.04/bin/antares-problem-generator"
+          BENDERS="antaresXpansion-${BASE_XPANSION}-ubuntu-22.04/bin/benders"
+          for BIN in "${ANTARES_MODELER}" "${ANTARES_PG}" "${BENDERS}"; do
+            if [ -f "${BIN}" ]; then
+              echo "OK  ${BIN} ($(${BIN} --version 2>&1 | head -1 || echo 'version unavailable'))"
+            else
+              echo "MISSING  ${BIN}"
+            fi
+          done
 
       - name: Run end-to-end tests
         id: run_tests
