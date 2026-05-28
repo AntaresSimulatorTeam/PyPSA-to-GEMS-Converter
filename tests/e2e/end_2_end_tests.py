@@ -13,6 +13,7 @@
 import logging
 import math
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -40,9 +41,11 @@ def check_antares_binaries() -> None:
 
 def get_original_pypsa_study_objective(network: Network) -> float:
     logger.info("Optimizing the PyPSA study (network=%s)", network.name)
+    t0 = time.perf_counter()
     network.optimize()
+    elapsed = time.perf_counter() - t0
     obj = network.objective + network.objective_constant
-    logger.info("PyPSA study optimized; objective=%s", obj)
+    logger.info("PyPSA optimization: %.3f s  objective=%.6g", elapsed, obj)
     return obj
 
 

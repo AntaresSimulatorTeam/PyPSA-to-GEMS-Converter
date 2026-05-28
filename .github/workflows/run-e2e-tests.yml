@@ -139,8 +139,55 @@ jobs:
           uv run pytest \
             tests/e2e/end_2_end_tests.py \
             tests/e2e_2_stage_stochastic/test_2_stage_stochastic_study.py \
-            -v -s --log-cli-level=INFO --tb=short -rA
+            -v -s \
+            --log-cli-level=INFO \
+            --log-file=e2e-tests.log \
+            --log-file-level=DEBUG \
+            --log-file-format="%(asctime)s %(levelname)-8s %(name)s %(message)s" \
+            --log-file-date-format="%Y-%m-%d %H:%M:%S" \
+            --tb=long \
+            --junit-xml=e2e-results.xml \
+            -rA
         continue-on-error: true
+
+      - name: Post test summary
+        if: always() && steps.run_tests.outcome != 'skipped'
+        run: |
+          python - <<'EOF'
+          import xml.etree.ElementTree as ET, os, sys
+          path = "e2e-results.xml"
+          if not os.path.exists(path):
+              print("No JUnit XML found; skipping summary.")
+              sys.exit(0)
+          tree = ET.parse(path)
+          root = tree.getroot()
+          suite = root if root.tag == "testsuite" else root.find("testsuite")
+          if suite is None:
+              suite = root
+          total   = int(suite.get("tests",   0))
+          failed  = int(suite.get("failures", 0))
+          errored = int(suite.get("errors",   0))
+          skipped = int(suite.get("skipped",  0))
+          passed  = total - failed - errored - skipped
+          icon = "✅" if (failed + errored) == 0 else "❌"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"\n## {icon} E2E Test Results\n\n")
+              f.write(f"| Result | Count |\n|---|---|\n")
+              f.write(f"| ✅ Passed  | {passed}  |\n")
+              f.write(f"| ❌ Failed  | {failed}  |\n")
+              f.write(f"| 💥 Errors  | {errored} |\n")
+              f.write(f"| ⏭️ Skipped | {skipped} |\n")
+              f.write(f"| **Total**  | **{total}** |\n\n")
+              cases = list(suite.iter("testcase"))
+              bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None]
+              if bad:
+                  f.write("### Failed / Errored Tests\n\n")
+                  for c in bad:
+                      name = f"{c.get('classname', '')}.{c.get('name', '')}"
+                      node = c.find("failure") or c.find("error")
+                      msg = (node.get("message", "") if node is not None else "").split("\n")[0][:200]
+                      f.write(f"- **`{name}`** — {msg}\n")
+          EOF
 
       - name: Upload test artifacts on failure
         if: steps.run_tests.outcome == 'failure'
@@ -149,7 +196,8 @@ jobs:
           name: ${{ inputs.artifact_name }}
           path: |
             tmp/
-            **/*.log
+            e2e-tests.log
+            e2e-results.xml
           retention-days: 7
 
       - name: Cleanup

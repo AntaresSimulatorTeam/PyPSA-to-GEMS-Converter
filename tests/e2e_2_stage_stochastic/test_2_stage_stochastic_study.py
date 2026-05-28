@@ -19,13 +19,33 @@ from pathlib import Path
 import pytest
 from pypsa import Network
 
-from src.dependencies import get_antares_problem_generator_bin, get_antares_xpansion_benders_bin
+from src.dependencies import (
+    get_antares_dir_name,
+    get_antares_problem_generator_bin,
+    get_antares_xpansion_benders_bin,
+    get_antares_xpansion_dir_name,
+)
 from src.pypsa_converter import PyPSAStudyConverter
 from src.utils import prepare_benders_runtime_files
 
 current_dir = Path(__file__).resolve().parents[2]
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def check_binaries() -> None:
+    """Skip the test if Antares Simulator or Antares Xpansion binaries are not present."""
+    if not (current_dir / get_antares_dir_name()).is_dir():
+        pytest.skip(
+            "Antares Simulator binaries not found. "
+            "Download from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
+        )
+    if not (current_dir / get_antares_xpansion_dir_name()).is_dir():
+        pytest.skip(
+            "Antares Xpansion binaries not found. "
+            "Download from https://github.com/AntaresSimulatorTeam/antares-xpansion/releases"
+        )
 
 
 def _get_pypsa_total_objective(network: Network) -> float:
