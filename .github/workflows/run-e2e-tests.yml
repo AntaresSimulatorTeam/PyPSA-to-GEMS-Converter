@@ -69,8 +69,6 @@ jobs:
         run: |
           VERSION="${{ inputs.antares_xpansion_version }}"
           BASE_VERSION="${VERSION%%-rc*}"
-          BASE_VERSION="${BASE_VERSION%%-alpha*}"
-          BASE_VERSION="${BASE_VERSION%%-beta*}"
           curl -L -f -o "antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz" \
             "https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
 
@@ -78,8 +76,6 @@ jobs:
         run: |
           VERSION="${{ inputs.antares_xpansion_version }}"
           BASE_VERSION="${VERSION%%-rc*}"
-          BASE_VERSION="${BASE_VERSION%%-alpha*}"
-          BASE_VERSION="${BASE_VERSION%%-beta*}"
           tar -xzf "antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
 
       - name: Run end-to-end tests
@@ -88,7 +84,7 @@ jobs:
           uv run pytest \
             tests/e2e/end_2_end_tests.py \
             tests/e2e_2_stage_stochastic/test_2_stage_stochastic_study.py \
-            -v --tb=short
+            -v --tb=short -rA
         continue-on-error: true
 
       - name: Upload test artifacts on failure
@@ -98,6 +94,7 @@ jobs:
           name: ${{ inputs.artifact_name }}
           path: |
             tmp/
+            **/*.log
             e2e-results.xml
           retention-days: 7
 
