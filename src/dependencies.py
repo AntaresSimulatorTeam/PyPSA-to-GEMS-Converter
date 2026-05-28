@@ -13,6 +13,7 @@
 """Load and expose Antares / Antares Xpansion versions from dependencies.json."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -55,9 +56,14 @@ def get_antares_dir_name() -> str:
     return f"antares-{get_antares_version()}-Ubuntu-22.04"
 
 
+def _base_xpansion_version() -> str:
+    """Strip prerelease suffixes (e.g. '-rc1') from the Xpansion version for archive naming."""
+    return re.sub(r"-(rc|alpha|beta)\d*$", "", get_antares_xpansion_version())
+
+
 def get_antares_xpansion_dir_name() -> str:
-    """Return Antares Xpansion archive/dir name (e.g. 'antaresXpansion-1.7.2-ubuntu-22.04')."""
-    return f"antaresXpansion-{get_antares_xpansion_version()}-ubuntu-22.04"
+    """Return Antares Xpansion archive/dir name (e.g. 'antaresXpansion-1.9.0-ubuntu-22.04')."""
+    return f"antaresXpansion-{_base_xpansion_version()}-ubuntu-22.04"
 
 
 def get_antares_xpansion_dir(base_dir: Path) -> Path:
