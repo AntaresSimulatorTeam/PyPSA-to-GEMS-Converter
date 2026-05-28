@@ -87,7 +87,7 @@ pip install pypsa-to-gems-converter
 
 uv:
 ```bash
-uv add 
+uv add pypsa-to-gems-converter
 ```
 
 ## Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler
