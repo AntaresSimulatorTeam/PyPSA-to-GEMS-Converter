@@ -67,8 +67,8 @@ if [[ "${XPANSION_ONLY}" == true ]]; then
 fi
 
 read_versions() {
-  ANTARES_VERSION="$(uv run python -c "import json; print(json.load(open('dependencies.json'))['antares_version'])")"
-  XPANSION_VERSION="$(uv run python -c "import json; print(json.load(open('dependencies.json'))['antares_xpansion_version'])")"
+  ANTARES_VERSION="$(uv run --python 3.11 python -c "import json; print(json.load(open('dependencies.json'))['antares_version'])")"
+  XPANSION_VERSION="$(uv run --python 3.11 python -c "import json; print(json.load(open('dependencies.json'))['antares_xpansion_version'])")"
   XPANSION_BASE="${XPANSION_VERSION%%-rc*}"
   ANTARES_DIR="antares-${ANTARES_VERSION}-Ubuntu-22.04"
   XPANSION_DIR="antaresXpansion-${XPANSION_BASE}-ubuntu-22.04"
@@ -88,20 +88,29 @@ install_system_packages() {
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential \
     python3-dev \
+    libgeos-dev \
     curl ca-certificates \
     libopenmpi3 openmpi-bin \
     coinor-cbc
 }
 
 install_python_deps() {
-  log "Installing Python dependencies (uv sync --frozen --group dev)..."
+  # Pin 3.11 (project/CI target). Do not use system Python 3.12+ — many wheels are missing.
+  local python_version="3.11"
+  log "Installing Python ${python_version} and dependencies (uv sync --frozen --group dev)..."
   if ! command -v uv >/dev/null 2>&1; then
     log "uv not found; installing via official installer..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
     # shellcheck disable=SC1091
     source "${HOME}/.local/bin/env" 2>/dev/null || export PATH="${HOME}/.local/bin:${PATH}"
   fi
-  uv sync --frozen --group dev
+  uv python install "${python_version}"
+  if [[ -d "${REPO_ROOT}/.venv" ]] && ! grep -q "3.11" "${REPO_ROOT}/.venv/pyvenv.cfg" 2>/dev/null; then
+    log "Removing .venv (wrong Python version; need ${python_version})"
+    rm -rf "${REPO_ROOT}/.venv"
+  fi
+  uv sync --frozen --group dev --python "${python_version}"
+  log "Using: $(uv run --python "${python_version}" python -V)"
 }
 
 download_antares() {
