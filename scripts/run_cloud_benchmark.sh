@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cloud setup + full local benchmark run (Antares modeler + 2-scenario Xpansion).
+# Cloud setup + full local benchmark run (2-scenario Xpansion first, then Antares modeler suite).
 #
 # Target: Ubuntu LTS on OVH (22.04 recommended — same as CI and Antares binaries).
 # Uses apt-get (standard on Ubuntu; not a Debian-only script). From repository root:
@@ -218,16 +218,17 @@ main() {
   verify_test_files
   prepare_results_dir
 
-  if [[ "${RUN_MODELER}" == true ]]; then
-    run_modeler_benchmark
-  fi
+  # Xpansion first (2 large 2-scenario studies), then full modeler suite
   if [[ "${RUN_XPANSION}" == true ]]; then
     run_xpansion_benchmark
   fi
+  if [[ "${RUN_MODELER}" == true ]]; then
+    run_modeler_benchmark
+  fi
 
   log "Done. Results:"
-  log "  Modeler:  tmp/benchmark_results/all_studies_results.csv"
   log "  Xpansion: tmp/benchmark_results/xpansion_benchmark_results.csv"
+  log "  Modeler:  tmp/benchmark_results/all_studies_results.csv"
   log "  Logs:     tmp/benchmark_logs/"
 }
 
