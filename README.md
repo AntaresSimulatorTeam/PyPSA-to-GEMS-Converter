@@ -105,6 +105,22 @@ uv:
 uv add pypsa-to-gems-converter
 ```
 
+### 3. **CLI Usage**
+
+```bash
+pypsa-to-gems network.nc -o path/to/gems_study/
+```
+
+Key flags:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `network` | Path to the PyPSA network file (`.nc`) | required |
+| `-o` / `--output` | Directory where the GEMS study will be written (created if missing) | required |
+| `--series-format` | Time series file format (`.tsv` or `.csv`) | `.tsv` |
+| `--solver` | Solver name written to GEMS parameters | `highs` |
+|`-h` / `--help`| Show the help message and exit | none|
+
 ## Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler
 - Build or load a PyPSA network 
 ```python
