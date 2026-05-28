@@ -10,6 +10,8 @@
 #
 # This file is part of the Antares project.
 
+import logging
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -68,6 +70,43 @@ def preprocess_network(network: Network, quota: bool) -> Network:
     if quota:
         network = extend_quota(network)
     return network
+
+
+def enable_pypsa_solver_console_logging() -> None:
+    """Enable PyPSA default solver console logging (``params.optimize.log_to_console``)."""
+    import pypsa
+
+    pypsa.options.params.optimize.log_to_console = True
+
+
+def run_logged_subprocess(
+    cmd: list[str],
+    *,
+    cwd: str | Path | None = None,
+    logger: logging.Logger | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command, streaming merged stdout/stderr to the logger line by line."""
+    log = logger or logging.getLogger(__name__)
+    log.info("Running: %s (cwd=%s)", " ".join(cmd), cwd or ".")
+    stdout_lines: list[str] = []
+    process = subprocess.Popen(
+        cmd,
+        cwd=str(cwd) if cwd is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if process.stdout is None:
+        msg = f"Failed to start process: {' '.join(cmd)}"
+        raise RuntimeError(msg)
+    for line in process.stdout:
+        stripped = line.rstrip("\n")
+        stdout_lines.append(stripped)
+        log.info("%s", stripped)
+    returncode = process.wait()
+    combined = "\n".join(stdout_lines)
+    return subprocess.CompletedProcess(cmd, returncode, combined, "")
 
 
 def resolve_project_root(start: Path | None = None) -> Path:

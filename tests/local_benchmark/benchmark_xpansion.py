@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import subprocess
 import time
 from pathlib import Path
 
@@ -33,7 +32,12 @@ from src.dependencies import (
 )
 from src.pypsa_converter import PyPSAStudyConverter
 from src.utils import prepare_benders_runtime_files
-from tests.utils import PROJECT_ROOT, load_pypsa_study_benchmark, preprocess_network
+from tests.utils import (
+    PROJECT_ROOT,
+    load_pypsa_study_benchmark,
+    preprocess_network,
+    run_logged_subprocess,
+)
 
 logger = logging.getLogger("benchmark_xpansion")
 logger.setLevel(logging.INFO)
@@ -135,15 +139,40 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
     df.loc[0, "preprocessing_time_pypsa_network"] = time.time() - t0
 
     # --- PyPSA stochastic solve (reference) ---
-    t_pypsa_build = time.time()
-    network.optimize.create_model()
-    df.loc[0, "pypsa_build_seconds"] = time.time() - t_pypsa_build
+    log_dir = PROJECT_ROOT / "tmp" / "benchmark_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    cbc_log = log_dir / f"pypsa_cbc_{study_name}.log"
 
+    logger.info("Building PyPSA optimization model")
+    t_pypsa_build = time.time()
+    network.optimize.create_model(include_objective_constant=True)
+    df.loc[0, "pypsa_build_seconds"] = time.time() - t_pypsa_build
+    logger.info(
+        "PyPSA model built in %.1fs (%d variables, %d constraints)",
+        df.loc[0, "pypsa_build_seconds"],
+        int(network.model.nvars),
+        int(network.model.ncons),
+    )
+
+    logger.info(
+        "Solving PyPSA model with CBC (logLevel=2); solver log also written to %s (tail -f)",
+        cbc_log,
+    )
     t_pypsa = time.time()
-    status, condition = network.optimize(solver_name="cbc", include_objective_constant=True)
+    status, condition = network.optimize.solve_model(
+        solver_name="cbc",
+        solver_options={"logLevel": 2},
+        log_fn=str(cbc_log),
+    )
     df.loc[0, "pypsa_solve_seconds"] = time.time() - t_pypsa
     df.loc[0, "pypsa_status"] = status
     df.loc[0, "pypsa_condition"] = condition
+    logger.info(
+        "PyPSA solve finished in %.1fs: status=%s condition=%s",
+        df.loc[0, "pypsa_solve_seconds"],
+        status,
+        condition,
+    )
     df.loc[0, "pypsa_total_objective"] = _pypsa_total_objective(network)
     n_variables_pypsa, n_constraints_pypsa = _pypsa_problem_sizes(network)
     df.loc[0, "number_of_variables_pypsa"] = n_variables_pypsa
@@ -151,21 +180,22 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
 
     # --- Convert to study (multi-scenario => writer generates Antares scaffold + Xpansion config) ---
     study_dir = PROJECT_ROOT / "tmp" / study_name
+    logger.info("Converting PyPSA network to GEMS study at %s", study_dir)
     t_conv = time.time()
     PyPSAStudyConverter(pypsa_network=network, study_dir=study_dir, series_file_format=".tsv", solver_name="coin").to_gems_study()
     df.loc[0, "pypsa_to_gems_conversion_time"] = time.time() - t_conv
+    logger.info("Conversion finished in %.1fs", df.loc[0, "pypsa_to_gems_conversion_time"])
 
     study_root = study_dir / "systems"
 
     # --- Antares problem generation ---
     pg_bin = get_antares_problem_generator_bin(PROJECT_ROOT)
+    logger.info("Running antares-problem-generator on %s", study_root)
     t_pg = time.time()
-    result = subprocess.run(
+    result = run_logged_subprocess(
         [str(pg_bin), str(study_root)],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=str(pg_bin.parent),
+        cwd=pg_bin.parent,
+        logger=logger,
     )
     df.loc[0, "xpansion_problem_generator_seconds"] = time.time() - t_pg
     df.loc[0, "xpansion_problem_generator_returncode"] = result.returncode
@@ -194,13 +224,12 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
 
     # --- Benders ---
     benders_bin = get_antares_xpansion_benders_bin(PROJECT_ROOT)
+    logger.info("Running benders in %s", output_dir)
     t_b = time.time()
-    result = subprocess.run(
+    result = run_logged_subprocess(
         [str(benders_bin), str(options_path.name)],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=str(output_dir),
+        cwd=output_dir,
+        logger=logger,
     )
     df.loc[0, "xpansion_benders_seconds"] = time.time() - t_b
     df.loc[0, "xpansion_benders_returncode"] = result.returncode
