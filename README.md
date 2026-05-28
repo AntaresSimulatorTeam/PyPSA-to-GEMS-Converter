@@ -2,6 +2,11 @@
     <b>PyPSA to GEMS Converter</b> 
 </div>
 
+[![License](https://img.shields.io/github/license/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter.svg)](LICENSE)
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FAntaresSimulatorTeam%2FPyPSA-to-GEMS-Converter%2Fmain%2Fpyproject.toml)
+[![PyPSA](https://img.shields.io/badge/PyPSA-1.2.0-blue.svg)](https://pypsa.org/)
+[![Antares Simulator](https://img.shields.io/badge/Antares%20Simulator-10.0.1-blue.svg)](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/latest)
+
 ## About 
 The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/) folder.
 This converter is based on the representation of the PyPSA models of components as a GEMS library of models: [pypsa_models.yml](https://github.com/AntaresSimulatorTeam/GEMS/blob/main/libraries/pypsa_models.yml).
@@ -84,7 +89,7 @@ For the full list of unsupported components, component restrictions, and network
 
 PyPSA-to-GEMS-Converter needs Python version >=3.11, and it's tested on version 3.11 and 3.12.
 
-Its dependencies are listed inside the [`pyproject.toml`](pyproject.toml), it's an OS independent.
+Its dependencies are listed inside the [`pyproject.toml`](pyproject.toml). It is OS independent.
 
 It relies on Antares Simulator binaries findable in the official repo ; [**link to the latest release**](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/latest).
 
