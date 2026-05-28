@@ -36,22 +36,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-
-      - name: Log resolved versions
-        run: |
-          echo "### Resolved dependency versions" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dependency | Version |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Antares Simulator | ${{ inputs.antares_version }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Antares Xpansion  | ${{ inputs.antares_xpansion_version }} |" >> "$GITHUB_STEP_SUMMARY"
-          PYPSA_VERSION="${{ inputs.pypsa_version }}"
-          if [ -n "${PYPSA_VERSION}" ]; then
-            echo "| PyPSA (override)  | ${PYPSA_VERSION} |" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo ""
-          echo "Antares Simulator : ${{ inputs.antares_version }}"
-          echo "Antares Xpansion  : ${{ inputs.antares_xpansion_version }}"
-          echo "PyPSA override    : ${PYPSA_VERSION:-<none>}"
+        with:
+          ref: main
 
       - name: Install system dependencies
         run: sudo apt-get install -y libopenmpi3 openmpi-bin
@@ -68,45 +54,25 @@ jobs:
         if: inputs.pypsa_version != ''
         run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
 
-      - name: Log installed Python packages
-        run: |
-          echo "--- Python environment ---"
-          uv run python --version
-          uv run pip show pypsa antares-solver 2>/dev/null || true
-          echo "--- Key packages ---"
-          uv run pip list | grep -iE "pypsa|antares|gems|linopy|pandas|numpy" || true
-
       - name: Download Antares release
         run: |
           VERSION="${{ inputs.antares_version }}"
-          ARCHIVE="antares-${VERSION}-Ubuntu-22.04.tar.gz"
-          URL="https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${VERSION}/${ARCHIVE}"
-          echo "Downloading Antares v${VERSION}..."
-          echo "URL: ${URL}"
-          curl -L -f -o "${ARCHIVE}" "${URL}"
-          echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
+          curl -L -f -o "antares-${VERSION}-Ubuntu-22.04.tar.gz" \
+            "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/download/v${VERSION}/antares-${VERSION}-Ubuntu-22.04.tar.gz"
 
       - name: Extract Antares binaries
         run: |
           VERSION="${{ inputs.antares_version }}"
           tar -xzf "antares-${VERSION}-Ubuntu-22.04.tar.gz"
-          echo "Antares binaries:"
-          ls -lh "antares-${VERSION}-Ubuntu-22.04/bin/" 2>/dev/null || ls -lh "antares-${VERSION}-Ubuntu-22.04/" 2>/dev/null || true
 
       - name: Download Antares Xpansion release
         run: |
           VERSION="${{ inputs.antares_xpansion_version }}"
-          # Release tag may include a prerelease suffix (e.g. 1.9.0-rc1), but the
-          # archive filename only uses the base version (e.g. 1.9.0).
           BASE_VERSION="${VERSION%%-rc*}"
           BASE_VERSION="${BASE_VERSION%%-alpha*}"
           BASE_VERSION="${BASE_VERSION%%-beta*}"
-          ARCHIVE="antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
-          URL="https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/${ARCHIVE}"
-          echo "Downloading Antares Xpansion v${VERSION} (archive: ${ARCHIVE})..."
-          echo "URL: ${URL}"
-          curl -L -f -o "${ARCHIVE}" "${URL}"
-          echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
+          curl -L -f -o "antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz" \
+            "https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
 
       - name: Extract Antares Xpansion binaries
         run: |
@@ -115,26 +81,6 @@ jobs:
           BASE_VERSION="${BASE_VERSION%%-alpha*}"
           BASE_VERSION="${BASE_VERSION%%-beta*}"
           tar -xzf "antaresXpansion-${BASE_VERSION}-ubuntu-22.04.tar.gz"
-          echo "Xpansion binaries:"
-          ls -lh "antaresXpansion-${BASE_VERSION}-ubuntu-22.04/bin/" 2>/dev/null || ls -lh "antaresXpansion-${BASE_VERSION}-ubuntu-22.04/" 2>/dev/null || true
-
-      - name: Verify binary paths
-        run: |
-          ANTARES_VERSION="${{ inputs.antares_version }}"
-          XPANSION_VERSION="${{ inputs.antares_xpansion_version }}"
-          BASE_XPANSION="${XPANSION_VERSION%%-rc*}"
-          BASE_XPANSION="${BASE_XPANSION%%-alpha*}"
-          BASE_XPANSION="${BASE_XPANSION%%-beta*}"
-          ANTARES_MODELER="antares-${ANTARES_VERSION}-Ubuntu-22.04/bin/antares-modeler"
-          ANTARES_PG="antares-${ANTARES_VERSION}-Ubuntu-22.04/bin/antares-problem-generator"
-          BENDERS="antaresXpansion-${BASE_XPANSION}-ubuntu-22.04/bin/benders"
-          for BIN in "${ANTARES_MODELER}" "${ANTARES_PG}" "${BENDERS}"; do
-            if [ -f "${BIN}" ]; then
-              echo "OK  ${BIN} ($(${BIN} --version 2>&1 | head -1 || echo 'version unavailable'))"
-            else
-              echo "MISSING  ${BIN}"
-            fi
-          done
 
       - name: Run end-to-end tests
         id: run_tests
@@ -142,55 +88,8 @@ jobs:
           uv run pytest \
             tests/e2e/end_2_end_tests.py \
             tests/e2e_2_stage_stochastic/test_2_stage_stochastic_study.py \
-            -v -s \
-            --log-cli-level=INFO \
-            --log-file=e2e-tests.log \
-            --log-file-level=DEBUG \
-            --log-file-format="%(asctime)s %(levelname)-8s %(name)s %(message)s" \
-            --log-file-date-format="%Y-%m-%d %H:%M:%S" \
-            --tb=long \
-            --junit-xml=e2e-results.xml \
-            -rA
+            -v --tb=short
         continue-on-error: true
-
-      - name: Post test summary
-        if: always() && steps.run_tests.outcome != 'skipped'
-        run: |
-          python - <<'EOF'
-          import xml.etree.ElementTree as ET, os, sys
-          path = "e2e-results.xml"
-          if not os.path.exists(path):
-              print("No JUnit XML found; skipping summary.")
-              sys.exit(0)
-          tree = ET.parse(path)
-          root = tree.getroot()
-          suite = root if root.tag == "testsuite" else root.find("testsuite")
-          if suite is None:
-              suite = root
-          total   = int(suite.get("tests",   0))
-          failed  = int(suite.get("failures", 0))
-          errored = int(suite.get("errors",   0))
-          skipped = int(suite.get("skipped",  0))
-          passed  = total - failed - errored - skipped
-          icon = "✅" if (failed + errored) == 0 else "❌"
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-              f.write(f"\n## {icon} E2E Test Results\n\n")
-              f.write(f"| Result | Count |\n|---|---|\n")
-              f.write(f"| ✅ Passed  | {passed}  |\n")
-              f.write(f"| ❌ Failed  | {failed}  |\n")
-              f.write(f"| 💥 Errors  | {errored} |\n")
-              f.write(f"| ⏭️ Skipped | {skipped} |\n")
-              f.write(f"| **Total**  | **{total}** |\n\n")
-              cases = list(suite.iter("testcase"))
-              bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None]
-              if bad:
-                  f.write("### Failed / Errored Tests\n\n")
-                  for c in bad:
-                      name = f"{c.get('classname', '')}.{c.get('name', '')}"
-                      node = c.find("failure") or c.find("error")
-                      msg = (node.get("message", "") if node is not None else "").split("\n")[0][:200]
-                      f.write(f"- **`{name}`** — {msg}\n")
-          EOF
 
       - name: Upload test artifacts on failure
         if: steps.run_tests.outcome == 'failure'
@@ -199,7 +98,6 @@ jobs:
           name: ${{ inputs.artifact_name }}
           path: |
             tmp/
-            e2e-tests.log
             e2e-results.xml
           retention-days: 7
 
