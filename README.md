@@ -132,7 +132,7 @@ PyPSAStudyConverter(
 - Run the GEMS(Antares) optimization 
 ```python
 # Path to the Antares modeler binary
-modeler_bin = Path("antares-9.3.5-Ubuntu-22.04/bin/antares-modeler")
+modeler_bin = Path("antares-10.0.1-Ubuntu-22.04/bin/antares-modeler")
 
 # Run the optimization
 subprocess.run([
