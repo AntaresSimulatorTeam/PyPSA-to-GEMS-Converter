@@ -13,128 +13,189 @@
 import json
 import logging
 import subprocess
+import time
 from pathlib import Path
 
+import pytest
 from pypsa import Network
 
-from src.dependencies import get_antares_modeler_bin
+from src.dependencies import (
+    get_antares_dir_name,
+    get_antares_problem_generator_bin,
+    get_antares_xpansion_benders_bin,
+    get_antares_xpansion_dir_name,
+)
 from src.pypsa_converter import PyPSAStudyConverter
+from src.utils import prepare_benders_runtime_files
 
-logger = logging.getLogger(__name__)
 current_dir = Path(__file__).resolve().parents[2]
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
-def test_2_stage_stochastic_study() -> None:
-    network = Network(name="Simple_Network", snapshots=[i for i in range(10)])
+@pytest.fixture(scope="function", autouse=True)
+def check_binaries() -> None:
+    """Skip the test if Antares Simulator or Antares Xpansion binaries are not present."""
+    if not (current_dir / get_antares_dir_name()).is_dir():
+        pytest.skip(
+            "Antares Simulator binaries not found. "
+            "Download from https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
+        )
+    if not (current_dir / get_antares_xpansion_dir_name()).is_dir():
+        pytest.skip(
+            "Antares Xpansion binaries not found. "
+            "Download from https://github.com/AntaresSimulatorTeam/antares-xpansion/releases"
+        )
 
-    network.add("Carrier", "carrier", co2_emissions=0)
-    network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
 
-    network.add("Load", "static_load", bus="bus 1", p_set=100, q_set=10)
+def _get_pypsa_total_objective(network: Network) -> float:
+    objective = network.objective
+    objective_constant = network.objective_constant
+    assert objective is not None
+    assert objective_constant is not None
+    return objective + objective_constant
 
-    time_series_p_set = [100 + 10 * i for i in range(10)]
-    time_series_q_set = [20 + 5 * i for i in range(10)]
-    network.add("Load", "timeseries_load", bus="bus 1", p_set=time_series_p_set, q_set=time_series_q_set)
+
+def _build_two_stage_test_network() -> Network:
+    network = Network(name="Simple_Network", snapshots=range(168))
+
+    network.add("Carrier", "AC", co2_emissions=0)
+    network.add("Bus", "bus 1", v_nom=220, carrier="AC")
+    network.add("Bus", "bus 2", v_nom=220, carrier="AC")
+
+    network.add("Load", "load1", bus="bus 1", p_set=[60 + (i % 24) for i in range(168)], q_set=0)
+    network.add("Load", "load2", bus="bus 2", p_set=[40 + ((i + 6) % 24) for i in range(168)], q_set=0)
+
+    # Keep the tiny study feasible even before any further investment.
+    base_p_max = [0.9 for _ in range(168)]
 
     network.add(
         "Generator",
         "gen1",
         bus="bus 1",
-        p_nom_extendable=False,
-        marginal_cost=50,
-        p_nom=200,
-        p_max_pu=[0.9 + 0.01 * i for i in range(10)],
+        p_nom_extendable=True,
+        p_nom_min=140,
+        marginal_cost=45,
+        p_nom=140,
+        p_max_pu=base_p_max,
         capital_cost=1000,
     )
 
     network.add(
         "Generator",
         "gen2",
-        bus="bus 1",
-        p_nom_extendable=False,
-        marginal_cost=50,
-        p_nom=200,
-        p_max_pu=[0.9 + 0.01 * i for i in range(10)],
-        capital_cost=1000,
+        bus="bus 2",
+        p_nom_extendable=True,
+        p_nom_min=100,
+        marginal_cost=55,
+        p_nom=100,
+        p_max_pu=base_p_max,
+        capital_cost=900,
     )
-    scenarios = {
-        "low": 1,
-        # "medium": 0.2,
-    }  # this sum needs to be equal to 1, so current solution is that we only have one scenario
+    network.add(
+        "Line",
+        "line12",
+        bus0="bus 1",
+        bus1="bus 2",
+        x=0.1,
+        r=0.01,
+        s_nom=200,
+        s_nom_extendable=True,
+        s_nom_min=200,
+        capital_cost=100,
+    )
+    network.set_scenarios({"low": 0.5, "high": 0.5})
+    return network
 
-    network.set_scenarios(scenarios)
+
+def test_2_stage_stochastic_study(tmp_path: Path) -> None:
+    pypsa_network = _build_two_stage_test_network()
+    pypsa_start = time.perf_counter()
+    status, condition = pypsa_network.optimize(solver_name="cbc", include_objective_constant=True)
+    pypsa_elapsed = time.perf_counter() - pypsa_start
+    logger.info("==============================================")
+    logger.info("PyPSA stochastic solve:")
+    logger.info("status: %s", status)
+    logger.info("condition: %s", condition)
+    logger.info("elapsed_seconds: %s", pypsa_elapsed)
+    logger.info("objective: %s", pypsa_network.objective)
+    logger.info("objective_constant: %s", pypsa_network.objective_constant)
+    logger.info("total_objective: %s", _get_pypsa_total_objective(pypsa_network))
+    logger.info("==============================================")
+    assert status == "ok"
+    assert condition == "optimal"
+
+    network = _build_two_stage_test_network()
+    study_dir = tmp_path / "test_2_stage_stochastic_study"
     PyPSAStudyConverter(
         network,
-        logger,
-        Path("tmp") / "test_2_stage_stochastic_study",
-        ".csv",
-        "coin",
+        study_dir,
+        ".tsv",
+        solver_name="coin",
     ).to_gems_study()
 
-    study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
-    # benders_bin = get_antares_xpansion_benders_bin(current_dir)
-    modeler_bin = get_antares_modeler_bin(current_dir)
+    study_root = study_dir / "systems"
+    assert (study_root / "study.antares").exists()
+    assert (study_root / "settings" / "generaldata.ini").exists()
+    assert (study_root / "user" / "expansion" / "settings.ini").exists()
+    assert (study_root / "user" / "expansion" / "options.json").exists()
 
-    try:
-        result = subprocess.run(
-            [str(modeler_bin), str(study_dir / "systems")],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=str(modeler_bin.parent),
-        )
-        print("================================")
-        print("Antares modeler output:")
-        print("returncode:", result.returncode)
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
-        print("================================")
-        output_dir = study_dir / "systems" / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
+    problem_generator_bin = get_antares_problem_generator_bin(current_dir)
+    problem_generator_start = time.perf_counter()
+    result = subprocess.run(
+        [str(problem_generator_bin), str(study_root)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(problem_generator_bin.parent),
+    )
+    problem_generator_elapsed = time.perf_counter() - problem_generator_start
+    logger.info("==============================================")
+    logger.info("Problem generator output:")
+    logger.info("elapsed_seconds: %s", problem_generator_elapsed)
+    logger.info("returncode: %s", result.returncode)
+    logger.info("stdout: %s", result.stdout)
+    logger.info("stderr: %s", result.stderr)
+    logger.info("==============================================")
+    assert result.returncode == 0
 
-        option_json = {
-            "LOG_LEVEL": 0,
-            "MAX_ITERATIONS": -1,
-            "GAP": 1e-06,
-            "AGGREGATION": False,
-            "OUTPUTROOT": ".",
-            "TRACE": True,
-            "SLAVE_WEIGHT": "CONSTANT",
-            "SLAVE_WEIGHT_VALUE": 1,
-            "MASTER_NAME": "master",
-            "LAST_MASTER_MPS": "master_last_iteration",
-            "STRUCTURE_FILE": "structure.txt",
-            "INPUTROOT": ".",
-            "CSV_NAME": "benders_output_trace",
-            "BOUND_ALPHA": True,
-            "SOLVER_NAME": "Coin",
-            "JSON_FILE": "./expansion/out.json",
-            "LAST_ITERATION_JSON_FILE": "./expansion/last_iteration.json",
-        }
+    output_dir, options_path = prepare_benders_runtime_files(study_root)
 
-        options_path = output_dir / "option.json"
-        options_path.parent.mkdir(parents=True, exist_ok=True)
-        options_path.write_text(json.dumps(option_json, indent=2), encoding="utf-8")
+    benders_bin = get_antares_xpansion_benders_bin(current_dir)
+    benders_start = time.perf_counter()
+    result = subprocess.run(
+        [str(benders_bin), str(options_path.name)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(output_dir),
+    )
+    benders_elapsed = time.perf_counter() - benders_start
+    logger.info("==============================================")
+    logger.info("Benders output:")
+    logger.info("elapsed_seconds: %s", benders_elapsed)
+    logger.info("returncode: %s", result.returncode)
+    logger.info("stdout: %s", result.stdout)
+    logger.info("stderr: %s", result.stderr)
+    logger.info("==============================================")
+    assert result.returncode == 0
 
-        (output_dir / "area.txt").touch(exist_ok=True)
-        """
-        result = subprocess.run(
-            [str(benders_bin), str(options_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=str(output_dir),
-        )
-        print("================================")
-        print("Benders output:")
-        print("returncode:", result.returncode)
-        print("stdout:", result.stdout)
-        print("stderr:", result.stderr)
-        print("================================")
-        """
-    except Exception as e:
-        print(e)
-        raise e
+    xpansion_result = json.loads((output_dir / "expansion" / "out.json").read_text(encoding="utf-8"))
+    xpansion_solution = xpansion_result["solution"]
+    pypsa_total_objective = _get_pypsa_total_objective(pypsa_network)
 
-    # network.optimize()
-    # print(f"PyPSA objective: {network.objective + network.objective_constant}")
+    logger.info("==============================================")
+    logger.info("Objective comparison:")
+    logger.info("pypsa_total_objective: %s", pypsa_total_objective)
+    logger.info("xpansion_overall_cost: %s", xpansion_solution["overall_cost"])
+    logger.info("xpansion_runtime_seconds: %s", xpansion_result["run_duration"])
+    logger.info("==============================================")
+
+    assert xpansion_solution["problem_status"] == "OPTIMAL"
+    assert xpansion_solution["overall_cost"] == pytest.approx(pypsa_total_objective)
+    assert xpansion_solution["values"]["generator_gen1.p_nom"] == pytest.approx(
+        pypsa_network.generators.loc[("low", "gen1"), "p_nom_opt"]
+    )
+    assert xpansion_solution["values"]["generator_gen2.p_nom"] == pytest.approx(
+        pypsa_network.generators.loc[("low", "gen2"), "p_nom_opt"]
+    )

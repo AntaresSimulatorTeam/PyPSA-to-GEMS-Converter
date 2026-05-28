@@ -71,6 +71,8 @@ class PyPSARegister:
                 "v_mag_pu_set": "v_mag_pu_set",
                 "v_mag_pu_min": "v_mag_pu_min",
                 "v_mag_pu_max": "v_mag_pu_max",
+                "theta_min": "theta_min",
+                "theta_max": "theta_max",
             },
             {},
         )
@@ -138,6 +140,47 @@ class PyPSARegister:
                 "co2_emissions": "emission_factor",
             },
             {"bus": ("p_balance_port", "p_balance_port")},
+        )
+
+        ### PyPSA components : Lines
+        self._register_pypsa_component(
+            "lines",
+            self.pypsa_network.components.lines.static,
+            self.pypsa_network.components.lines.dynamic,
+            "line",
+            {
+                "x_pu": "x",
+                "s_nom_min": "s_nom_min",
+                "s_nom_max": "s_nom_max",
+                "s_nom_mod": "s_nom_mod",
+                "s_max_pu": "s_max_pu",
+                "capital_cost": "capital_cost",
+                "modular": "modular",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        ### PyPSA components : Transformers
+        self._register_pypsa_component(
+            "transformers",
+            self.pypsa_network.components.transformers.static,
+            self.pypsa_network.components.transformers.dynamic,
+            "transformer",
+            {
+                "x_pu_eff": "x_pu_eff",
+                "s_nom_min": "s_nom_min",
+                "s_nom_max": "s_nom_max",
+                "s_nom_mod": "s_nom_mod",
+                "s_max_pu": "s_max_pu",
+                "capital_cost": "capital_cost",
+                "modular": "modular",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
         )
 
         self._register_pypsa_globalconstraints()
