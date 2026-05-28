@@ -53,6 +53,9 @@ jobs:
           echo "Antares Xpansion  : ${{ inputs.antares_xpansion_version }}"
           echo "PyPSA override    : ${PYPSA_VERSION:-<none>}"
 
+      - name: Install system dependencies
+        run: sudo apt-get install -y libopenmpi3
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
