@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Cloud setup + full local benchmark run (Antares modeler + 2-scenario Xpansion).
 #
-# Target: Ubuntu 22.04 VM (same as CI). From repository root:
+# Target: Ubuntu LTS on OVH (22.04 recommended — same as CI and Antares binaries).
+# Uses apt-get (standard on Ubuntu; not a Debian-only script). From repository root:
 #   chmod +x scripts/run_cloud_benchmark.sh
 #   ./scripts/run_cloud_benchmark.sh
 #
@@ -21,6 +22,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
+
+# Ensure log/results dirs exist before nohup redirection (e.g. > tmp/benchmark_logs/cloud_run.log)
+mkdir -p "${REPO_ROOT}/tmp/benchmark_logs" "${REPO_ROOT}/tmp/benchmark_results"
 
 SETUP_ONLY=false
 MODELER_ONLY=false
@@ -79,9 +83,11 @@ install_system_packages() {
     log "Skipping apt-get (--no-apt)"
     return
   fi
-  log "Installing system packages (OpenMPI, CBC)..."
+  log "Installing Ubuntu packages via apt (build tools, OpenMPI, CBC)..."
   sudo apt-get update
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    build-essential \
+    python3-dev \
     curl ca-certificates \
     libopenmpi3 openmpi-bin \
     coinor-cbc
