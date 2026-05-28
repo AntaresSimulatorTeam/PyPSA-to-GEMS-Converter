@@ -108,7 +108,7 @@ uv add pypsa-to-gems-converter
 ### 3. **CLI Usage**
 
 ```bash
-pypsa-to-gems network.nc -o path/to/gems_study/
+pypsa-to-gems network.nc -o path_to_gems_study/
 ```
 
 Key flags:
