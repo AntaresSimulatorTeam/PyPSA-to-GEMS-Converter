@@ -104,8 +104,9 @@ uv:
 ```bash
 uv add pypsa-to-gems-converter
 ```
+## Usage
 
-### 3. **CLI Usage**
+### 1. **CLI Usage**
 
 ```bash
 pypsa-to-gems network.nc -o path_to_gems_study/
@@ -121,7 +122,7 @@ Key flags:
 | `--solver` | Solver name written to GEMS parameters | `highs` |
 |`-h` / `--help`| Show the help message and exit | none|
 
-## Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler
+### 2. **Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler**
 - Build or load a PyPSA network 
 ```python
 # Setup
