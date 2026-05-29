@@ -142,7 +142,7 @@ network = Network("simple_network.nc")  # Absolute path to the PyPSA file
 PyPSAStudyConverter(
     pypsa_network=network,
     study_dir=study_dir,
-    series_file_format=".tsv",  # Supported formats: .tsv, .csv
+    series_file_format=".tsv",  # Supported formats: .tsv, tsv, .csv, csv 
 ).to_gems_study()
 ```
 - Run the Antares Modeler optimization 
