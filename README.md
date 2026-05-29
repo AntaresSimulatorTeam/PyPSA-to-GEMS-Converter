@@ -91,7 +91,7 @@ PyPSA-to-GEMS-Converter needs Python version >=3.11, and it's tested on version 
 
 Its dependencies are listed inside the [`pyproject.toml`](pyproject.toml) and it is OS independent.
 
-It relies on Antares Simulator binaries findable in the official repo ; [**link to the v10.0.1 release page**](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/tag/v10.0.1).
+It relies on Antares Simulator binaries findable in the official repo [**link to the v10.0.1 release page**](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/tag/v10.0.1).
 
 ### 2. **Commands**
 
