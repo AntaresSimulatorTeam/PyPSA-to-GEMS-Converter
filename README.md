@@ -145,7 +145,7 @@ PyPSAStudyConverter(
     series_file_format=".tsv",  # Supported formats: .tsv, .csv
 ).to_gems_study()
 ```
-- Run the GEMS(Antares) optimization 
+- Run the Antares Modeler optimization 
 ```python
 # Path to the Antares modeler binary
 modeler_bin = Path("antares-10.0.1-Ubuntu-22.04/bin/antares-modeler")
