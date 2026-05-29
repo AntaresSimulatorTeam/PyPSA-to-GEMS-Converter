@@ -117,7 +117,7 @@ Key flags:
 |------|-------------|---------|
 | `network` | Path to the PyPSA network file (`.nc`) | required |
 | `-o` / `--output` | Directory where the GEMS study will be written (created if missing) | required |
-| `--series-format` | Time series file format (`.tsv` or `.csv`) | `.tsv` |
+| `--series-format` | Time series file format (`.tsv` or `tsv` or `.csv`or `csv`) | `.tsv` |
 | `--solver` | Solver name written to GEMS parameters | `highs` |
 |`-h` / `--help`| Show the help message and exit | none|
 
