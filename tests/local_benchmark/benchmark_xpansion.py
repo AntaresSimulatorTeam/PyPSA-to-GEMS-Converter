@@ -31,7 +31,11 @@ from src.dependencies import (
     get_antares_xpansion_version,
 )
 from src.pypsa_converter import PyPSAStudyConverter
-from src.utils import prepare_benders_runtime_files
+from src.utils import (
+    configure_xpansion_slave_weights,
+    prepare_benders_runtime_files,
+    set_pypsa_scenario_weights,
+)
 from tests.utils import (
     PROJECT_ROOT,
     load_pypsa_study_benchmark,
@@ -128,10 +132,18 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
     df.loc[0, "antares_version"] = f"v{get_antares_version()}"
     df.loc[0, "antares_xpansion_version"] = f"v{get_antares_xpansion_version()}"
 
-    if not (hasattr(network, "has_scenarios") and network.has_scenarios and len(network.scenarios) == 2):
-        raise AssertionError(f"Expected exactly 2 scenarios in {file_name}, got: {getattr(network, 'scenarios', None)}")
+    if not (hasattr(network, "has_scenarios") and network.has_scenarios and len(network.scenarios) >= 2):
+        raise AssertionError(
+            f"Expected at least 2 scenarios in {file_name}, got: {getattr(network, 'scenarios', None)}"
+        )
 
-    # Converter requires unity snapshot weightings
+    # Scenario probabilities for PyPSA + Xpansion: equal split by default (e.g. 0.5/0.5 or 1/3 each).
+    # For custom weights use set_pypsa_scenario_weights(network, {"s1": 0.2, "s2": 0.5, "s3": 0.3}).
+    scenario_weights = set_pypsa_scenario_weights(network)
+    df.loc[0, "pypsa_scenario_weights"] = json.dumps(scenario_weights)
+    logger.info("PyPSA scenario weights (sum=1): %s", scenario_weights)
+
+    # Converter requires unity snapshot weightings (hourly weights; scenario probs are separate)
     network.snapshot_weightings.loc[:] = 1.0
 
     t0 = time.time()
@@ -182,7 +194,9 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
     study_dir = PROJECT_ROOT / "tmp" / study_name
     logger.info("Converting PyPSA network to GEMS study at %s", study_dir)
     t_conv = time.time()
-    PyPSAStudyConverter(pypsa_network=network, study_dir=study_dir, series_file_format=".tsv", solver_name="coin").to_gems_study()
+    PyPSAStudyConverter(
+        pypsa_network=network, study_dir=study_dir, series_file_format=".tsv", solver_name="coin"
+    ).to_gems_study()
     df.loc[0, "pypsa_to_gems_conversion_time"] = time.time() - t_conv
     logger.info("Conversion finished in %.1fs", df.loc[0, "pypsa_to_gems_conversion_time"])
 
@@ -207,6 +221,15 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
         )
 
     output_dir, options_path = prepare_benders_runtime_files(study_root)
+
+    xpansion_weight_mode = configure_xpansion_slave_weights(
+        output_dir,
+        options_path,
+        scenario_weights,
+        scenario_order=list(network.scenarios),
+    )
+    df.loc[0, "xpansion_slave_weight_mode"] = xpansion_weight_mode
+    logger.info("Xpansion Benders SLAVE_WEIGHT mode: %s", xpansion_weight_mode)
 
     # Problem size: antares-problem-generator stdout when present (like antares-modeler in benchmark.py),
     # otherwise from the first Benders subproblem MPS written under output_dir.
@@ -252,4 +275,3 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
     results_file = results_dir / "xpansion_benchmark_results.csv"
     df.to_csv(results_file, mode="a", header=not results_file.exists(), index=False)
     logger.info("Appended Xpansion benchmark results to %s", results_file)
-

@@ -11,7 +11,10 @@
 # This file is part of the Antares project.
 from __future__ import annotations
 
+import json
+import re
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -51,6 +54,160 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[st
     return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
 
 
+def set_pypsa_scenario_weights(
+    network: Network,
+    weights: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """
+    Set PyPSA scenario probabilities (``network.scenario_weightings``), normalized to sum 1.
+
+    When *weights* is omitted, each scenario receives an equal share (e.g. 0.5 / 0.5 for two, 1/3 for three).
+
+    Example with three scenarios::
+
+        set_pypsa_scenario_weights(network, {"dry": 0.2, "normal": 0.5, "wet": 0.3})
+    """
+    if not (hasattr(network, "has_scenarios") and network.has_scenarios):
+        raise ValueError("Network has no scenarios")
+    scenarios = list(network.scenarios)
+    if weights is None:
+        share = 1.0 / len(scenarios)
+        weights = {str(s): share for s in scenarios}
+    unknown = set(weights) - set(scenarios)
+    if unknown:
+        raise ValueError(f"Unknown scenario(s) in weights: {sorted(unknown)}")
+    total = sum(float(weights[str(s)]) for s in scenarios)
+    if total <= 0:
+        raise ValueError("Scenario weights must sum to a positive value")
+    normalized = {str(s): float(weights[str(s)]) / total for s in scenarios}
+    for scenario, weight in normalized.items():
+        network.scenario_weightings.loc[scenario, "weight"] = weight
+    return normalized
+
+
+def write_pypsa_scenario_weights_manifest(
+    study_root: Path,
+    scenario_weightings: dict[str, float],
+    *,
+    scenario_order: Sequence[str] | None = None,
+) -> Path:
+    """Persist PyPSA scenario weights and MC-year order next to Xpansion settings."""
+    order = [str(s) for s in scenario_order] if scenario_order is not None else sorted(scenario_weightings)
+    manifest = study_root / "user" / "expansion" / "pypsa_scenario_weights.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "scenario_order": order,
+        "scenarios": {name: float(scenario_weightings[name]) for name in order},
+    }
+    manifest.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return manifest
+
+
+def read_pypsa_scenario_weights_manifest(study_root: Path) -> tuple[dict[str, float], list[str]]:
+    """Load scenario weights and order written at conversion time."""
+    manifest = study_root / "user" / "expansion" / "pypsa_scenario_weights.json"
+    if not manifest.is_file():
+        raise FileNotFoundError(f"Missing scenario weights manifest: {manifest}")
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    order = [str(s) for s in payload["scenario_order"]]
+    weights = {str(k): float(v) for k, v in payload["scenarios"].items()}
+    return weights, order
+
+
+def _subproblem_mc_year_index(mps_path: Path) -> int:
+    """Extract MC-year index from ``problem-{year}-1--optim-nb-1.mps`` (Antares PG with playlist)."""
+    match = re.search(r"problem-(\d+)-\d+--", mps_path.name)
+    if match:
+        return int(match.group(1)) - 1
+    return 0
+
+
+def _find_xpansion_subproblem_mps(output_dir: Path) -> list[Path]:
+    subproblems = list(output_dir.glob("problem-*.mps"))
+    if not subproblems:
+        subproblems = list(output_dir.glob("**/problem-*.mps"))
+    return sorted(subproblems, key=_subproblem_mc_year_index)
+
+
+def configure_xpansion_slave_weights(
+    output_dir: Path,
+    options_path: Path,
+    scenario_weightings: dict[str, float],
+    *,
+    scenario_order: Sequence[str] | None = None,
+) -> str:
+    """
+    Map PyPSA scenario probabilities to Antares Xpansion Benders ``SLAVE_WEIGHT``.
+
+    - Equal weights (e.g. 0.5/0.5 or 1/3 each): ``UNIFORM`` (matches PyPSA in e2e tests).
+    - Unequal weights: ``xpansion_slave_weights.txt`` with one ``<mps_path> <weight>`` line per
+      subproblem plus ``WEIGHT_SUM 1``.
+
+    Requires one operational subproblem per PyPSA scenario (``nbyears`` + playlist in study setup).
+    Subproblems are sorted by MC year index in the filename; scenarios follow *scenario_order*.
+    """
+    total = sum(float(v) for v in scenario_weightings.values())
+    if total <= 0:
+        raise ValueError("Scenario weights must sum to a positive value")
+    normalized = {str(k): float(v) / total for k, v in scenario_weightings.items()}
+    if scenario_order is not None:
+        order = [str(s) for s in scenario_order]
+        missing = set(order) - set(normalized)
+        if missing:
+            raise ValueError(f"scenario_order contains unknown scenario(s): {sorted(missing)}")
+        if len(order) != len(normalized):
+            raise ValueError("scenario_order must list each scenario exactly once")
+    else:
+        order = sorted(normalized.keys())
+    weight_values = [normalized[s] for s in order]
+
+    subproblems = _find_xpansion_subproblem_mps(output_dir)
+    if len(subproblems) != len(order):
+        raise RuntimeError(
+            f"Cannot map {len(order)} scenario(s) to {len(subproblems)} subproblem MPS file(s) under {output_dir}. "
+            "Check problem-generator output or pass scenario_order matching Antares subproblem order."
+        )
+
+    mapping = [
+        {
+            "mc_year_index": _subproblem_mc_year_index(mps),
+            "scenario": scenario,
+            "subproblem": mps.name,
+            "weight": normalized[scenario],
+        }
+        for mps, scenario in zip(subproblems, order, strict=True)
+    ]
+    (output_dir / "xpansion_slave_weights_mapping.json").write_text(
+        json.dumps({"assignments": mapping}, indent=2),
+        encoding="utf-8",
+    )
+
+    options = json.loads(options_path.read_text(encoding="utf-8"))
+    equal_weights = len(weight_values) > 0 and max(weight_values) - min(weight_values) < 1e-9
+
+    if equal_weights:
+        options["SLAVE_WEIGHT"] = "UNIFORM"
+        options.pop("SLAVE_WEIGHT_VALUE", None)
+        mode = "UNIFORM"
+    else:
+        weights_file = output_dir / "xpansion_slave_weights.txt"
+        lines = [
+            f"./{mps.relative_to(output_dir).as_posix()} {normalized[scenario]}"
+            for mps, scenario in zip(subproblems, order, strict=True)
+        ]
+        lines.append(f"WEIGHT_SUM {sum(normalized.values()):.12g}")
+        weights_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        options["SLAVE_WEIGHT"] = weights_file.name
+        options.pop("SLAVE_WEIGHT_VALUE", None)
+        mode = weights_file.name
+
+    options_path.write_text(json.dumps(options, indent=2), encoding="utf-8")
+    source_options = output_dir.parent.parent / "user" / "expansion" / "options.json"
+    if source_options.is_file():
+        source_options.write_text(json.dumps(options, indent=2), encoding="utf-8")
+    return mode
+
+
 def prepare_benders_runtime_files(study_root: Path) -> tuple[Path, Path]:
     """
     # This function prepares the necessary runtime files for running the Antares Xpansion Benders algorithm.
@@ -60,7 +217,7 @@ def prepare_benders_runtime_files(study_root: Path) -> tuple[Path, Path]:
     # and finally returns the paths to the output directory and the copied options.json file.
     # This setup is required so that the Benders binary can be executed with the expected file structure and options.
     """
-    output_dirs = list((study_root / "output").glob("*eco"))
+    output_dirs = list((study_root / "output").glob("*eco")) + list((study_root / "output").glob("*exp"))
     if not output_dirs:
         raise FileNotFoundError(f"No Antares output directory found under {study_root / 'output'}")
 

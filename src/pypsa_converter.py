@@ -104,5 +104,7 @@ class PyPSAStudyConverter:
             gems_study_writer.prepare_xpansion_runnable_study(
                 snapshot_count=len(self.pypsa_network.snapshots),
                 solver_name=self.solver_name,
+                scenario_weightings=self.scenario_weightings,
+                scenario_order=list(self.pypsa_network.scenarios),
             )
         self.logger.info("Study conversion completed!")

@@ -199,16 +199,45 @@ class GemsStudyWriter:
         source_file = project_root / "resources" / "optim-config.yml"
         shutil.copy(source_file, destination_file)
 
-    def prepare_xpansion_runnable_study(self, snapshot_count: int, solver_name: str) -> None:
+    def _write_scenariobuilder_dat(self, study_root: Path, area_name: str, scenario_order: list[str]) -> None:
+        """Map Antares MC year index -> load time-series index (one PyPSA scenario per MC year)."""
+        lines = ["[Default Ruleset]"]
+        for mc_year, _scenario in enumerate(scenario_order):
+            ts_number = mc_year + 1
+            lines.append(f"l,{area_name},{mc_year} = {ts_number}")
+        self._write_text_file(study_root / "settings" / "scenariobuilder.dat", "\n".join(lines) + "\n")
+
+    def prepare_xpansion_runnable_study(
+        self,
+        snapshot_count: int,
+        solver_name: str,
+        scenario_weightings: dict[str, float] | None = None,
+        scenario_order: list[str] | None = None,
+    ) -> None:
         study_root = self.study_dir / "systems"
         area_name = "area1"
         simulation_end = max(1, min(365, math.ceil(snapshot_count / 24)))
+        n_scenarios = len(scenario_weightings) if scenario_weightings else 1
+        mc_scenario_order = list(scenario_order) if scenario_order else sorted(scenario_weightings or [])
+        multi_scenario = n_scenarios > 1
         solver_key = solver_name.lower()
         supported_solvers = {"coin": "Coin", "xpress": "Xpress"}
         if solver_key not in supported_solvers:
             raise ValueError("Multi-scenario Xpansion studies support only 'coin' and 'xpress' solvers.")
         solver_display = supported_solvers[solver_key]
         timestamp = int(time.time())
+
+        if scenario_weightings:
+            from src.utils import write_pypsa_scenario_weights_manifest
+
+            write_pypsa_scenario_weights_manifest(
+                study_root,
+                scenario_weightings,
+                scenario_order=mc_scenario_order,
+            )
+
+        # Updated after problem-generator by configure_xpansion_slave_weights (UNIFORM or weights file).
+        slave_weight_options: dict[str, str] = {"SLAVE_WEIGHT": "UNIFORM"}
 
         for directory in [
             study_root / "user" / "expansion",
@@ -265,8 +294,7 @@ class GemsStudyWriter:
                 "AGGREGATION": False,
                 "OUTPUTROOT": ".",
                 "TRACE": True,
-                "SLAVE_WEIGHT": "CONSTANT",
-                "SLAVE_WEIGHT_VALUE": 1,
+                **slave_weight_options,
                 "MASTER_NAME": "master",
                 "LAST_MASTER_MPS": "master_last_iteration",
                 "STRUCTURE_FILE": "structure.txt",
@@ -285,7 +313,7 @@ class GemsStudyWriter:
                     "[general]",
                     "mode = Economy",
                     "horizon = 2026",
-                    "nbyears = 1",
+                    f"nbyears = {n_scenarios if multi_scenario else 1}",
                     "simulation.start = 1",
                     f"simulation.end = {simulation_end}",
                     "january.1st = Monday",
@@ -294,17 +322,17 @@ class GemsStudyWriter:
                     "leapyear = false",
                     "year-by-year = true",
                     "derated = false",
-                    "custom-scenario = false",
-                    "user-playlist = false",
+                    f"custom-scenario = {'true' if multi_scenario else 'false'}",
+                    f"user-playlist = {'true' if multi_scenario else 'false'}",
                     "thematic-trimming = false",
                     "geographic-trimming = true",
                     "active-rules-scenario = default ruleset",
                     "generate = thermal",
-                    "nbtimeseriesload = 1",
-                    "nbtimeserieshydro = 1",
-                    "nbtimeserieswind = 1",
-                    "nbtimeseriesthermal = 1",
-                    "nbtimeseriessolar = 1",
+                    f"nbtimeseriesload = {n_scenarios}",
+                    f"nbtimeserieshydro = {n_scenarios}",
+                    f"nbtimeserieswind = {n_scenarios}",
+                    f"nbtimeseriesthermal = {n_scenarios}",
+                    f"nbtimeseriessolar = {n_scenarios}",
                     "readonly = false",
                     "",
                     "[input]",
@@ -342,9 +370,22 @@ class GemsStudyWriter:
                     "day-ahead-reserve-management = global",
                     "",
                 ]
+                + (
+                    [
+                        "",
+                        "[playlist]",
+                        "playlist_reset = false",
+                        *[f"playlist_year + = {mc_year}" for mc_year in range(n_scenarios)],
+                    ]
+                    if multi_scenario
+                    else []
+                )
             ),
         )
-        self._write_text_file(study_root / "settings" / "scenariobuilder.dat", "[Default Ruleset]\n")
+        if multi_scenario:
+            self._write_scenariobuilder_dat(study_root, area_name, mc_scenario_order)
+        else:
+            self._write_text_file(study_root / "settings" / "scenariobuilder.dat", "[Default Ruleset]\n")
         self._write_text_file(study_root / "input" / "areas" / "list.txt", f"{area_name}\n")
         self._write_text_file(
             study_root / "input" / "areas" / area_name / "optimization.ini",

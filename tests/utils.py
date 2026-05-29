@@ -522,7 +522,9 @@ def plot_xpansion_benchmark_study(row: pd.Series, row_number: int = 0) -> None:
     ax1.set_ylabel("Cost")
     ax1.grid(True, alpha=0.3, axis="y")
     for bar, val in zip(bars, [pypsa_obj, xp_obj]):
-        ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.2e}", ha="center", va="bottom", fontsize=9)
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{val:.2e}", ha="center", va="bottom", fontsize=9
+        )
 
     ax2 = fig.add_subplot(gs[0, 1])
     stack_layers = [
