@@ -8,7 +8,7 @@
 [![Antares Simulator](https://img.shields.io/badge/Antares%20Simulator-10.0.1-blue.svg)](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/latest)
 
 ## About 
-The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/) folder.
+The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/overview/file-structure/) folder.
 This converter is based on the representation of the PyPSA models of components as a GEMS library of models: [pypsa_models.yml](https://github.com/AntaresSimulatorTeam/GEMS/blob/main/libraries/pypsa_models.yml).
 
 ### Key Features 
@@ -25,7 +25,7 @@ This converter is based on the representation of the PyPSA models of components 
 
 ## How the Converter Works
 
-The PyPSA to GEMS Converter transforms [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) into a [GEMS study folder](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/), through the following steps.
+The PyPSA to GEMS Converter transforms [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) into a [GEMS study folder](https://gems-energy.readthedocs.io/en/latest/overview/file-structure/), through the following steps.
 ### 1. **Input Validation and Preprocessing**
 The converter first validates that the PyPSA network meets the requirements for conversion.<br/>
 It performs necessary preprocessing steps such as normalizing component names, handling missing attributes, and ensuring data consistency.<br/>
