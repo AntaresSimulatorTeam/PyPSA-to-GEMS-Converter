@@ -5,7 +5,6 @@
 [![License](https://img.shields.io/github/license/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter.svg)](LICENSE)
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FAntaresSimulatorTeam%2FPyPSA-to-GEMS-Converter%2Fmain%2Fpyproject.toml)
 [![PyPSA](https://img.shields.io/badge/PyPSA-1.2.0-blue.svg)](https://pypsa.org/)
-[![Antares Simulator](https://img.shields.io/badge/Antares%20Simulator-10.0.1-blue.svg)](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/latest)
 
 ## About 
 The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/overview/file-structure/) folder.
@@ -91,8 +90,6 @@ PyPSA-to-GEMS-Converter needs Python version >=3.11, and it's tested on version 
 
 Its dependencies are listed inside the [`pyproject.toml`](pyproject.toml) and it is OS independent.
 
-It relies on Antares Simulator binaries findable in the official repo [**link to the v10.0.1 release page**](https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases/tag/v10.0.1).
-
 ### 2. **Commands**
 
 pip:
@@ -148,9 +145,7 @@ PyPSAStudyConverter(
 ```
 - Run the Antares Modeler optimization 
 ```python
-# Path to the Antares modeler binary
-modeler_bin = Path("antares-10.0.1-Ubuntu-22.04/bin/antares-modeler")
-
+# modeler_bin is the path to the Antares modeler binary
 # Run the optimization
 subprocess.run([
     str(modeler_bin),
