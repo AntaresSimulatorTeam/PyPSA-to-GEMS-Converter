@@ -101,10 +101,5 @@ class PyPSAStudyConverter:
         # One scenario -> deterministic study
         if len(self.scenario_weightings.keys()) > 1:
             gems_study_writer.write_optim_config_yml()
-            gems_study_writer.prepare_xpansion_runnable_study(
-                snapshot_count=len(self.pypsa_network.snapshots),
-                solver_name=self.solver_name,
-                scenario_weightings=self.scenario_weightings,
-                scenario_order=list(self.pypsa_network.scenarios),
-            )
+            gems_study_writer.prepare_xpansion_runnable_study(solver_name=self.solver_name)
         self.logger.info("Study conversion completed!")

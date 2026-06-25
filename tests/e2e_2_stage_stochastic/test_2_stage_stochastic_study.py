@@ -10,23 +10,22 @@
 #
 # This file is part of the Antares project.
 
-import json
 import logging
-import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pypsa import Network
 
 from src.dependencies import (
     get_antares_dir_name,
-    get_antares_problem_generator_bin,
-    get_antares_xpansion_benders_bin,
     get_antares_xpansion_dir_name,
+    get_antares_xpansion_launcher_bin,
 )
 from src.pypsa_converter import PyPSAStudyConverter
-from src.utils import configure_xpansion_slave_weights, prepare_benders_runtime_files
+from src.utils import read_xpansion_out_json, run_xpansion_launcher
 
 current_dir = Path(__file__).resolve().parents[2]
 logger = logging.getLogger(__name__)
@@ -118,7 +117,7 @@ def _run_pypsa_xpansion_e2e(
     *,
     check_objective_against_pypsa: bool = True,
 ) -> Network:
-    """Solve with PyPSA, convert, run problem-generator + Benders; assert objectives and investments match."""
+    """Solve with PyPSA, convert, run the Antares-Xpansion launcher; assert objectives and investments match."""
     scenario_order = list(scenario_weights.keys())
     reference_scenario = scenario_order[0]
 
@@ -143,65 +142,86 @@ def _run_pypsa_xpansion_e2e(
     ).to_gems_study()
 
     study_root = study_dir / "systems"
-    assert (study_root / "study.antares").exists()
-    assert (study_root / "user" / "expansion" / "options.json").exists()
-    assert (study_root / "user" / "expansion" / "pypsa_scenario_weights.json").exists()
+    assert (study_root / "input" / "optim-config.yml").exists()
+    settings_ini = study_root / "user" / "expansion" / "settings.ini"
+    assert settings_ini.exists()
+    # settings.ini is always empty: Antares-Xpansion weights the Monte-Carlo years (scenarios) equally.
+    assert settings_ini.read_text(encoding="utf-8").strip() == ""
+    assert not (study_root / "user" / "expansion" / "weights").exists()
 
-    problem_generator_bin = get_antares_problem_generator_bin(current_dir)
-    result = subprocess.run(
-        [str(problem_generator_bin), str(study_root)],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=str(problem_generator_bin.parent),
-    )
-    assert result.returncode == 0, f"problem-generator failed:\n{result.stderr[-4000:]}"
+    launcher_bin = get_antares_xpansion_launcher_bin(current_dir)
+    result = run_xpansion_launcher(study_root, launcher_bin, logger=logger)
+    assert result.returncode == 0, f"antares-xpansion-launcher failed:\n{result.stderr[-4000:]}"
 
-    output_dir, options_path = prepare_benders_runtime_files(study_root)
-    weight_mode = configure_xpansion_slave_weights(
-        output_dir,
-        options_path,
-        scenario_weights,
-        scenario_order=scenario_order,
-    )
-    logger.info("Xpansion SLAVE_WEIGHT file for %s: %s", study_name, weight_mode)
-
-    benders_bin = get_antares_xpansion_benders_bin(current_dir)
-    result = subprocess.run(
-        [str(benders_bin), str(options_path.name)],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=str(output_dir),
-    )
-    assert result.returncode == 0, f"benders failed:\n{result.stderr[-4000:]}"
-
-    xpansion_result = json.loads((output_dir / "expansion" / "out.json").read_text(encoding="utf-8"))
+    xpansion_result = read_xpansion_out_json(study_root)
     xpansion_solution = xpansion_result["solution"]
-    pypsa_total_objective = _get_pypsa_total_objective(pypsa_network)
-
-    logger.info(
-        "Objective comparison (%s): pypsa=%s xpansion=%s",
-        study_name,
-        pypsa_total_objective,
-        xpansion_solution["overall_cost"],
-    )
-
     assert xpansion_solution["problem_status"] == "OPTIMAL"
-    if check_objective_against_pypsa:
-        assert xpansion_solution["overall_cost"] == pytest.approx(pypsa_total_objective)
-    if weight_mode == "xpansion_slave_weights.txt":
-        weights_text = (output_dir / "xpansion_slave_weights.txt").read_text(encoding="utf-8")
-        for scenario, weight in scenario_weights.items():
-            assert str(weight) in weights_text
-        assert "WEIGHT_SUM 1" in weights_text
-    assert xpansion_solution["values"]["generator_gen1.p_nom"] == pytest.approx(
-        pypsa_network.generators.loc[(reference_scenario, "gen1"), "p_nom_opt"]
-    )
-    assert xpansion_solution["values"]["generator_gen2.p_nom"] == pytest.approx(
-        pypsa_network.generators.loc[(reference_scenario, "gen2"), "p_nom_opt"]
-    )
+
+    comparison = _compare_pypsa_vs_xpansion(pypsa_network, xpansion_solution, reference_scenario)
+    _log_comparison_table(study_name, comparison)
+
+    # Investment decisions must match between PyPSA and Antares-Xpansion in every case.
+    for row in comparison:
+        if row.name == "total objective" and not check_objective_against_pypsa:
+            continue
+        assert row.xpansion == pytest.approx(row.pypsa, rel=1e-4, abs=1e-3), (
+            f"{study_name}: {row.name} differs (pypsa={row.pypsa}, xpansion={row.xpansion})"
+        )
     return pypsa_network
+
+
+@dataclass
+class _ComparisonRow:
+    name: str
+    pypsa: float
+    xpansion: float
+
+    @property
+    def abs_diff(self) -> float:
+        return abs(self.pypsa - self.xpansion)
+
+    @property
+    def matches(self) -> bool:
+        return self.abs_diff <= 1e-3 + 1e-4 * abs(self.pypsa)
+
+
+def _compare_pypsa_vs_xpansion(
+    pypsa_network: Network,
+    xpansion_solution: dict[str, Any],
+    reference_scenario: str,
+) -> list[_ComparisonRow]:
+    """Build a PyPSA vs Antares-Xpansion comparison for the objective and the investment decisions."""
+    xpansion_values = xpansion_solution["values"]
+    rows = [
+        _ComparisonRow(
+            "total objective",
+            _get_pypsa_total_objective(pypsa_network),
+            float(xpansion_solution["overall_cost"]),
+        ),
+        _ComparisonRow(
+            "gen1.p_nom",
+            float(pypsa_network.generators.loc[(reference_scenario, "gen1"), "p_nom_opt"]),
+            float(xpansion_values["generator_gen1.p_nom"]),
+        ),
+        _ComparisonRow(
+            "gen2.p_nom",
+            float(pypsa_network.generators.loc[(reference_scenario, "gen2"), "p_nom_opt"]),
+            float(xpansion_values["generator_gen2.p_nom"]),
+        ),
+    ]
+    return rows
+
+
+def _log_comparison_table(study_name: str, comparison: list[_ComparisonRow]) -> None:
+    """Log a readable PyPSA vs Antares-Xpansion side-by-side comparison table."""
+    header = f"{'quantity':<18}{'pypsa':>18}{'xpansion':>18}{'abs_diff':>14}{'match':>8}"
+    lines = [f"PyPSA vs Antares-Xpansion comparison ({study_name})", header, "-" * len(header)]
+    for row in comparison:
+        lines.append(
+            f"{row.name:<18}{row.pypsa:>18.6f}{row.xpansion:>18.6f}{row.abs_diff:>14.6f}"
+            f"{('yes' if row.matches else 'NO'):>8}"
+        )
+    logger.info("\n".join(lines))
 
 
 def test_2_stage_stochastic_study_two_scenarios(tmp_path: Path) -> None:

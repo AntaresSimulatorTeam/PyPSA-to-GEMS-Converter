@@ -64,12 +64,16 @@ def test_converter_deterministic_study() -> None:
     PyPSAStudyConverter(network, Path("tmp") / "test_two", "csv", solver_name="coin").to_gems_study()
     logger.info("Converted scenario study to test_two")
 
-    # test if optimi-config is generated
+    # The GEMS study + optim-config.yml drive the Antares-Xpansion launcher (no Antares scaffold).
     assert (Path("tmp") / "test_two" / "systems" / "input" / "optim-config.yml").exists()
-    assert (Path("tmp") / "test_two" / "systems" / "study.antares").exists()
-    assert (Path("tmp") / "test_two" / "systems" / "settings" / "generaldata.ini").exists()
-    assert (Path("tmp") / "test_two" / "systems" / "user" / "expansion" / "settings.ini").exists()
-    assert (Path("tmp") / "test_two" / "systems" / "user" / "expansion" / "options.json").exists()
+    settings_ini = Path("tmp") / "test_two" / "systems" / "user" / "expansion" / "settings.ini"
+    assert settings_ini.exists()
+    # settings.ini is always empty: Antares-Xpansion weights the Monte-Carlo years (scenarios) equally.
+    assert settings_ini.read_text(encoding="utf-8").strip() == ""
+    assert not (Path("tmp") / "test_two" / "systems" / "user" / "expansion" / "weights").exists()
+    # No Antares-Simulator scaffold is generated for the GEMS workflow.
+    assert not (Path("tmp") / "test_two" / "systems" / "study.antares").exists()
+    assert not (Path("tmp") / "test_two" / "systems" / "settings").exists()
 
 
 def test_converter_multiscenario_rejects_unsupported_xpansion_solver() -> None:

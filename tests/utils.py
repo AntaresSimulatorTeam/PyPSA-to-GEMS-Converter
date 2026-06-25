@@ -226,6 +226,8 @@ XPANSION_BENCHMARK_NUMERIC_COLS = [
     "number_of_variables_pypsa",
     "number_of_constraints_pypsa",
     "pypsa_to_gems_conversion_time",
+    "xpansion_launcher_seconds",
+    # Legacy columns kept so older problem-generator + Benders CSVs still load.
     "xpansion_problem_generator_seconds",
     "number_of_variables_xpansion",
     "number_of_constraints_xpansion",
@@ -233,6 +235,16 @@ XPANSION_BENCHMARK_NUMERIC_COLS = [
     "xpansion_overall_cost",
     "xpansion_run_duration_seconds",
 ]
+
+
+def _xpansion_run_seconds(row: pd.Series) -> float:
+    """Antares-Xpansion execution time: launcher timing, falling back to legacy PG + Benders."""
+    launcher = benchmark_numeric(row.get("xpansion_launcher_seconds"))
+    if launcher:
+        return launcher
+    return benchmark_numeric(row.get("xpansion_problem_generator_seconds")) + benchmark_numeric(
+        row.get("xpansion_benders_seconds")
+    )
 
 
 def _coerce_benchmark_row(row: pd.Series, numeric_cols: list[str]) -> pd.Series:
@@ -418,19 +430,17 @@ def print_xpansion_benchmark_summary(row: pd.Series, row_number: int = 0) -> Non
     conversion = _n(row.get("pypsa_to_gems_conversion_time"))
     pypsa_build = _n(row.get("pypsa_build_seconds"))
     pypsa_solve = _n(row.get("pypsa_solve_seconds"))
-    pg_time = _n(row.get("xpansion_problem_generator_seconds"))
-    benders_time = _n(row.get("xpansion_benders_seconds"))
+    launcher_time = _xpansion_run_seconds(row)
     pypsa_total = parsing + preproc + pypsa_build + pypsa_solve
-    xpansion_total = preproc + conversion + pg_time + benders_time
+    xpansion_total = preproc + conversion + launcher_time
     print(f"  Parsing (.nc / synthetic): {parsing:.4f} s")
     print(f"  Preprocessing: {preproc:.4f} s")
     print(f"  PyPSA build: {pypsa_build:.4f} s")
     print(f"  PyPSA solve: {pypsa_solve:.4f} s")
     print(f"  PyPSA path total (parse+preproc+build+solve): {pypsa_total:.4f} s")
     print(f"  Conversion to GEMS study: {conversion:.4f} s")
-    print(f"  Problem generator: {pg_time:.4f} s")
-    print(f"  Benders: {benders_time:.4f} s")
-    print(f"  Xpansion path total (preproc+conversion+PG+Benders): {xpansion_total:.4f} s")
+    print(f"  Xpansion launcher (problem-generation + Benders): {launcher_time:.4f} s")
+    print(f"  Xpansion path total (preproc+conversion+launcher): {xpansion_total:.4f} s")
     if row.get("xpansion_run_duration_seconds") is not None and not pd.isna(row.get("xpansion_run_duration_seconds")):
         print(f"  Xpansion reported run duration: {_n(row.get('xpansion_run_duration_seconds')):.4f} s")
 
@@ -494,8 +504,7 @@ def plot_xpansion_benchmark_study(row: pd.Series, row_number: int = 0) -> None:
     conversion = _n(row.get("pypsa_to_gems_conversion_time"))
     pypsa_build = _n(row.get("pypsa_build_seconds"))
     pypsa_solve = _n(row.get("pypsa_solve_seconds"))
-    pg_time = _n(row.get("xpansion_problem_generator_seconds"))
-    benders_time = _n(row.get("xpansion_benders_seconds"))
+    launcher_time = _xpansion_run_seconds(row)
 
     study_label = benchmark_study_label(row)
     fig = plt.figure(figsize=(18, 11))
@@ -531,7 +540,7 @@ def plot_xpansion_benchmark_study(row: pd.Series, row_number: int = 0) -> None:
         ("Parsing", parsing, 0.0),
         ("Preproc", preproc, preproc),
         ("Build / Convert", pypsa_build, conversion),
-        ("Solve / PG+Benders", pypsa_solve, pg_time + benders_time),
+        ("Solve / Launcher", pypsa_solve, launcher_time),
     ]
     bottom = [0.0, 0.0]
     layer_colors = ["#2e86ab", "#5c7a29", "steelblue", "coral"]
@@ -571,7 +580,7 @@ def plot_xpansion_benchmark_study(row: pd.Series, row_number: int = 0) -> None:
 
     ax5 = fig.add_subplot(gs[1, 1])
     pypsa_layers = [("Parse", parsing), ("Preproc", preproc), ("Build", pypsa_build), ("Solve", pypsa_solve)]
-    xp_layers = [("Preproc", preproc), ("Convert", conversion), ("PG", pg_time), ("Benders", benders_time)]
+    xp_layers = [("Preproc", preproc), ("Convert", conversion), ("Launcher", launcher_time)]
     py_pie = [(lbl, v) for lbl, v in pypsa_layers if v > 0]
     if py_pie:
         ax5.pie([v for _, v in py_pie], labels=[lbl for lbl, _ in py_pie], autopct="%1.1f%%", startangle=90)

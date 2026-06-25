@@ -24,16 +24,14 @@ from pypsa import Network
 
 from src.dependencies import (
     get_antares_dir_name,
-    get_antares_problem_generator_bin,
     get_antares_version,
-    get_antares_xpansion_benders_bin,
     get_antares_xpansion_dir_name,
+    get_antares_xpansion_launcher_bin,
     get_antares_xpansion_version,
 )
 from src.pypsa_converter import PyPSAStudyConverter
 from src.utils import (
-    configure_xpansion_slave_weights,
-    prepare_benders_runtime_files,
+    read_xpansion_out_json,
     set_pypsa_scenario_weights,
 )
 from tests.utils import (
@@ -107,7 +105,7 @@ def _read_mps_comment_sizes(mps_path: Path) -> tuple[int | None, int | None]:
     ],
 )
 def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, study_name: str) -> None:
-    """Benchmark PyPSA stochastic vs Antares Xpansion (problem-generator + benders) on 2-scenario studies."""
+    """Benchmark PyPSA stochastic vs Antares Xpansion (antares-xpansion-launcher) on 2-scenario studies."""
 
     if not (PROJECT_ROOT / get_antares_dir_name()).is_dir():
         pytest.skip(
@@ -202,42 +200,30 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
 
     study_root = study_dir / "systems"
 
-    # --- Antares problem generation ---
-    pg_bin = get_antares_problem_generator_bin(PROJECT_ROOT)
-    logger.info("Running antares-problem-generator on %s", study_root)
-    t_pg = time.time()
+    # --- Antares-Xpansion launcher (GEMS workflow: problem-generation + Benders in one shot) ---
+    # The converter writes an empty user/expansion/settings.ini, so Antares-Xpansion weights the
+    # Monte-Carlo years (scenarios) equally and the launcher needs no extra setup beyond the study.
+    launcher_bin = get_antares_xpansion_launcher_bin(PROJECT_ROOT)
+    logger.info("Running antares-xpansion-launcher on %s", study_root)
+    t_launcher = time.time()
     result = run_logged_subprocess(
-        [str(pg_bin), str(study_root)],
-        cwd=pg_bin.parent,
+        [str(launcher_bin), "-i", str(study_root)],
+        cwd=launcher_bin.parent,
         logger=logger,
     )
-    df.loc[0, "xpansion_problem_generator_seconds"] = time.time() - t_pg
-    df.loc[0, "xpansion_problem_generator_returncode"] = result.returncode
+    df.loc[0, "xpansion_launcher_seconds"] = time.time() - t_launcher
+    df.loc[0, "xpansion_launcher_returncode"] = result.returncode
     if result.returncode != 0:
         raise RuntimeError(
-            f"antares-problem-generator failed rc={result.returncode}\n"
+            f"antares-xpansion-launcher failed rc={result.returncode}\n"
             f"stdout(last 8000):\n{result.stdout[-8000:]}\n"
             f"stderr(last 8000):\n{result.stderr[-8000:]}\n"
         )
 
-    output_dir, options_path = prepare_benders_runtime_files(study_root)
-
-    xpansion_weight_mode = configure_xpansion_slave_weights(
-        output_dir,
-        options_path,
-        scenario_weights,
-        scenario_order=list(network.scenarios),
-    )
-    df.loc[0, "xpansion_slave_weight_mode"] = xpansion_weight_mode
-    logger.info("Xpansion Benders SLAVE_WEIGHT mode: %s", xpansion_weight_mode)
-
-    # Problem size: antares-problem-generator stdout when present (like antares-modeler in benchmark.py),
-    # otherwise from the first Benders subproblem MPS written under output_dir.
+    # Problem size: parse launcher stdout when present, otherwise from a generated subproblem MPS.
     xpansion_n_variables, xpansion_n_constraints = _parse_antares_stdout_sizes(result.stdout)
     if xpansion_n_variables is None or xpansion_n_constraints is None:
-        xpansion_n_variables, xpansion_n_constraints = _parse_antares_stdout_sizes(result.stderr)
-    if xpansion_n_variables is None or xpansion_n_constraints is None:
-        subproblem_mps_files = sorted(output_dir.glob("problem-*.mps"))
+        subproblem_mps_files = sorted((study_root / "output").glob("**/problem-*.mps"))
         if subproblem_mps_files:
             xpansion_n_variables, xpansion_n_constraints = _read_mps_comment_sizes(subproblem_mps_files[0])
     if xpansion_n_variables is not None:
@@ -245,25 +231,7 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
     if xpansion_n_constraints is not None:
         df.loc[0, "number_of_constraints_xpansion"] = xpansion_n_constraints
 
-    # --- Benders ---
-    benders_bin = get_antares_xpansion_benders_bin(PROJECT_ROOT)
-    logger.info("Running benders in %s", output_dir)
-    t_b = time.time()
-    result = run_logged_subprocess(
-        [str(benders_bin), str(options_path.name)],
-        cwd=output_dir,
-        logger=logger,
-    )
-    df.loc[0, "xpansion_benders_seconds"] = time.time() - t_b
-    df.loc[0, "xpansion_benders_returncode"] = result.returncode
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"benders failed rc={result.returncode}\n"
-            f"stdout(last 8000):\n{result.stdout[-8000:]}\n"
-            f"stderr(last 8000):\n{result.stderr[-8000:]}\n"
-        )
-
-    out_json = json.loads((output_dir / "expansion" / "out.json").read_text(encoding="utf-8"))
+    out_json = read_xpansion_out_json(study_root)
     sol = out_json["solution"]
     df.loc[0, "xpansion_problem_status"] = sol.get("problem_status")
     df.loc[0, "xpansion_overall_cost"] = sol.get("overall_cost")
