@@ -30,10 +30,7 @@ from src.dependencies import (
     get_antares_xpansion_version,
 )
 from src.pypsa_converter import PyPSAStudyConverter
-from src.utils import (
-    read_xpansion_out_json,
-    set_pypsa_scenario_weights,
-)
+from src.utils import read_xpansion_out_json
 from tests.utils import (
     PROJECT_ROOT,
     load_pypsa_study_benchmark,
@@ -135,11 +132,10 @@ def test_xpansion_benchmark_two_scenarios(file_name: str, load_scaling: float, s
             f"Expected at least 2 scenarios in {file_name}, got: {getattr(network, 'scenarios', None)}"
         )
 
-    # Scenario probabilities for PyPSA + Xpansion: equal split by default (e.g. 0.5/0.5 or 1/3 each).
-    # For custom weights use set_pypsa_scenario_weights(network, {"s1": 0.2, "s2": 0.5, "s3": 0.3}).
-    scenario_weights = set_pypsa_scenario_weights(network)
+    # Scenario probabilities come from the loaded study (set via network.set_scenarios({...})).
+    scenario_weights = network.scenario_weightings["weight"].to_dict()
     df.loc[0, "pypsa_scenario_weights"] = json.dumps(scenario_weights)
-    logger.info("PyPSA scenario weights (sum=1): %s", scenario_weights)
+    logger.info("PyPSA scenario weights: %s", scenario_weights)
 
     # Converter requires unity snapshot weightings (hourly weights; scenario probs are separate)
     network.snapshot_weightings.loc[:] = 1.0

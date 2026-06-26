@@ -54,37 +54,6 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[st
     return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
 
 
-def set_pypsa_scenario_weights(
-    network: Network,
-    weights: dict[str, float] | None = None,
-) -> dict[str, float]:
-    """
-    Set PyPSA scenario probabilities (``network.scenario_weightings``), normalized to sum 1.
-
-    When *weights* is omitted, each scenario receives an equal share (e.g. 0.5 / 0.5 for two, 1/3 for three).
-
-    Example with three scenarios::
-
-        set_pypsa_scenario_weights(network, {"dry": 0.2, "normal": 0.5, "wet": 0.3})
-    """
-    if not (hasattr(network, "has_scenarios") and network.has_scenarios):
-        raise ValueError("Network has no scenarios")
-    scenarios = list(network.scenarios)
-    if weights is None:
-        share = 1.0 / len(scenarios)
-        weights = {str(s): share for s in scenarios}
-    unknown = set(weights) - set(scenarios)
-    if unknown:
-        raise ValueError(f"Unknown scenario(s) in weights: {sorted(unknown)}")
-    total = sum(float(weights[str(s)]) for s in scenarios)
-    if total <= 0:
-        raise ValueError("Scenario weights must sum to a positive value")
-    normalized = {str(s): float(weights[str(s)]) / total for s in scenarios}
-    for scenario, weight in normalized.items():
-        network.scenario_weightings.loc[scenario, "weight"] = weight
-    return normalized
-
-
 def run_xpansion_launcher(
     study_root: Path,
     launcher_bin: Path,
