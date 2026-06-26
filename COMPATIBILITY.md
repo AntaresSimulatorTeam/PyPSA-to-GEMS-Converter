@@ -290,6 +290,6 @@ Parameters not relevant for DC LOPF (silently ignored):
 | Component | Current Version | Version File |
 |-----------|----------------|--------------|
 | Converter | 0.0.1 | `pyproject.toml` |
-| PyPSA Models Library | 1.0.0 | `resources/pypsa_models/pypsa_models.yml` |
+| PyPSA Models Library | 2.0.1 | `resources/pypsa_models/pypsa_models.yml` |
 | PyPSA | 1.2.0 | `pyproject.toml` |
 | Antares-Simulator | 9.3.7 | `dependencies.json` |
