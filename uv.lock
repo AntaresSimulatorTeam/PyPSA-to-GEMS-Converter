@@ -1727,23 +1727,23 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "gemspy", specifier = "==0.1.2" },
-    { name = "pandas", specifier = "==2.2.3" },
+    { name = "pandas", specifier = ">=2.2.3" },
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pyarrow" },
-    { name = "pydantic", specifier = "==2.12.5" },
+    { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pypsa", specifier = "==1.2.0" },
-    { name = "pyyaml", specifier = "==6.0.2" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "highspy", specifier = ">=1.5.0" },
-    { name = "mypy", specifier = "~=1.15.0" },
+    { name = "mypy", specifier = ">=1.15.0" },
     { name = "pandas-stubs", specifier = ">=2.0.0" },
-    { name = "pre-commit", specifier = "~=4.1.0" },
-    { name = "pytest", specifier = "==7.0.1" },
-    { name = "pytest-xdist", specifier = "==3.8.0" },
-    { name = "ruff", specifier = "~=0.9.6" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.0.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.9.6" },
     { name = "types-pyyaml", specifier = ">=6.0.0" },
 ]
 

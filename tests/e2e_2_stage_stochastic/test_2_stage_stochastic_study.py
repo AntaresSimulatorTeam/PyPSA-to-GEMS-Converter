@@ -12,9 +12,7 @@
 
 import logging
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import pytest
 from pypsa import Network
@@ -151,77 +149,38 @@ def _run_pypsa_xpansion_e2e(
 
     launcher_bin = get_antares_xpansion_launcher_bin(current_dir)
     result = run_xpansion_launcher(study_root, launcher_bin, logger=logger)
-    assert result.returncode == 0, f"antares-xpansion-launcher failed:\n{result.stderr[-4000:]}"
+    assert result.returncode == 0, (
+        f"antares-xpansion-launcher failed (returncode={result.returncode}).\n"
+        # The launcher's GEMS step shells out to antares-problem-generator; its real (C++) error is on
+        # stdout, while stderr only holds the Python wrapper traceback. Surface both to diagnose crashes.
+        f"--- stdout (tail) ---\n{result.stdout[-6000:]}\n"
+        f"--- stderr (tail) ---\n{result.stderr[-4000:]}"
+    )
 
-    xpansion_result = read_xpansion_out_json(study_root)
-    xpansion_solution = xpansion_result["solution"]
+    # Read the optimum directly from the Antares-Xpansion out.json and compare with PyPSA.
+    xpansion_solution = read_xpansion_out_json(study_root)["solution"]
     assert xpansion_solution["problem_status"] == "OPTIMAL"
-
-    comparison = _compare_pypsa_vs_xpansion(pypsa_network, xpansion_solution, reference_scenario)
-    _log_comparison_table(study_name, comparison)
-
-    # Investment decisions must match between PyPSA and Antares-Xpansion in every case.
-    for row in comparison:
-        if row.name == "total objective" and not check_objective_against_pypsa:
-            continue
-        assert row.xpansion == pytest.approx(row.pypsa, rel=1e-4, abs=1e-3), (
-            f"{study_name}: {row.name} differs (pypsa={row.pypsa}, xpansion={row.xpansion})"
-        )
-    return pypsa_network
-
-
-@dataclass
-class _ComparisonRow:
-    name: str
-    pypsa: float
-    xpansion: float
-
-    @property
-    def abs_diff(self) -> float:
-        return abs(self.pypsa - self.xpansion)
-
-    @property
-    def matches(self) -> bool:
-        return self.abs_diff <= 1e-3 + 1e-4 * abs(self.pypsa)
-
-
-def _compare_pypsa_vs_xpansion(
-    pypsa_network: Network,
-    xpansion_solution: dict[str, Any],
-    reference_scenario: str,
-) -> list[_ComparisonRow]:
-    """Build a PyPSA vs Antares-Xpansion comparison for the objective and the investment decisions."""
     xpansion_values = xpansion_solution["values"]
-    rows = [
-        _ComparisonRow(
-            "total objective",
-            _get_pypsa_total_objective(pypsa_network),
-            float(xpansion_solution["overall_cost"]),
-        ),
-        _ComparisonRow(
-            "gen1.p_nom",
-            float(pypsa_network.generators.loc[(reference_scenario, "gen1"), "p_nom_opt"]),
-            float(xpansion_values["generator_gen1.p_nom"]),
-        ),
-        _ComparisonRow(
-            "gen2.p_nom",
-            float(pypsa_network.generators.loc[(reference_scenario, "gen2"), "p_nom_opt"]),
-            float(xpansion_values["generator_gen2.p_nom"]),
-        ),
-    ]
-    return rows
 
+    pypsa_objective = _get_pypsa_total_objective(pypsa_network)
+    pypsa_gen1 = float(pypsa_network.generators.loc[(reference_scenario, "gen1"), "p_nom_opt"])
+    pypsa_gen2 = float(pypsa_network.generators.loc[(reference_scenario, "gen2"), "p_nom_opt"])
+    logger.info(
+        "PyPSA vs Antares-Xpansion (%s): objective %s / %s | gen1.p_nom %s / %s | gen2.p_nom %s / %s",
+        study_name,
+        pypsa_objective,
+        xpansion_solution["overall_cost"],
+        pypsa_gen1,
+        xpansion_values["generator_gen1.p_nom"],
+        pypsa_gen2,
+        xpansion_values["generator_gen2.p_nom"],
+    )
 
-def _log_comparison_table(study_name: str, comparison: list[_ComparisonRow]) -> None:
-    """Log a readable PyPSA vs Antares-Xpansion side-by-side comparison table."""
-    header = f"{'quantity':<18}{'pypsa':>18}{'xpansion':>18}{'abs_diff':>14}{'match':>8}"
-    lines = [f"PyPSA vs Antares-Xpansion comparison ({study_name})", header, "-" * len(header)]
-    for row in comparison:
-        lines.append(
-            f"{row.name:<18}{row.pypsa:>18.6f}{row.xpansion:>18.6f}{row.abs_diff:>14.6f}"
-            f"{('yes' if row.matches else 'NO'):>8}"
-        )
-    logger.info("\n".join(lines))
+    if check_objective_against_pypsa:
+        assert xpansion_solution["overall_cost"] == pytest.approx(pypsa_objective)
+    assert xpansion_values["generator_gen1.p_nom"] == pytest.approx(pypsa_gen1)
+    assert xpansion_values["generator_gen2.p_nom"] == pytest.approx(pypsa_gen2)
+    return pypsa_network
 
 
 def test_2_stage_stochastic_study_two_scenarios(tmp_path: Path) -> None:
