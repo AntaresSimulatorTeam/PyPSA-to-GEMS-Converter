@@ -6,7 +6,7 @@ This file provides guidance to AI coding agents (LLMs, copilots, code assistants
 
 ## Project Overview
 
-**PyPSA-to-GEMS Converter** converts [PyPSA](https://pypsa.org/) energy system networks into [GEMS](https://gems-energy.readthedocs.io/) study folders runnable by the Antares Simulator modeler. It handles conversion of linear optimal power flow, economic dispatch, and two-stage stochastic optimization studies, with documented [constraints](https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter/blob/main/README.md#global-constraints) and [currently unsupported components](https://github.com/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter/blob/main/README.md#unsupported-pypsa-components).
+**PyPSA-to-GEMS Converter** converts [PyPSA](https://pypsa.org/) energy system networks into [GEMS](https://gems-energy.readthedocs.io/) study folders runnable by the Antares Simulator modeler. It handles conversion of linear optimal power flow, economic dispatch, and two-stage stochastic optimization studies, with documented [global constraints](COMPATIBILITY.md#globalconstraints) and [unsupported components](COMPATIBILITY.md#unsupported-components).
 
 Repository: `AntaresSimulatorTeam/PyPSA-to-GEMS-Converter` — License: MPL 2.0
 
@@ -39,7 +39,7 @@ src/
 - Preproceses and writes time series data into `data-series` directory 
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
-  parsing.py                  # Legacy CLI argument parser (not used by converter)
+  cli.py                      # CLI entry point (`pypsa-to-gems = src.cli:main`): parses args, runs PyPSAStudyConverter
   models/
     modified_base_model.py    # ModifiedBaseModel: Pydantic base model applied across all internal models
     gems_system_yml_schema/   #  models for system.yml output
@@ -105,7 +105,7 @@ PyPSA Network (deep-copied)
 
 ## GEMS Model Library (`resources/pypsa_models/pypsa_models.yml`)
 
-This file defines all component models (generator, load, bus, link, storage_unit, store, global_constraint_co2_max, global_constraint_co2_eq). It is copied into every converted study's `model-libraries/` directory.
+This file defines all component models (generator, load, bus, link, line, transformer, storage_unit, store, global_constraint_co2_max, global_constraint_co2_eq). It is copied into every converted study's `model-libraries/` directory.
 
 **Critical:** the parameter list in this YAML must exactly match what `PyPSARegister.register()` maps for each component type. A mismatch causes the Antares modeler to fail silently.
 
@@ -115,10 +115,10 @@ This file defines all component models (generator, load, bus, link, storage_unit
 
 | Supported | Not Supported |
 |-----------|---------------|
-| generators, loads, buses, links, storage_units, stores | Lines, Transformers |
-| global_constraints (`co2_emissions`, `primary_energy` type, `<=` or `==` sense) | quadratic costs, `committable=True`, non-cyclic state of charge |
+| generators, loads, buses, links, storage_units, stores, lines, transformers | quadratic costs (`marginal_cost_quadratic`), `committable=True`, non-cyclic state of charge |
+| global_constraints (`co2_emissions`, `primary_energy` type, `<=` or `==` sense) | multi-investment periods, snapshot weightings ≠ 1 |
 
-All components must have `active=1`. Lines can be approximated as links using `replace_lines_by_links()` from `tests/utils.py` (bidirectional link pairs with `p_min_pu=-1`).
+All listed components must have `active=1` (inactive ones are dropped). Lines and Transformers are converted **natively**: their `type` (LineTypes/TransformerTypes) is resolved into reactance by PyPSA's `calculate_dependent_values()` during preprocessing — see [pypsa_preprocessor.py](src/pypsa_preprocessor.py) and the authoritative limitations list in [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations). The `replace_lines_by_links()` helper in `tests/utils.py` (bidirectional link pairs with `p_min_pu=-1`) is still available for tests that prefer to model lines as links, but is no longer required.
 
 ---
 
@@ -132,25 +132,25 @@ All components must have `active=1`. Lines can be approximated as links using `r
 ### Commands
 
 ```bash
-pip install -r requirements-dev.txt
+uv sync --group dev          # install runtime + dev dependencies (uv project; no requirements*.txt)
 
 # Unit tests (no Antares needed)
-pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO
+uv run pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO
 
 # Single test
-pytest tests/unit_tests/tests_converter.py::test_converter_deterministic_study -v
+uv run pytest tests/unit_tests/tests_converter.py::test_converter_deterministic_study -v
 
 # E2E tests
-pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO
+uv run pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO
 
 # Stochastic E2E tests
-pytest -n auto tests/e2e_2_stage_stochastic/ -v -s --log-cli-level=INFO
+uv run pytest -n auto tests/e2e_2_stage_stochastic/ -v -s --log-cli-level=INFO
 
 # Lint + type check
-ruff check src tests && ruff format src tests && mypy src && mypy tests
+uv run ruff check src tests && uv run ruff format src tests && uv run mypy src && uv run mypy tests
 
 # Pre-commit
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 ### Test architecture
@@ -180,6 +180,8 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 - **`main`** — primary branch; PRs target `main`
 - Feature branches from `main`, no direct pushes
 
+> **Full ecosystem developer guide:** the authoritative branching, versioning, CI/CD, and release process for all repositories (including this converter) lives in the GEMS Developer Guidelines, published at <https://gems-energy.readthedocs.io/en/latest/support/dev-guidelines/>. Fetch this page (e.g. via WebFetch) before any branching, versioning, or release work.
+
 ---
 
 ## Coding Conventions
@@ -201,7 +203,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 3. **`resources/pypsa_models/pypsa_models.yml` parameter ids must exactly match `PyPSARegister`.** If you add a parameter to the register's mapping dict for a component type, you must add the corresponding parameter definition to the YAML model. The Antares modeler fails silently (no exception, no output) on a mismatch.
 
-4. **`check_converter_limitations()` raises before any output is written.** If a network violates a constraint (e.g., contains Lines, uses quadratic costs, has `active=0` components), the converter raises `ValueError` or `AssertionError` at startup. No partial output is produced.
+4. **`_check_converter_limitations()` raises before any output is written.** If a network violates a constraint (e.g., uses quadratic costs, `committable=True`, has `active=0` components, non-cyclic storage, or non-empty `investment_periods`), the converter raises `ValueError` or `AssertionError` at startup. No partial output is produced.
 
 5. **The Antares modeler fails silently.** `subprocess.run` in E2E tests uses `check=False` with `capture_output=True`. If the modeler exits non-zero, no output directory is created and the test fails with `FileNotFoundError` on the objective value file. To debug, run the modeler binary directly and inspect stderr.
 
