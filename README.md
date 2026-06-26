@@ -2,8 +2,12 @@
     <b>PyPSA to GEMS Converter</b> 
 </div>
 
+[![License](https://img.shields.io/github/license/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter.svg)](LICENSE)
+![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FAntaresSimulatorTeam%2FPyPSA-to-GEMS-Converter%2Fmain%2Fpyproject.toml)
+[![PyPSA](https://img.shields.io/badge/PyPSA-1.2.0-blue.svg)](https://pypsa.org/)
+
 ## About 
-The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/) folder.
+The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/overview/file-structure/) folder.
 This converter is based on the representation of the PyPSA models of components as a GEMS library of models: [pypsa_models.yml](https://github.com/AntaresSimulatorTeam/GEMS/blob/main/libraries/pypsa_models.yml).
 
 ### Key Features 
@@ -20,7 +24,7 @@ This converter is based on the representation of the PyPSA models of components 
 
 ## How the Converter Works
 
-The PyPSA to GEMS Converter transforms [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) into a [GEMS study folder](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/1_overview/), through the following steps.
+The PyPSA to GEMS Converter transforms [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) into a [GEMS study folder](https://gems-energy.readthedocs.io/en/latest/overview/file-structure/), through the following steps.
 ### 1. **Input Validation and Preprocessing**
 The converter first validates that the PyPSA network meets the requirements for conversion.<br/>
 It performs necessary preprocessing steps such as normalizing component names, handling missing attributes, and ensuring data consistency.<br/>
@@ -78,7 +82,44 @@ The directory layout follows the conventions expected by the GEMS modeler: <br/>
 
 For the full list of unsupported components, component restrictions, and network-level constraints, see [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations).
 
-## Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler
+## Installation
+
+### 1. **Prerequisites**
+
+PyPSA-to-GEMS-Converter needs Python version >=3.11, and it's tested on version 3.11 and 3.12.
+
+Its dependencies are listed inside the [`pyproject.toml`](pyproject.toml) and it is OS independent.
+
+### 2. **Commands**
+
+pip:
+```bash
+pip install pypsa-to-gems-converter
+```
+
+uv:
+```bash
+uv add pypsa-to-gems-converter
+```
+## Usage
+
+### 1. **CLI Usage**
+
+```bash
+pypsa-to-gems network.nc -o path_to_gems_study/
+```
+
+Key flags:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `network` | Path to the PyPSA network file (`.nc`) | required |
+| `-o` / `--output` | Directory where the GEMS study will be written (created if missing) | required |
+| `--series-format` | Time series file format (`.tsv` or `tsv` or `.csv`or `csv`) | `.tsv` |
+| `--solver` | Solver name written to GEMS parameters | `highs` |
+|`-h` / `--help`| Show the help message and exit | none|
+
+### 2. **Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler**
 - Build or load a PyPSA network 
 ```python
 # Setup
@@ -99,14 +140,12 @@ network = Network("simple_network.nc")  # Absolute path to the PyPSA file
 PyPSAStudyConverter(
     pypsa_network=network,
     study_dir=study_dir,
-    series_file_format=".tsv",  # Supported formats: .tsv, .csv
+    series_file_format=".tsv",  # Supported formats: .tsv, tsv, .csv, csv 
 ).to_gems_study()
 ```
-- Run the GEMS(Antares) optimization 
+- Run the Antares Modeler optimization 
 ```python
-# Path to the Antares modeler binary
-modeler_bin = Path("antares-9.3.5-Ubuntu-22.04/bin/antares-modeler")
-
+# modeler_bin is the path to the Antares modeler binary
 # Run the optimization
 subprocess.run([
     str(modeler_bin),
