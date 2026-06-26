@@ -64,9 +64,9 @@ def run_xpansion_launcher(
     """
     Run ``antares-xpansion-launcher -i <study_root>`` on a converter-generated GEMS study.
 
-    The launcher auto-detects the GEMS workflow (problem-generation + Benders in one shot) when
-    ``<study_root>/input/optim-config.yml`` is present, so no explicit ``--step gems`` is required.
-    Returns the completed process; callers decide how to handle a non-zero return code.
+    The launcher auto-detects the GEMS workflow when ``<study_root>/input/optim-config.yml`` is present
+    and runs it end to end. Returns the completed process; callers decide how to handle a non-zero
+    return code.
     """
     command = [str(launcher_bin), "-i", str(study_root)]
     if extra_args:
@@ -86,15 +86,14 @@ def read_xpansion_out_json(study_root: Path) -> dict[str, Any]:
     """
     Load the Antares-Xpansion ``out.json`` produced by the launcher under ``<study_root>/output``.
 
-    The launcher writes results in the most recent output run directory; the exact location
-    (``expansion/out.json`` vs ``lp/out.json``) depends on the Xpansion version, so the newest
-    ``out.json`` anywhere under ``output/`` is used.
+    A single launcher run writes one ``out.json`` somewhere under ``output/`` (its exact location,
+    ``expansion/out.json`` vs ``lp/out.json``, depends on the Xpansion version).
     """
     output_root = study_root / "output"
-    candidates = sorted(output_root.glob("**/out.json"), key=lambda path: path.stat().st_mtime)
-    if not candidates:
+    out_json = next(output_root.glob("**/out.json"), None)
+    if out_json is None:
         raise FileNotFoundError(f"No Antares-Xpansion out.json found under {output_root}")
-    return cast(dict[str, Any], json.loads(candidates[-1].read_text(encoding="utf-8")))
+    return cast(dict[str, Any], json.loads(out_json.read_text(encoding="utf-8")))
 
 
 # --- PyPSA pandas to Polars conversion (PyPSA objects stay as pandas) ---
