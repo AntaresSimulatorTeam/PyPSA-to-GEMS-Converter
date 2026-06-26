@@ -203,7 +203,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 3. **`resources/pypsa_models/pypsa_models.yml` parameter ids must exactly match `PyPSARegister`.** If you add a parameter to the register's mapping dict for a component type, you must add the corresponding parameter definition to the YAML model. The Antares modeler fails silently (no exception, no output) on a mismatch.
 
-4. **`_check_converter_limitations()` raises before any output is written.** If a network violates a constraint (e.g., uses quadratic costs, `committable=True`, has `active=0` components, non-cyclic storage, or non-empty `investment_periods`), the converter raises `ValueError` or `AssertionError` at startup. No partial output is produced.
+4. **`_check_converter_limitations()` raises before any output is written.** It runs in the `PyPSAStudyConverter` constructor; output is only written later by `to_gems_study()`. If a network violates a constraint (e.g., uses quadratic costs, `committable=True`, has `active=0` generators/loads/links, non-cyclic storage, or non-empty `investment_periods`), the converter raises `ValueError` or `AssertionError` at construction time. No partial output is produced. Note: `active=0` is enforced only for generators, loads, and links — storage_units/stores are not checked, and inactive lines/transformers are silently dropped.
 
 5. **The Antares modeler fails silently.** `subprocess.run` in E2E tests uses `check=False` with `capture_output=True`. If the modeler exits non-zero, no output directory is created and the test fails with `FileNotFoundError` on the objective value file. To debug, run the modeler binary directly and inspect stderr.
 
