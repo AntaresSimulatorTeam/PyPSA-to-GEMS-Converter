@@ -20,7 +20,7 @@ dependencies = [
     "pandas>=2.2.3",
     "polars>=0.20.0",
     "pyarrow",
-    "pypsa==1.2.0",
+    "pypsa==1.2.3",
     "pyyaml>=6.0.2",
     "pydantic>=2.12.5",
 ]

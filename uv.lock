@@ -1632,7 +1632,7 @@ wheels = [
 
 [[package]]
 name = "pypsa"
-version = "1.0.0"
+version = "1.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deprecation" },
@@ -1645,6 +1645,7 @@ dependencies = [
     { name = "networkx" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "platformdirs" },
     { name = "plotly" },
     { name = "pydeck" },
     { name = "scipy" },
@@ -1653,9 +1654,9 @@ dependencies = [
     { name = "validators" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/07/ab/cf8ef84dcc216d50e6c45c0d43c77824d3954d370580f668ad7e6e7bf619/pypsa-1.0.0.tar.gz", hash = "sha256:b9db800f6d7f1a560c54fca0129d38f96c6ea7546f450f2fc798ce07c4ef6da3", size = 12835906, upload-time = "2025-10-14T10:33:43.457Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/e3/de2d63259b729dc04f2f4bb3259047d5405a26f2f72e1a5760f4e8d6494e/pypsa-1.2.3.tar.gz", hash = "sha256:9a8cd9598ee1c59d64014ade629653df2a9dba4e4923464e7ddf7a6ffbf45e2f", size = 13053072, upload-time = "2026-06-12T15:39:13.21Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/76/4ca9e294e1f68e81c25ddda67788226eb5170750b9dab7a1c71e94bc4a60/pypsa-1.0.0-py3-none-any.whl", hash = "sha256:bc2fc4e75e9f5703ca35be7658c92fb2437ca9c0140f5e05b3af7f03189474fb", size = 316012, upload-time = "2025-10-14T10:33:39.071Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/07/793d2746546d34c51412f0fe2435a2d5a41b53a3a7b2fcffc6659883b5df/pypsa-1.2.3-py3-none-any.whl", hash = "sha256:427f8f177ba223fd352a9355eb2108b57c9258102b4e99adc1188001a3808ec0", size = 358712, upload-time = "2026-06-12T15:39:11.543Z" },
 ]
 
 [[package]]
@@ -1685,23 +1686,23 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pandas", specifier = "==2.2.3" },
+    { name = "pandas", specifier = ">=2.2.3" },
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pyarrow" },
-    { name = "pydantic", specifier = "==2.12.5" },
-    { name = "pypsa", specifier = "==1.0.0" },
-    { name = "pyyaml", specifier = "==6.0.2" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pypsa", specifier = "==1.2.3" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "highspy", specifier = ">=1.5.0" },
-    { name = "mypy", specifier = "~=1.15.0" },
+    { name = "mypy", specifier = ">=1.15.0" },
     { name = "pandas-stubs", specifier = ">=2.0.0" },
-    { name = "pre-commit", specifier = "~=4.1.0" },
-    { name = "pytest", specifier = "==7.0.1" },
-    { name = "pytest-xdist", specifier = "==3.8.0" },
-    { name = "ruff", specifier = "~=0.9.6" },
+    { name = "pre-commit", specifier = ">=4.1.0" },
+    { name = "pytest", specifier = ">=7.0.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.9.6" },
     { name = "types-pyyaml", specifier = ">=6.0.0" },
 ]
 

@@ -203,10 +203,11 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         raise RuntimeError(f"Antares modeler failed with error: {e}")
 
     output_dir = study_dir / "systems" / "output"
-    result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
+    # Antares >= 10.1.1 writes the result into a timestamped run subfolder (output/<timestamp>/simulation_table.csv).
+    result_file = next(output_dir.glob("**/simulation_table*"), None)
 
-    if result_file:
-        objective_value = get_objective_value(result_file[-1])
+    if result_file is not None:
+        objective_value = get_objective_value(result_file)
         benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
 
     parameters_yml_path = PROJECT_ROOT / "tmp" / study_name / "systems" / "parameters.yml"
