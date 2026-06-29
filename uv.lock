@@ -1632,7 +1632,7 @@ wheels = [
 
 [[package]]
 name = "pypsa"
-version = "1.2.3"
+version = "1.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deprecation" },
@@ -1654,14 +1654,14 @@ dependencies = [
     { name = "validators" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/46/e3/de2d63259b729dc04f2f4bb3259047d5405a26f2f72e1a5760f4e8d6494e/pypsa-1.2.3.tar.gz", hash = "sha256:9a8cd9598ee1c59d64014ade629653df2a9dba4e4923464e7ddf7a6ffbf45e2f", size = 13053072, upload-time = "2026-06-12T15:39:13.21Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/d5/70dfa37ced22e112025258ac3b2069e443d9c59cd45b41656269e97660f1/pypsa-1.2.4.tar.gz", hash = "sha256:953e81f35e4a490a04493bc52b8ed4bfd2ddc14c7d2cfffdaa9fa348e0d123c5", size = 11026083, upload-time = "2026-06-27T14:33:35.536Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/07/793d2746546d34c51412f0fe2435a2d5a41b53a3a7b2fcffc6659883b5df/pypsa-1.2.3-py3-none-any.whl", hash = "sha256:427f8f177ba223fd352a9355eb2108b57c9258102b4e99adc1188001a3808ec0", size = 358712, upload-time = "2026-06-12T15:39:11.543Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/6b/52b76963e841531cdf85386389732ef1c47f9a3b393e86ea8144d96b2486/pypsa-1.2.4-py3-none-any.whl", hash = "sha256:d8b27fdb17d42d27e15650ceb5ae405dc58800b379345ae56b26b9a1c6067979", size = 369005, upload-time = "2026-06-27T14:33:33.221Z" },
 ]
 
 [[package]]
 name = "pypsa-to-gems-converter"
-version = "0.0.1"
+version = "0.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "pandas" },
@@ -1690,7 +1690,7 @@ requires-dist = [
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pyarrow" },
     { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pypsa", specifier = "==1.2.3" },
+    { name = "pypsa", specifier = "==1.2.4" },
     { name = "pyyaml", specifier = ">=6.0.2" },
 ]
 
