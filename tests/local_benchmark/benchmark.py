@@ -20,6 +20,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
+from gems.optim_config.parsing import OptimConfig, TimeScopeConfig
+from gems.session import SimulationSession
+from gems.study.folder import load_study
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
@@ -215,6 +218,28 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
         parameters_yml = yaml.safe_load(f)
         benchmark_data_frame.loc[0, "modeler_solver_parameters"] = parameters_yml["solver-parameters"]
         benchmark_data_frame.loc[0, "modeler_solver_name"] = parameters_yml["solver"]
+
+    # Run GemsPy (the in-process Python GEMS interpreter) on the same converted study.
+    logger.info("Running GemsPy interpreter")
+    gemspy_study_dir = study_dir / "systems"
+    start_time_gemspy_load = time.time()
+    gemspy_study = load_study(gemspy_study_dir)
+    gemspy_load_time = time.time() - start_time_gemspy_load
+
+    # No optim-config.yml is generated for these studies, so cover the full horizon (single scenario) explicitly.
+    gemspy_optim_config = OptimConfig(
+        time_scope=TimeScopeConfig(first_time_step=0, last_time_step=len(network.snapshots) - 1)
+    )
+
+    start_time_gemspy_solve = time.time()
+    gemspy_table = SimulationSession(study=gemspy_study, optim_config=gemspy_optim_config).run()
+    gemspy_solve_time = time.time() - start_time_gemspy_solve
+
+    gemspy_objective = gemspy_table.data.loc[gemspy_table.data["output"] == "objective-value", "value"]
+    benchmark_data_frame.loc[0, "gemspy_objective_value"] = float(gemspy_objective.iloc[0])
+    benchmark_data_frame.loc[0, "gemspy_load_time"] = gemspy_load_time
+    benchmark_data_frame.loc[0, "gemspy_solve_time"] = gemspy_solve_time
+    benchmark_data_frame.loc[0, "gemspy_total_time"] = gemspy_load_time + gemspy_solve_time
 
     # make pypsa optimization problem equations,constraints,variables
     start_time_build_optimization_problem = time.time()
