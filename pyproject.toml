@@ -52,7 +52,7 @@ dev = [
     "pre-commit>=4.1.0",
     "pandas-stubs>=2.0.0",
     "types-PyYAML>=6.0.0",
-    "gemspy>=0.1.2",
+    "gemspy==0.1.2",
 ]
 
 [tool.setuptools.packages.find]
@@ -94,4 +94,5 @@ module = ["tests.e2e.end_2_end_tests", "tests.local_benchmark.benchmark"]
 disable_error_code = ["operator"]
 
 [[tool.mypy.overrides]]
-module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*"]
+module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*", "gems.*"]
+ignore_missing_imports = true
