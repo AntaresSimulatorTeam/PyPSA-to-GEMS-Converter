@@ -69,9 +69,15 @@ jobs:
             const body = [
               `PyPSA models library updated to \`v${version}\` in [${converterRepo}](https://github.com/${converterOwner}/${converterRepo}).`,
               '',
-              `Changelog: https://github.com/${converterOwner}/${converterRepo}/blob/main/resources/pypsa_models/CHANGELOG-pypsa_models_library.md`,
+              'The converter is the **source of truth** for this library. To sync GEMS, simply copy the following three files from the converter into the GEMS repository — no regeneration or manual edits are required:',
               '',
-              'Update `libraries/pypsa_models.yml` in GEMS accordingly.',
+              '| File | From (converter) | To (GEMS) |',
+              '|---|---|---|',
+              '| Library YAML | `resources/pypsa_models/pypsa_models.yml` | `libraries/pypsa_models.yml` |',
+              '| SHA256 checksum | `resources/pypsa_models/pypsa_models.yml.sha256` | `libraries/pypsa_models.yml.sha256` |',
+              '| Library changelog | `resources/pypsa_models/CHANGELOG-pypsa_models_library.md` | `libraries/CHANGELOG-pypsa_models_library.md` |',
+              '',
+              'That is all — copy these three files and nothing else.',
             ].join('\n');
 
             const result = await github.rest.issues.create({
