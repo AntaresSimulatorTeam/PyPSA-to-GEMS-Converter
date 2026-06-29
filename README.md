@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/github/license/AntaresSimulatorTeam/PyPSA-to-GEMS-Converter.svg)](LICENSE)
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2FAntaresSimulatorTeam%2FPyPSA-to-GEMS-Converter%2Fmain%2Fpyproject.toml)
-[![PyPSA](https://img.shields.io/badge/PyPSA-1.2.0-blue.svg)](https://pypsa.org/)
+[![PyPSA](https://img.shields.io/badge/PyPSA-1.2.4-blue.svg)](https://pypsa.org/)
 
 ## About 
 The [PyPSA](https://pypsa.org/)-to-[GEMS ](https://gems-energy.readthedocs.io/en/latest/) Converter is an open-source & standalone python package that enables the conversion of studies conducted in PyPSA into the GEMS format: it exports a [PyPSA Network](https://docs.pypsa.org/latest/api/networks/network/) as a [GEMS ](https://gems-energy.readthedocs.io/en/latest/overview/file-structure/) folder.
