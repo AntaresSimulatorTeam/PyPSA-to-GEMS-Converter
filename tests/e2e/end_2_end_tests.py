@@ -69,10 +69,11 @@ def get_gems_study_objective(study_name: str) -> float:
     logger.info("Getting Antares study objective")
 
     output_dir = study_dir / "systems" / "output"
-    result_file = [f for f in output_dir.iterdir() if f.is_file() and f.name.startswith("simulation_table")]
+    # Antares >= 10.1.1 writes the result into a timestamped run subfolder (output/<timestamp>/simulation_table.csv).
+    result_file = next(output_dir.glob("**/simulation_table*"), None)
 
-    if result_file:
-        obj = get_objective_value(result_file[-1])
+    if result_file is not None:
+        obj = get_objective_value(result_file)
         logger.info("GEMS study objective for %s: %s", study_name, obj)
         return obj
 
