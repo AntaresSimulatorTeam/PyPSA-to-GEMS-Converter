@@ -193,7 +193,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         print(f"  GemsPy Writing Time (simulation table): {_n(row.get('gemspy_writing_time')):.4f} s")
         print(f"  GemsPy (parsing+build+solve+writing) Time: {gemspy_total:.4f} s")
         full_gemspy_path = preproc + conversion + gemspy_total
-        print(f"  Full GemsPy Path (preproc + conversion + parsing + build + solve + writing): {full_gemspy_path:.4f} s")
+        print(
+            f"  Full GemsPy Path (preproc + conversion + parsing + build + solve + writing): {full_gemspy_path:.4f} s"
+        )
 
     # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
     has_modeler_stats = "number_of_constraints_modeler" in row.index and "number_of_variables_modeler" in row.index

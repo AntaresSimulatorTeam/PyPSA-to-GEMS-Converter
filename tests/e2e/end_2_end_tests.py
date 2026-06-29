@@ -81,20 +81,18 @@ def get_gems_study_objective(study_name: str) -> float:
 
 
 @pytest.mark.parametrize(
-    "file, load_scaling, quota, replace_lines, study_name",
+    "file, load_scaling, quota, study_name",
     [
-        ("base_s_4_elec.nc", 0.4, True, True, "test_one_study_one"),
-        ("simple.nc", 1.0, False, True, "test_one_study_two"),
-        ("base_s_6_elec_lvopt_.nc", 0.3, True, True, "test_one_study_three"),
+        ("base_s_4_elec.nc", 0.4, True, "test_one_study_one"),
+        ("simple.nc", 1.0, False, "test_one_study_two"),
+        ("base_s_6_elec_lvopt_.nc", 0.3, True, "test_one_study_three"),
     ],
 )
-def test_end_2_end_test(file: str, load_scaling: float, quota: bool, replace_lines: bool, study_name: str) -> None:
-    logger.info(
-        "Starting e2e test: file=%s, study_name=%s, quota=%s, replace_lines=%s", file, study_name, quota, replace_lines
-    )
+def test_end_2_end_test(file: str, load_scaling: float, quota: bool, study_name: str) -> None:
+    logger.info("Starting e2e test: file=%s, study_name=%s, quota=%s", file, study_name, quota)
     network = load_pypsa_study(file=file, load_scaling=load_scaling)
     logger.info("Loaded PyPSA network from %s", file)
-    network = preprocess_network(network, quota, replace_lines)
+    network = preprocess_network(network, quota)
     logger.info("Preprocessed network; converting to GEMS study %s", study_name)
     # Copy before optimize(): get_gems_study_objective needs an un-optimized network (no HiGHS state).
     PyPSAStudyConverter(

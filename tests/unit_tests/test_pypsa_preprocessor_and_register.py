@@ -17,6 +17,7 @@ from pypsa import Network
 
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
+
 logger = logging.getLogger(__name__)
 
 
@@ -215,5 +216,3 @@ def test_transformer_register(transformer_network: Network) -> None:
     assert trafo_data.pypsa_params_to_gems_params["x_pu_eff"] == "x_pu_eff"
     assert trafo_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")
     assert trafo_data.pypsa_params_to_gems_connections["bus1"] == ("bus1_p_port", "p_balance_port")
-
-
