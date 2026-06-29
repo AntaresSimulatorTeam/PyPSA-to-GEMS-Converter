@@ -5,7 +5,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 | Converter | PyPSA | Antares-Simulator | Notes |
 |-----------|-------|-------------------|-------|
 | 0.0.1     | 1.2.0 | 9.3.7             | Initial release |
-| 0.0.2     | 1.2.3 | 10.1.1            | Upcoming release |
+| 0.0.2     | 1.2.4 | 10.1.1            | Upcoming release |
 
 ## Versioning Policy
 
@@ -292,5 +292,5 @@ Parameters not relevant for DC LOPF (silently ignored):
 |-----------|----------------|--------------|
 | Converter | 0.0.1 | `pyproject.toml` |
 | PyPSA Models Library | 2.0.1 | `resources/pypsa_models/pypsa_models.yml` |
-| PyPSA | 1.2.3 | `pyproject.toml` |
+| PyPSA | 1.2.4 | `pyproject.toml` |
 | Antares-Simulator | 10.1.1 | `dependencies.json` |
