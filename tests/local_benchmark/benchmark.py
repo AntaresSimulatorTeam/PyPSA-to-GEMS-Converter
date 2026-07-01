@@ -61,12 +61,12 @@ logger.setLevel(logging.INFO)
         ("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"),
         (
             "france_clusters_80_snapshots_168_period_one_week.nc",
-            1.0,
+            0.4,  # scaled by 40% to make the test case feasible
             "benchmark_study_france_clusters_80_snapshots_168_period_one_week",
         ),
         (
             "france_clusters_50_snapshots_365_period_one_year.nc",
-            1.0,
+            0.4,  # scaled by 40% to make the test case feasible
             "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
         ),
     ],
