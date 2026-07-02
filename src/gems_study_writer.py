@@ -200,8 +200,6 @@ class GemsStudyWriter:
     def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
         """
         Write the Antares-Xpansion inputs the launcher GEMS workflow needs on top of the GEMS study.
-
-        - ``input/optim-config.yml`` activates the GEMS workflow (antares-problem-generator + benders).
         - ``user/expansion/settings.ini`` configures the algorithm, including scenario/year weights.
 
         For a PyPSA multi-scenario study, each scenario is mapped to one Monte-Carlo year by the

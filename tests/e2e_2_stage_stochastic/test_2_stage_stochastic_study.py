@@ -114,6 +114,14 @@ def _run_pypsa_xpansion_e2e(
     reference_scenario = scenario_order[0]
 
     pypsa_network = _build_stochastic_test_network(scenario_weights)
+    study_dir = tmp_path / study_name
+    PyPSAStudyConverter(
+        pypsa_network,
+        study_dir,
+        ".tsv",
+        solver_name="coin",
+    ).to_gems_study()
+
     pypsa_start = time.perf_counter()
     status, condition = pypsa_network.optimize(solver_name="cbc", include_objective_constant=True)
     pypsa_elapsed = time.perf_counter() - pypsa_start
@@ -123,15 +131,6 @@ def _run_pypsa_xpansion_e2e(
     logger.info("PyPSA total objective: %s", _get_pypsa_total_objective(pypsa_network))
     assert status == "ok"
     assert condition == "optimal"
-
-    network = _build_stochastic_test_network(scenario_weights)
-    study_dir = tmp_path / study_name
-    PyPSAStudyConverter(
-        network,
-        study_dir,
-        ".tsv",
-        solver_name="coin",
-    ).to_gems_study()
 
     study_root = study_dir / "systems"
     assert (study_root / "input" / "optim-config.yml").exists()
