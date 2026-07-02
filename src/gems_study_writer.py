@@ -210,7 +210,7 @@ class GemsStudyWriter:
         """
         solver = solver_name.lower()
         if solver not in {"coin", "xpress"}:
-            raise ValueError("Multi-scenario Xpansion studies support only 'coin' and 'xpress' solvers.")
+            raise ValueError("Multi-scenario investment studies support only 'coin' and 'xpress' solvers.")
         if not scenario_weights:
             raise ValueError("scenario_weights must be non-empty for multi-scenario Xpansion studies.")
 
