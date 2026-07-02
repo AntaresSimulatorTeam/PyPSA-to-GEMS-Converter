@@ -49,16 +49,16 @@ def get_original_pypsa_study_objective(network: Network) -> float:
 def get_gems_study_objective(study_name: str) -> float:
     study_dir = current_dir / "tmp" / study_name
 
-    modeler_bin = get_antares_modeler_bin(current_dir)
+    antares_modeler_bin = get_antares_modeler_bin(current_dir)
 
     logger.info(f"Running Antares modeler with study directory: {study_dir / 'systems'}")
 
     result = subprocess.run(
-        [str(modeler_bin), str(study_dir / "systems")],
+        [str(antares_modeler_bin), str(study_dir / "systems")],
         capture_output=True,
         text=True,
         check=False,
-        cwd=str(modeler_bin.parent),
+        cwd=str(antares_modeler_bin.parent),
     )
     logger.info("================================")
     logger.info("Antares modeler output: returncode=%s", result.returncode)

@@ -10,4 +10,4 @@
 #
 # This file is part of the Antares project.
 
-from .modeler_parameters import ModelerParameters
+from .modeler_parameters import AntaresModelerParameters

@@ -127,27 +127,27 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         "number_of_shunt_impedances",
         "preprocessing_time_pypsa_network",
         "pypsa_to_gems_conversion_time",
-        "build_optimization_problem_time_pypsa",
-        "pypsa_optimization_time",
+        "pypsa_build_time",
+        "pypsa_solve_time",
         "total_time_pypsa",
-        "modeler_parsing_time",
-        "modeler_build_time",
-        "modeler_solve_time",
-        "modeler_writing_time",
-        "modeler_total_time",
+        "antares_modeler_parsing_time",
+        "antares_modeler_build_time",
+        "antares_modeler_solve_time",
+        "antares_modeler_writing_time",
+        "antares_modeler_total_time",
         "gemspy_parsing_time",
         "gemspy_build_time",
         "gemspy_solve_time",
         "gemspy_writing_time",
         "gemspy_total_time",
         "number_of_constraints_pypsa",
-        "number_of_constraints_modeler",
+        "number_of_constraints_antares_modeler",
         "number_of_constraints_gemspy",
         "number_of_variables_pypsa",
-        "number_of_variables_modeler",
+        "number_of_variables_antares_modeler",
         "number_of_variables_gemspy",
         "pypsa_objective",
-        "modeler_objective_value",
+        "antares_modeler_objective_value",
         "gemspy_objective_value",
     ]
     for col in numeric_cols:
@@ -187,16 +187,19 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  PyPSA Parsing Time (.nc load): {_n(row['parsing_time']):.4f} s")
     print(f"  PyPSA Preprocessing Time: {_n(row['preprocessing_time_pypsa_network']):.4f} s")
     print(f"  PyPSA to GEMS Conversion Time: {_n(row['pypsa_to_gems_conversion_time']):.4f} s")
-    print(f"  PyPSA Build Time: {_n(row['build_optimization_problem_time_pypsa']):.4f} s")
-    print(f"  PyPSA Solve Time: {_n(row['pypsa_optimization_time']):.4f} s")
+    print(f"  PyPSA Build Time: {_n(row['pypsa_build_time']):.4f} s")
+    print(f"  PyPSA Solve Time: {_n(row['pypsa_solve_time']):.4f} s")
     print(f"  PyPSA Total Time (build + solve): {_n(row['total_time_pypsa']):.4f} s")
-    modeler_parsing = _n(row.get("modeler_parsing_time"))
-    modeler_writing = _n(row.get("modeler_writing_time"))
-    print(f"  Antares Modeler Parsing Time: {modeler_parsing:.4f} s")
-    print(f"  Antares Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
-    print(f"  Antares Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
-    print(f"  Antares Modeler Writing Time: {modeler_writing:.4f} s")
-    print(f"  Antares Modeler Total Time (parsing + build + solve + writing): {_n(row['modeler_total_time']):.4f} s")
+    antares_modeler_parsing = _n(row.get("antares_modeler_parsing_time"))
+    antares_modeler_writing = _n(row.get("antares_modeler_writing_time"))
+    print(f"  Antares Modeler Parsing Time: {antares_modeler_parsing:.4f} s")
+    print(f"  Antares Modeler Build Time: {_n(row.get('antares_modeler_build_time')):.4f} s")
+    print(f"  Antares Modeler Solve Time: {_n(row.get('antares_modeler_solve_time')):.4f} s")
+    print(f"  Antares Modeler Writing Time: {antares_modeler_writing:.4f} s")
+    print(
+        f"  Antares Modeler Total Time (parsing + build + solve + writing): "
+        f"{_n(row['antares_modeler_total_time']):.4f} s"
+    )
     gemspy_total = _n(row.get("gemspy_total_time"))
     if gemspy_total:
         print(f"  GemsPy Parsing Time: {_n(row.get('gemspy_parsing_time')):.4f} s")
@@ -205,26 +208,28 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         print(f"  GemsPy Writing Time: {_n(row.get('gemspy_writing_time')):.4f} s")
         print(f"  GemsPy Total Time (parsing + build + solve + writing): {gemspy_total:.4f} s")
 
-    # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
-    has_modeler_stats = "number_of_constraints_modeler" in row.index and "number_of_variables_modeler" in row.index
+    # PyPSA constraint/variable counts; Antares Modeler counts optional (not in Antares 9.3.7)
+    has_antares_modeler_stats = (
+        "number_of_constraints_antares_modeler" in row.index and "number_of_variables_antares_modeler" in row.index
+    )
     n_const_pypsa = _n(row.get("number_of_constraints_pypsa"))
     n_var_pypsa = _n(row.get("number_of_variables_pypsa"))
-    n_const_modeler = _n(row.get("number_of_constraints_modeler"))
-    n_var_modeler = _n(row.get("number_of_variables_modeler"))
+    n_const_antares_modeler = _n(row.get("number_of_constraints_antares_modeler"))
+    n_var_antares_modeler = _n(row.get("number_of_variables_antares_modeler"))
     n_const_gemspy = _n(row.get("number_of_constraints_gemspy"))
     n_var_gemspy = _n(row.get("number_of_variables_gemspy"))
     print("\n📈 OPTIMIZATION PROBLEM SIZE:")
     print(f"  PyPSA Constraints: {int(n_const_pypsa)}")
     print(f"  PyPSA Variables: {int(n_var_pypsa)}")
-    if has_modeler_stats:
-        print(f"  Antares Modeler Constraints: {int(n_const_modeler)}")
-        if n_const_modeler:
-            print(f"  Constraints Ratio (PyPSA/Antares Modeler): {n_const_pypsa / n_const_modeler:.4f}")
+    if has_antares_modeler_stats:
+        print(f"  Antares Modeler Constraints: {int(n_const_antares_modeler)}")
+        if n_const_antares_modeler:
+            print(f"  Constraints Ratio (PyPSA/Antares Modeler): {n_const_pypsa / n_const_antares_modeler:.4f}")
         else:
             print("  Constraints Ratio (PyPSA/Antares Modeler): N/A")
-        print(f"  Antares Modeler Variables: {int(n_var_modeler)}")
-        if n_var_modeler:
-            print(f"  Variables Ratio (PyPSA/Antares Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+        print(f"  Antares Modeler Variables: {int(n_var_antares_modeler)}")
+        if n_var_antares_modeler:
+            print(f"  Variables Ratio (PyPSA/Antares Modeler): {n_var_pypsa / n_var_antares_modeler:.4f}")
         else:
             print("  Variables Ratio (PyPSA/Antares Modeler): N/A")
     else:
@@ -234,13 +239,13 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         print(f"  GemsPy Variables: {int(n_var_gemspy)}")
 
     pypsa_obj = _n(row["pypsa_objective"])
-    modeler_obj = _n(row["modeler_objective_value"])
+    antares_modeler_obj = _n(row["antares_modeler_objective_value"])
     gemspy_obj = _n(row.get("gemspy_objective_value"))
     print("\n🎯 OBJECTIVE VALUES:")
     print(f"  PyPSA Objective: {pypsa_obj:.6f}")
-    print(f"  Antares Modeler Objective: {modeler_obj:.6f}")
-    obj_diff = pypsa_obj - modeler_obj
-    obj_diff_pct = (obj_diff / modeler_obj) * 100 if modeler_obj else 0.0
+    print(f"  Antares Modeler Objective: {antares_modeler_obj:.6f}")
+    obj_diff = pypsa_obj - antares_modeler_obj
+    obj_diff_pct = (obj_diff / antares_modeler_obj) * 100 if antares_modeler_obj else 0.0
     print(f"  Difference (PyPSA - Antares Modeler): {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
     if gemspy_obj:
         print(f"  GemsPy Objective: {gemspy_obj:.6f}")
@@ -250,32 +255,30 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     print("\n⚙️  SOLVER INFORMATION:")
     print(f"  PyPSA Solver: {row['solver_name_pypsa']} {row['solver_version_pypsa']}")
-    print(f"  Antares Modeler Solver: {row['modeler_solver_name']}")
-    print(f"  Antares Modeler Solver Parameters: {row['modeler_solver_parameters']}")
+    print(f"  Antares Modeler Solver: {row['antares_modeler_solver_name']}")
+    print(f"  Antares Modeler Solver Parameters: {row['antares_modeler_solver_parameters']}")
     if gemspy_obj:
         print(f"  GemsPy Solver: {row.get('gemspy_solver_name', 'N/A')}")
         print(f"  GemsPy Solver Parameters: {row.get('gemspy_solver_parameters', 'N/A')}")
 
     total_pypsa = _n(row["total_time_pypsa"])
-    total_modeler = _n(row["modeler_total_time"])
+    total_antares_modeler = _n(row["antares_modeler_total_time"])
     print("\n📊 PERFORMANCE COMPARISON:")
-    time_ratio_modeler = total_pypsa / total_modeler if total_modeler else float("nan")
-    print(f"  Time Ratio PyPSA / Antares Modeler: {time_ratio_modeler:.4f}x")
-    if pd.notna(time_ratio_modeler) and time_ratio_modeler > 0:
-        if time_ratio_modeler < 1:
-            print(f"  → PyPSA is {1 / time_ratio_modeler:.2f}x faster")
-        else:
-            print(f"  → Antares Modeler is {time_ratio_modeler:.2f}x faster")
-    elif pd.isna(time_ratio_modeler):
-        print("  → N/A (missing or invalid Antares Modeler time)")
+    time_ratio_antares_modeler = total_pypsa / total_antares_modeler if total_antares_modeler else float("nan")
+    if pd.isna(time_ratio_antares_modeler):
+        print("  Time Ratio PyPSA / Antares Modeler: N/A (missing or invalid Antares Modeler time)")
+    else:
+        faster = "PyPSA" if time_ratio_antares_modeler < 1 else "Antares Modeler"
+        speedup = 1 / time_ratio_antares_modeler if time_ratio_antares_modeler < 1 else time_ratio_antares_modeler
+        print(
+            f"  Time Ratio PyPSA / Antares Modeler: {time_ratio_antares_modeler:.4f}x "
+            f"({faster} is {speedup:.2f}x faster)"
+        )
     if gemspy_obj and gemspy_total:
-        gemspy_ratio = total_pypsa / gemspy_total if gemspy_total else float("nan")
-        print(f"  Time Ratio PyPSA / GemsPy: {gemspy_ratio:.4f}x")
-        if pd.notna(gemspy_ratio) and gemspy_ratio > 0:
-            if gemspy_ratio < 1:
-                print(f"  → PyPSA is {1 / gemspy_ratio:.2f}x faster")
-            else:
-                print(f"  → GemsPy is {gemspy_ratio:.2f}x faster")
+        gemspy_ratio = total_pypsa / gemspy_total
+        faster = "PyPSA" if gemspy_ratio < 1 else "GemsPy"
+        speedup = 1 / gemspy_ratio if gemspy_ratio < 1 else gemspy_ratio
+        print(f"  Time Ratio PyPSA / GemsPy: {gemspy_ratio:.4f}x ({faster} is {speedup:.2f}x faster)")
 
     print("\n" + "=" * 80)
 
@@ -288,7 +291,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # 1. Objective Value Comparison
     ax1 = fig.add_subplot(gs[0, 0:2])
     categories = ["PyPSA", "Antares Modeler", "GemsPy"]
-    objectives = [pypsa_obj, modeler_obj, gemspy_obj]
+    objectives = [pypsa_obj, antares_modeler_obj, gemspy_obj]
     bars = ax1.bar(categories, objectives, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
     ax1.set_ylabel("Objective Value", fontsize=11)
     ax1.set_title("Objective Value Comparison", fontsize=12, fontweight="bold", pad=10)
@@ -301,8 +304,8 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # Used in plots below
     preproc_time = _n(row.get("preprocessing_time_pypsa_network"))
     conversion_time = _n(row.get("pypsa_to_gems_conversion_time"))
-    modeler_parsing_time_plot = _n(row.get("modeler_parsing_time"))
-    modeler_writing_time_plot = _n(row.get("modeler_writing_time"))
+    antares_modeler_parsing_time_plot = _n(row.get("antares_modeler_parsing_time"))
+    antares_modeler_writing_time_plot = _n(row.get("antares_modeler_writing_time"))
     gemspy_parsing_time_plot = _n(row.get("gemspy_parsing_time"))
     gemspy_build = _n(row.get("gemspy_build_time"))
     gemspy_solve = _n(row.get("gemspy_solve_time"))
@@ -312,31 +315,31 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 2. Total time: parsing + build + solve (+ writing for Antares Modeler / GemsPy)
     ax2 = fig.add_subplot(gs[0, 2:4])
-    pypsa_build = _n(row["build_optimization_problem_time_pypsa"])
-    pypsa_solve = _n(row["pypsa_optimization_time"])
-    modeler_build = _n(row.get("modeler_build_time"))
-    modeler_solve = _n(row.get("modeler_solve_time"))
-    if modeler_build == 0 and modeler_solve == 0 and total_modeler > 0:
-        modeler_build = 0.0
-        modeler_solve = total_modeler
+    pypsa_build = _n(row["pypsa_build_time"])
+    pypsa_solve = _n(row["pypsa_solve_time"])
+    antares_modeler_build = _n(row.get("antares_modeler_build_time"))
+    antares_modeler_solve = _n(row.get("antares_modeler_solve_time"))
+    if antares_modeler_build == 0 and antares_modeler_solve == 0 and total_antares_modeler > 0:
+        antares_modeler_build = 0.0
+        antares_modeler_solve = total_antares_modeler
 
     # PyPSA: parsing / build / solve — no writing (results stay in-memory)
     # Antares Modeler / GemsPy: parsing / build / solve / writing
     bottom_pypsa: float = 0.0
-    bottom_modeler: float = 0.0
+    bottom_antares_modeler: float = 0.0
     bottom_gemspy: float = 0.0
     layer_defs = [
-        ("Parsing", pypsa_parsing_time_plot, modeler_parsing_time_plot, gemspy_parsing_time_plot, "#2e86ab"),
-        ("Build", pypsa_build, modeler_build, gemspy_build, "steelblue"),
-        ("Solve", pypsa_solve, modeler_solve, gemspy_solve, "coral"),
-        ("Writing", 0.0, modeler_writing_time_plot, gemspy_writing_time_plot, "#f18f01"),
+        ("Parsing", pypsa_parsing_time_plot, antares_modeler_parsing_time_plot, gemspy_parsing_time_plot, "#2e86ab"),
+        ("Build", pypsa_build, antares_modeler_build, gemspy_build, "steelblue"),
+        ("Solve", pypsa_solve, antares_modeler_solve, gemspy_solve, "coral"),
+        ("Writing", 0.0, antares_modeler_writing_time_plot, gemspy_writing_time_plot, "#f18f01"),
     ]
     bar_refs = []
     for label, pypsa_val, mod_val, gem_val, color in layer_defs:
         b = ax2.bar(
             ["PyPSA", "Antares Modeler", "GemsPy"],
             [pypsa_val, mod_val, gem_val],
-            bottom=[bottom_pypsa, bottom_modeler, bottom_gemspy],
+            bottom=[bottom_pypsa, bottom_antares_modeler, bottom_gemspy],
             label=label,
             color=color,
             alpha=0.8,
@@ -344,20 +347,20 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         )
         bar_refs.append(b)
         bottom_pypsa += pypsa_val
-        bottom_modeler += mod_val
+        bottom_antares_modeler += mod_val
         bottom_gemspy += gem_val
 
     ax2.set_ylabel("Time (seconds)", fontsize=11)
     ax2.set_title("Time Comparison (Parsing + Build + Solve + Writing)", fontsize=12, fontweight="bold", pad=10)
     ax2.grid(True, alpha=0.3, axis="y")
-    for i, total_h in enumerate([bottom_pypsa, bottom_modeler, bottom_gemspy]):
+    for i, total_h in enumerate([bottom_pypsa, bottom_antares_modeler, bottom_gemspy]):
         if total_h > 0:
             ax2.text(i, total_h, f"{total_h:.3f}s", ha="center", va="bottom", fontsize=9)
     ax2.legend(fontsize=9)
 
     # 3. Constraints Comparison
     ax3 = fig.add_subplot(gs[0, 4:6])
-    constraints = [int(n_const_pypsa), int(n_const_modeler), int(n_const_gemspy)]
+    constraints = [int(n_const_pypsa), int(n_const_antares_modeler), int(n_const_gemspy)]
     bars = ax3.bar(categories, constraints, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
     ax3.set_ylabel("Number of Constraints", fontsize=11)
     ax3.set_title("Constraints Comparison", fontsize=12, fontweight="bold", pad=10)
@@ -368,7 +371,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 4. Variables Comparison
     ax4 = fig.add_subplot(gs[0, 6:8])
-    variables = [int(n_var_pypsa), int(n_var_modeler), int(n_var_gemspy)]
+    variables = [int(n_var_pypsa), int(n_var_antares_modeler), int(n_var_gemspy)]
     bars = ax4.bar(categories, variables, color=["steelblue", "coral", "seagreen"], alpha=0.7, edgecolor="black")
     ax4.set_ylabel("Number of Variables", fontsize=11)
     ax4.set_title("Variables Comparison", fontsize=12, fontweight="bold", pad=10)
@@ -383,8 +386,8 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     pypsa_pie_vals = [
         pypsa_parsing_time_plot,
         preproc_time,
-        _n(row["build_optimization_problem_time_pypsa"]),
-        _n(row["pypsa_optimization_time"]),
+        _n(row["pypsa_build_time"]),
+        _n(row["pypsa_solve_time"]),
     ]
     pypsa_pie_colors = ["#2e86ab", "#5c7a29", "steelblue", "coral"]
     filtered_pypsa = [(lbl, v, c) for lbl, v, c in zip(pypsa_pie_labels, pypsa_pie_vals, pypsa_pie_colors) if v > 0]
@@ -397,16 +400,23 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 6. Antares Modeler Time Breakdown (parsing / build / solve / writing)
     ax6 = fig.add_subplot(gs[1, 2:4])
-    _modeler_build = _n(row.get("modeler_build_time"))
-    _modeler_solve = _n(row.get("modeler_solve_time"))
-    if _modeler_build == 0 and _modeler_solve == 0 and total_modeler > 0:
-        _modeler_build = 0.0
-        _modeler_solve = total_modeler
-    modeler_pie_labels = ["Parsing (YAML + systems)", "Build", "Solve", "Writing sim. table"]
-    modeler_pie_vals = [modeler_parsing_time_plot, _modeler_build, _modeler_solve, modeler_writing_time_plot]
-    modeler_pie_colors = ["#2e86ab", "steelblue", "coral", "#f18f01"]
+    _antares_modeler_build = _n(row.get("antares_modeler_build_time"))
+    _antares_modeler_solve = _n(row.get("antares_modeler_solve_time"))
+    if _antares_modeler_build == 0 and _antares_modeler_solve == 0 and total_antares_modeler > 0:
+        _antares_modeler_build = 0.0
+        _antares_modeler_solve = total_antares_modeler
+    antares_modeler_pie_labels = ["Parsing (YAML + systems)", "Build", "Solve", "Writing sim. table"]
+    antares_modeler_pie_vals = [
+        antares_modeler_parsing_time_plot,
+        _antares_modeler_build,
+        _antares_modeler_solve,
+        antares_modeler_writing_time_plot,
+    ]
+    antares_modeler_pie_colors = ["#2e86ab", "steelblue", "coral", "#f18f01"]
     # Only include non-zero slices
-    filtered = [(lbl, v, c) for lbl, v, c in zip(modeler_pie_labels, modeler_pie_vals, modeler_pie_colors) if v > 0]
+    filtered = [
+        (lbl, v, c) for lbl, v, c in zip(antares_modeler_pie_labels, antares_modeler_pie_vals, antares_modeler_pie_colors) if v > 0
+    ]
     if filtered:
         f_labels, f_vals, f_colors = zip(*filtered)
         ax6.pie(f_vals, labels=f_labels, autopct="%1.1f%%", startangle=90, colors=f_colors)
@@ -431,41 +441,41 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # PyPSA:   Parsing (.nc) / Preprocessing / Build / Solve
     # Antares Modeler / GemsPy: Preprocessing / Conversion / Parsing / Build / Solve / Writing
     ax8 = fig.add_subplot(gs[1, 6:8])
-    modeler_build_time = _n(row.get("modeler_build_time"))
-    modeler_solve_time = _n(row.get("modeler_solve_time"))
-    if modeler_build_time == 0 and modeler_solve_time == 0 and total_modeler > 0:
-        modeler_solve_time = total_modeler
+    antares_modeler_build_time = _n(row.get("antares_modeler_build_time"))
+    antares_modeler_solve_time = _n(row.get("antares_modeler_solve_time"))
+    if antares_modeler_build_time == 0 and antares_modeler_solve_time == 0 and total_antares_modeler > 0:
+        antares_modeler_solve_time = total_antares_modeler
     e2e_layer_defs = [
-        # (label,                     pypsa_val,              modeler_val,                  gemspy_val,               color)
+        # (label, pypsa_val, antares_modeler_val, gemspy_val, color)
         ("Parsing (.nc)", pypsa_parsing_time_plot, 0.0, 0.0, "#2e86ab"),
         ("Preprocessing", preproc_time, preproc_time, preproc_time, "#5c7a29"),
         ("Conversion", 0.0, conversion_time, conversion_time, "#a23b72"),
-        ("Parsing (YAML/study)", 0.0, modeler_parsing_time_plot, gemspy_parsing_time_plot, "#4db6d0"),
-        ("Build", pypsa_build, modeler_build_time, gemspy_build, "steelblue"),
-        ("Solve", pypsa_solve, modeler_solve_time, gemspy_solve, "coral"),
-        ("Writing sim. table", 0.0, modeler_writing_time_plot, gemspy_writing_time_plot, "#f18f01"),
+        ("Parsing (YAML/study)", 0.0, antares_modeler_parsing_time_plot, gemspy_parsing_time_plot, "#4db6d0"),
+        ("Build", pypsa_build, antares_modeler_build_time, gemspy_build, "steelblue"),
+        ("Solve", pypsa_solve, antares_modeler_solve_time, gemspy_solve, "coral"),
+        ("Writing sim. table", 0.0, antares_modeler_writing_time_plot, gemspy_writing_time_plot, "#f18f01"),
     ]
     bot_pypsa: float = 0.0
-    bot_modeler: float = 0.0
+    bot_antares_modeler: float = 0.0
     bot_gemspy: float = 0.0
     for e2e_label, e2e_pypsa, e2e_mod, e2e_gem, e2e_color in e2e_layer_defs:
         ax8.bar(
             ["PyPSA", "Antares Modeler", "GemsPy"],
             [e2e_pypsa, e2e_mod, e2e_gem],
-            bottom=[bot_pypsa, bot_modeler, bot_gemspy],
+            bottom=[bot_pypsa, bot_antares_modeler, bot_gemspy],
             label=e2e_label,
             color=e2e_color,
             alpha=0.8,
             edgecolor="black",
         )
         bot_pypsa += e2e_pypsa
-        bot_modeler += e2e_mod
+        bot_antares_modeler += e2e_mod
         bot_gemspy += e2e_gem
-    for i, total_h in enumerate([bot_pypsa, bot_modeler, bot_gemspy]):
+    for i, total_h in enumerate([bot_pypsa, bot_antares_modeler, bot_gemspy]):
         if total_h > 0:
             ax8.text(i, total_h, f"{total_h:.3f}s", ha="center", va="bottom", fontsize=9)
     ax8.set_ylabel("Time (seconds)", fontsize=11)
-    ax8.set_title("End-to-end Comparison (Full Path)", fontsize=12, fontweight="bold", pad=10)
+    ax8.set_title("End-to-end Comparison", fontsize=12, fontweight="bold", pad=10)
     ax8.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
     ax8.grid(True, alpha=0.3, axis="y")
 

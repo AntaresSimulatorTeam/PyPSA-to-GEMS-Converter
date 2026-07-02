@@ -135,25 +135,25 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     # Antares Modeler (binary): run on the converted GEMS study and parse stdout metrics
     # ==================================================================================
     logger.info("Running Antares modeler")
-    modeler_bin = get_antares_modeler_bin(PROJECT_ROOT)
+    antares_modeler_bin = get_antares_modeler_bin(PROJECT_ROOT)
     logger.info(f"Running Antares modeler with study directory: {PROJECT_ROOT / 'tmp' / study_name / 'systems'}")
 
     study_dir = PROJECT_ROOT / "tmp" / study_name
     try:
         result = subprocess.run(
-            [str(modeler_bin), str(study_dir / "systems")],
+            [str(antares_modeler_bin), str(study_dir / "systems")],
             capture_output=True,
             text=True,
             check=False,
-            cwd=str(modeler_bin.parent),
+            cwd=str(antares_modeler_bin.parent),
         )
         # Parse Antares modeler stdout for problem size and timing information
-        modeler_parsing_time: float | None = None
-        modeler_build_time: float | None = None
-        modeler_solve_time: float | None = None
-        modeler_writing_time: float | None = None
-        modeler_n_variables: int | None = None
-        modeler_n_constraints: int | None = None
+        antares_modeler_parsing_time: float | None = None
+        antares_modeler_build_time: float | None = None
+        antares_modeler_solve_time: float | None = None
+        antares_modeler_writing_time: float | None = None
+        antares_modeler_n_variables: int | None = None
+        antares_modeler_n_constraints: int | None = None
 
         for line in result.stdout.splitlines():
             # Example lines:
@@ -167,64 +167,69 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
                 match = re.search(r"Modeler loaded in\s+([0-9.+eE-]+)\s*s", line)
                 if match:
                     try:
-                        modeler_parsing_time = float(match.group(1))
+                        antares_modeler_parsing_time = float(match.group(1))
                     except ValueError:
                         pass
             elif "Number of variables:" in line:
                 match = re.search(r"Number of variables:\s*([0-9]+)", line)
                 if match:
                     try:
-                        modeler_n_variables = int(match.group(1))
+                        antares_modeler_n_variables = int(match.group(1))
                     except ValueError:
                         pass
             elif "Number of constraints:" in line:
                 match = re.search(r"Number of constraints:\s*([0-9]+)", line)
                 if match:
                     try:
-                        modeler_n_constraints = int(match.group(1))
+                        antares_modeler_n_constraints = int(match.group(1))
                     except ValueError:
                         pass
             elif "Modeler build took" in line and "s" in line:
                 match = re.search(r"Modeler build took\s+([0-9.+eE-]+)\s*s", line)
                 if match:
                     try:
-                        modeler_build_time = float(match.group(1))
+                        antares_modeler_build_time = float(match.group(1))
                     except ValueError:
                         pass
             elif "Solved in" in line and "s" in line:
                 match = re.search(r"Solved in\s+([0-9.+eE-]+)\s*s", line)
                 if match:
                     try:
-                        modeler_solve_time = float(match.group(1))
+                        antares_modeler_solve_time = float(match.group(1))
                     except ValueError:
                         pass
             elif "Simulation Table is generated in" in line:
                 match = re.search(r"Simulation Table is generated in\s+([0-9.+eE-]+)\s*ms", line)
                 if match:
                     try:
-                        modeler_writing_time = float(match.group(1)) / 1000.0
+                        antares_modeler_writing_time = float(match.group(1)) / 1000.0
                     except ValueError:
                         pass
 
-        if modeler_parsing_time is not None:
-            benchmark_data_frame.loc[0, "modeler_parsing_time"] = modeler_parsing_time
-        if modeler_build_time is not None:
-            benchmark_data_frame.loc[0, "modeler_build_time"] = modeler_build_time
-        if modeler_solve_time is not None:
-            benchmark_data_frame.loc[0, "modeler_solve_time"] = modeler_solve_time
-        if modeler_writing_time is not None:
-            benchmark_data_frame.loc[0, "modeler_writing_time"] = modeler_writing_time
-        if modeler_n_variables is not None:
-            benchmark_data_frame.loc[0, "number_of_variables_modeler"] = modeler_n_variables
-        if modeler_n_constraints is not None:
-            benchmark_data_frame.loc[0, "number_of_constraints_modeler"] = modeler_n_constraints
+        if antares_modeler_parsing_time is not None:
+            benchmark_data_frame.loc[0, "antares_modeler_parsing_time"] = antares_modeler_parsing_time
+        if antares_modeler_build_time is not None:
+            benchmark_data_frame.loc[0, "antares_modeler_build_time"] = antares_modeler_build_time
+        if antares_modeler_solve_time is not None:
+            benchmark_data_frame.loc[0, "antares_modeler_solve_time"] = antares_modeler_solve_time
+        if antares_modeler_writing_time is not None:
+            benchmark_data_frame.loc[0, "antares_modeler_writing_time"] = antares_modeler_writing_time
+        if antares_modeler_n_variables is not None:
+            benchmark_data_frame.loc[0, "number_of_variables_antares_modeler"] = antares_modeler_n_variables
+        if antares_modeler_n_constraints is not None:
+            benchmark_data_frame.loc[0, "number_of_constraints_antares_modeler"] = antares_modeler_n_constraints
 
-        modeler_total = sum(
+        antares_modeler_total = sum(
             t
-            for t in [modeler_parsing_time, modeler_build_time, modeler_solve_time, modeler_writing_time]
+            for t in [
+                antares_modeler_parsing_time,
+                antares_modeler_build_time,
+                antares_modeler_solve_time,
+                antares_modeler_writing_time,
+            ]
             if t is not None
         )
-        benchmark_data_frame.loc[0, "modeler_total_time"] = modeler_total
+        benchmark_data_frame.loc[0, "antares_modeler_total_time"] = antares_modeler_total
 
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Antares modeler failed with error: {e}")
@@ -235,10 +240,10 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
 
     if result_file is not None:
         objective_value = get_objective_value(result_file)
-        benchmark_data_frame.loc[0, "modeler_objective_value"] = objective_value
+        benchmark_data_frame.loc[0, "antares_modeler_objective_value"] = objective_value
 
     # ==================================================================================
-    # Study configuration: read the modeler-generated parameters.yml
+    # Study configuration: read the Antares Modeler-generated parameters.yml
     # This is the single source of truth for:
     # - time scope (first-time-step / last-time-step)
     # - solver (solver / solver-parameters)
@@ -246,8 +251,8 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     parameters_yml_path = PROJECT_ROOT / "tmp" / study_name / "systems" / "parameters.yml"
     with Path(parameters_yml_path).open() as f:
         parameters_yml = yaml.safe_load(f)
-        benchmark_data_frame.loc[0, "modeler_solver_parameters"] = parameters_yml["solver-parameters"]
-        benchmark_data_frame.loc[0, "modeler_solver_name"] = parameters_yml["solver"]
+        benchmark_data_frame.loc[0, "antares_modeler_solver_parameters"] = parameters_yml["solver-parameters"]
+        benchmark_data_frame.loc[0, "antares_modeler_solver_name"] = parameters_yml["solver"]
 
     # ==================================================================================
     # GemsPy (Python): run the converted GEMS study via the gemspy API
@@ -261,13 +266,13 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     optim_config.time_scope.first_time_step = int(parameters_yml.get("first-time-step", 0))
     optim_config.time_scope.last_time_step = int(parameters_yml.get("last-time-step", 0))
 
-    modeler_solver_name = str(parameters_yml.get("solver", "highs"))
-    modeler_solver_parameters = str(parameters_yml.get("solver-parameters", "")).strip()
-    optim_config.solver_options.name = modeler_solver_name
-    if modeler_solver_name.lower() == "highs" and modeler_solver_parameters:
-        optim_config.solver_options.parameters = modeler_solver_parameters.replace("THREADS", "threads")
+    antares_modeler_solver_name = str(parameters_yml.get("solver", "highs"))
+    antares_modeler_solver_parameters = str(parameters_yml.get("solver-parameters", "")).strip()
+    optim_config.solver_options.name = antares_modeler_solver_name
+    if antares_modeler_solver_name.lower() == "highs" and antares_modeler_solver_parameters:
+        optim_config.solver_options.parameters = antares_modeler_solver_parameters.replace("THREADS", "threads")
     else:
-        optim_config.solver_options.parameters = modeler_solver_parameters
+        optim_config.solver_options.parameters = antares_modeler_solver_parameters
     validate_optim_config(optim_config, gemspy_study.system)
     gemspy_parsing_time = time.time() - t0
 
@@ -318,15 +323,15 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     start_time_build_optimization_problem = time.time()
     logger.info("Building PyPSA optimization problem")
     network.optimize.create_model()
-    build_optimization_problem_time_pypsa = time.time() - start_time_build_optimization_problem
+    pypsa_build_time = time.time() - start_time_build_optimization_problem
 
-    benchmark_data_frame.loc[0, "build_optimization_problem_time_pypsa"] = build_optimization_problem_time_pypsa
+    benchmark_data_frame.loc[0, "pypsa_build_time"] = pypsa_build_time
 
     # solve pypsa optimization problem
     optimization_time_start = time.time()
     logger.info("Solving PyPSA optimization problem")
     network.optimize.solve_model()
-    optimization_time = time.time() - optimization_time_start
+    pypsa_solve_time = time.time() - optimization_time_start
 
     solver = network.model.solver_model
 
@@ -334,8 +339,8 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
 
     benchmark_data_frame.loc[0, "number_of_variables_pypsa"] = solver.getNumCol()
 
-    benchmark_data_frame.loc[0, "pypsa_optimization_time"] = optimization_time
-    benchmark_data_frame.loc[0, "total_time_pypsa"] = optimization_time + build_optimization_problem_time_pypsa
+    benchmark_data_frame.loc[0, "pypsa_solve_time"] = pypsa_solve_time
+    benchmark_data_frame.loc[0, "total_time_pypsa"] = pypsa_solve_time + pypsa_build_time
 
     benchmark_data_frame.loc[0, "solver_name_pypsa"] = network.model.solver_name
     benchmark_data_frame.loc[0, "solver_version_pypsa"] = network.model.solver_model.version()
