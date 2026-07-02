@@ -38,16 +38,6 @@ logger.setLevel(logging.INFO)
 @pytest.mark.parametrize(
     "file_name, load_scaling, study_name",
     [
-        (
-            "france_clusters_80_snapshots_168_period_one_week.nc",
-            0.4,  # scaled by 40% to make the test case feasible
-            "benchmark_study_france_clusters_80_snapshots_168_period_one_week",
-        ),
-        (
-            "france_clusters_50_snapshots_365_period_one_year.nc",
-            0.4,  # scaled by 40% to make the test case feasible
-            "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
-        ),
         ("ac-dc-data_nl.nc", 1.0, "benchmark_study_ac_dc_data_nl"),
         ("base_s_20_elec_custom1_nl.nc", 1.0, "benchmark_study_base_s_20_elec_custom1_nl"),
         ("base_s_20_elec_nl.nc", 1.0, "benchmark_study_base_s_20_elec_nl"),
@@ -69,6 +59,16 @@ logger.setLevel(logging.INFO)
         ("network_336_60_s_nl.nc", 1.0, "benchmark_study_network_336_60_s_nl"),
         ("network_672_10_s_nl.nc", 1.0, "benchmark_study_network_672_10_s_nl"),
         ("network_8736_30_nl.nc", 1.0, "benchmark_study_network_8736_30_nl"),
+        (
+            "france_clusters_80_snapshots_168_period_one_week.nc",
+            0.4,  # scaled by 40% to make the test case feasible
+            "benchmark_study_france_clusters_80_snapshots_168_period_one_week",
+        ),
+        (
+            "france_clusters_50_snapshots_365_period_one_year.nc",
+            0.4,  # scaled by 40% to make the test case feasible
+            "benchmark_study_france_clusters_50_snapshots_365_period_one_year",
+        ),
     ],
 )
 def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -> None:
