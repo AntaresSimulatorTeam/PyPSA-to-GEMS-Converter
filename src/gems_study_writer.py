@@ -166,7 +166,7 @@ class GemsStudyWriter:
                             self.separator,
                         )
                     else:
-                        component_value = list(set(component_values))[0]
+                        component_value = next(iter(set(component_values)))
                         comp_param_to_static_file_name[(component, param)] = self.sanitize_component_value(
                             component_value
                         )
@@ -196,3 +196,45 @@ class GemsStudyWriter:
         project_root = Path(__file__).parent.parent
         source_file = project_root / "resources" / "optim-config.yml"
         shutil.copy(source_file, destination_file)
+
+    def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
+        """
+        Write the Antares-Xpansion inputs the launcher GEMS workflow needs on top of the GEMS study.
+
+        - ``input/optim-config.yml`` activates the GEMS workflow (antares-problem-generator + benders).
+        - ``user/expansion/settings.ini`` configures the algorithm, including scenario/year weights.
+
+        For a PyPSA multi-scenario study, each scenario is mapped to one Monte-Carlo year by the
+        Antares-Xpansion GEMS workflow. We export the PyPSA scenario probabilities as Xpansion
+        ``yearly-weights``.
+        """
+        solver = solver_name.lower()
+        if solver not in {"coin", "xpress"}:
+            raise ValueError("Multi-scenario Xpansion studies support only 'coin' and 'xpress' solvers.")
+        if not scenario_weights:
+            raise ValueError("scenario_weights must be non-empty for multi-scenario Xpansion studies.")
+
+        study_root = self.study_dir / "systems"
+        settings_path = study_root / "user" / "expansion" / "settings.ini"
+        weights_dir = study_root / "user" / "expansion" / "weights"
+        weights_path = weights_dir / "weights.txt"
+
+        # Antares-Xpansion expects one weight per Monte-Carlo year (scenario).
+        # We keep the order given by the scenario_weights mapping (which comes from PyPSA's scenario_weightings).
+        weights_content = "\n".join(str(float(w)) for w in scenario_weights.values()) + "\n"
+        weights_dir.mkdir(parents=True, exist_ok=True)
+        weights_path.write_text(weights_content, encoding="utf-8")
+
+        xpansion_solver = "Cbc" if solver == "coin" else "Xpress"
+        settings_content = "\n".join(
+            [
+                f"solver = {xpansion_solver}",
+                "yearly-weights = weights.txt",
+                "",
+            ]
+        )
+        self._write_text_file(settings_path, settings_content)
+
+    def _write_text_file(self, path: Path, content: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
