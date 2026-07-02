@@ -196,10 +196,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Antares Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
     print(f"  Antares Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
     print(f"  Antares Modeler Writing Time: {modeler_writing:.4f} s")
-    print(
-        f"  Antares Modeler Total Time (parsing + build + solve + writing): "
-        f"{_n(row['modeler_total_time']):.4f} s"
-    )
+    print(f"  Antares Modeler Total Time (parsing + build + solve + writing): {_n(row['modeler_total_time']):.4f} s")
     gemspy_total = _n(row.get("gemspy_total_time"))
     if gemspy_total:
         print(f"  GemsPy Parsing Time: {_n(row.get('gemspy_parsing_time')):.4f} s")

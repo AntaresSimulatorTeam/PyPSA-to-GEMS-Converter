@@ -29,7 +29,13 @@ from gems.study.folder import load_study
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
-from tests.utils import PROJECT_ROOT, get_gemspy_version, get_objective_value, load_pypsa_study_benchmark, preprocess_network
+from tests.utils import (
+    PROJECT_ROOT,
+    get_gemspy_version,
+    get_objective_value,
+    load_pypsa_study_benchmark,
+    preprocess_network,
+)
 
 logger = logging.getLogger("benchmark")
 logger.setLevel(logging.INFO)
