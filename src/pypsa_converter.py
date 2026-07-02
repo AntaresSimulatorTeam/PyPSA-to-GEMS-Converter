@@ -66,6 +66,9 @@ class PyPSAStudyConverter:
         self.logger.info("Copying library yml file to study directory")
         gems_study_writer.copy_library_yml()
 
+        if len(self.scenario_weightings.keys()) > 1 and self.solver_name.lower() not in {"coin", "xpress"}:
+            raise ValueError("Multi-scenario (2-stage stochastic) studies support only 'coin' and 'xpress' solvers.")
+
         gems_model_builder = GemsModelBuilder(self.pypsalib_id)
 
         for pypsa_components_data in self.pypsa_components_data.values():
@@ -101,4 +104,7 @@ class PyPSAStudyConverter:
         # One scenario -> deterministic study
         if len(self.scenario_weightings.keys()) > 1:
             gems_study_writer.write_optim_config_yml()
+            gems_study_writer.prepare_xpansion_runnable_study(
+                solver_name=self.solver_name, scenario_weights=self.scenario_weightings
+            )
         self.logger.info("Study conversion completed!")

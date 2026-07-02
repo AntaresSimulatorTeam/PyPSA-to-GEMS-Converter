@@ -101,6 +101,7 @@ def test_write_and_register_time_series_two_stage_stochastic_with_scenario_overr
         scenario_network,
         Path("tmp") / "test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides",
         "csv",
+        solver_name="coin",
     ).to_gems_study()
     logger.info("Conversion done; checking data-series CSV count")
 
