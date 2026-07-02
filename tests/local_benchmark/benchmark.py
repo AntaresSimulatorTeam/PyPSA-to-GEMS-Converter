@@ -29,7 +29,7 @@ from gems.study.folder import load_study
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter
-from tests.utils import PROJECT_ROOT, get_objective_value, load_pypsa_study_benchmark, preprocess_network
+from tests.utils import PROJECT_ROOT, get_gemspy_version, get_objective_value, load_pypsa_study_benchmark, preprocess_network
 
 logger = logging.getLogger("benchmark")
 logger.setLevel(logging.INFO)
@@ -88,6 +88,7 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     benchmark_data_frame.loc[0, "number_of_time_steps"] = len(network.snapshots)
     benchmark_data_frame.loc[0, "pypsa_filename"] = file_name
     benchmark_data_frame.loc[0, "antares_version"] = f"v{get_antares_version()}"
+    benchmark_data_frame.loc[0, "gemspy_version"] = get_gemspy_version()
 
     # The available PyPSA components registered in pypsa_converter are:
     benchmark_data_frame.loc[0, "number_of_buses"] = len(network.buses)

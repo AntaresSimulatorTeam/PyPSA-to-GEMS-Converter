@@ -10,7 +10,9 @@
 #
 # This file is part of the Antares project.
 
+import re
 import time
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +70,20 @@ def preprocess_network(network: Network, quota: bool) -> Network:
     if quota:
         network = extend_quota(network)
     return network
+
+
+def get_gemspy_version() -> str:
+    """Return the GemsPy version pinned in pyproject.toml."""
+    pyproject_path = PROJECT_ROOT / "pyproject.toml"
+    with pyproject_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    for dep in data.get("dependency-groups", {}).get("dev", []):
+        if dep.startswith("gemspy"):
+            match = re.match(r"gemspy==(.+)", dep)
+            if match:
+                return match.group(1)
+    return "N/A"
 
 
 def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -> pd.DataFrame:
@@ -153,7 +169,8 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Network Name: {row['pypsa_network_name']}")
     print(f"  Number of Time Steps: {int(_n(row['number_of_time_steps']))}")
     print(f"  PyPSA Version: {row['pypsa_version']}")
-    print(f"  Antares Version: {row['antares_version']}")
+    print(f"  Antares Modeler Version: {row['antares_version']}")
+    print(f"  GemsPy Version: {get_gemspy_version()}")
 
     print("\n🔧 NETWORK COMPONENTS:")
     print(f"  Buses: {int(_n(row['number_of_buses']))}")
@@ -167,35 +184,29 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  Shunt Impedances: {int(_n(row['number_of_shunt_impedances']))}")
 
     print("\n⏱️  TIMING INFORMATION:")
-    print(f"  Parsing Time (PyPSA .nc load): {_n(row['parsing_time']):.4f} s")
-    print(f"  Preprocessing Time (PyPSA): {_n(row['preprocessing_time_pypsa_network']):.4f} s")
+    print(f"  PyPSA Parsing Time (.nc load): {_n(row['parsing_time']):.4f} s")
+    print(f"  PyPSA Preprocessing Time: {_n(row['preprocessing_time_pypsa_network']):.4f} s")
     print(f"  PyPSA to GEMS Conversion Time: {_n(row['pypsa_to_gems_conversion_time']):.4f} s")
-    print(f"  Build Optimization Problem Time (PyPSA): {_n(row['build_optimization_problem_time_pypsa']):.4f} s")
-    print(f"  PyPSA Optimization Time: {_n(row['pypsa_optimization_time']):.4f} s")
-    print(f"  PyPSA Total Time: {_n(row['total_time_pypsa']):.4f} s")
+    print(f"  PyPSA Build Time: {_n(row['build_optimization_problem_time_pypsa']):.4f} s")
+    print(f"  PyPSA Solve Time: {_n(row['pypsa_optimization_time']):.4f} s")
+    print(f"  PyPSA Total Time (build + solve): {_n(row['total_time_pypsa']):.4f} s")
     modeler_parsing = _n(row.get("modeler_parsing_time"))
     modeler_writing = _n(row.get("modeler_writing_time"))
-    print(f"  Modeler Parsing Time (YAML load): {modeler_parsing:.4f} s")
-    print(f"  Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
-    print(f"  Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
-    print(f"  Modeler Writing Time (simulation table): {modeler_writing:.4f} s")
-    # modeler_total_time in CSV = parsing + build + solve + writing (Antares binary)
-    print(f"  Modeler (parsing+build+solve+writing) Time: {_n(row['modeler_total_time']):.4f} s")
-    preproc = _n(row.get("preprocessing_time_pypsa_network"))
-    conversion = _n(row.get("pypsa_to_gems_conversion_time"))
-    full_modeler_path = preproc + conversion + _n(row["modeler_total_time"])
-    print(f"  Full Modeler Path (preproc + conversion + parsing + build + solve + writing): {full_modeler_path:.4f} s")
+    print(f"  Antares Modeler Parsing Time: {modeler_parsing:.4f} s")
+    print(f"  Antares Modeler Build Time: {_n(row.get('modeler_build_time')):.4f} s")
+    print(f"  Antares Modeler Solve Time: {_n(row.get('modeler_solve_time')):.4f} s")
+    print(f"  Antares Modeler Writing Time: {modeler_writing:.4f} s")
+    print(
+        f"  Antares Modeler Total Time (parsing + build + solve + writing): "
+        f"{_n(row['modeler_total_time']):.4f} s"
+    )
     gemspy_total = _n(row.get("gemspy_total_time"))
     if gemspy_total:
-        print(f"  GemsPy Parsing Time (study+config): {_n(row.get('gemspy_parsing_time')):.4f} s")
+        print(f"  GemsPy Parsing Time: {_n(row.get('gemspy_parsing_time')):.4f} s")
         print(f"  GemsPy Build Time: {_n(row.get('gemspy_build_time')):.4f} s")
         print(f"  GemsPy Solve Time: {_n(row.get('gemspy_solve_time')):.4f} s")
-        print(f"  GemsPy Writing Time (simulation table): {_n(row.get('gemspy_writing_time')):.4f} s")
-        print(f"  GemsPy (parsing+build+solve+writing) Time: {gemspy_total:.4f} s")
-        full_gemspy_path = preproc + conversion + gemspy_total
-        print(
-            f"  Full GemsPy Path (preproc + conversion + parsing + build + solve + writing): {full_gemspy_path:.4f} s"
-        )
+        print(f"  GemsPy Writing Time: {_n(row.get('gemspy_writing_time')):.4f} s")
+        print(f"  GemsPy Total Time (parsing + build + solve + writing): {gemspy_total:.4f} s")
 
     # PyPSA constraint/variable counts; modeler counts optional (not in Antares 9.3.7)
     has_modeler_stats = "number_of_constraints_modeler" in row.index and "number_of_variables_modeler" in row.index
@@ -209,18 +220,18 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     print(f"  PyPSA Constraints: {int(n_const_pypsa)}")
     print(f"  PyPSA Variables: {int(n_var_pypsa)}")
     if has_modeler_stats:
-        print(f"  Modeler Constraints: {int(n_const_modeler)}")
+        print(f"  Antares Modeler Constraints: {int(n_const_modeler)}")
         if n_const_modeler:
-            print(f"  Constraints Ratio (PyPSA/Modeler): {n_const_pypsa / n_const_modeler:.4f}")
+            print(f"  Constraints Ratio (PyPSA/Antares Modeler): {n_const_pypsa / n_const_modeler:.4f}")
         else:
-            print("  Constraints Ratio (PyPSA/Modeler): N/A")
-        print(f"  Modeler Variables: {int(n_var_modeler)}")
+            print("  Constraints Ratio (PyPSA/Antares Modeler): N/A")
+        print(f"  Antares Modeler Variables: {int(n_var_modeler)}")
         if n_var_modeler:
-            print(f"  Variables Ratio (PyPSA/Modeler): {n_var_pypsa / n_var_modeler:.4f}")
+            print(f"  Variables Ratio (PyPSA/Antares Modeler): {n_var_pypsa / n_var_modeler:.4f}")
         else:
-            print("  Variables Ratio (PyPSA/Modeler): N/A")
+            print("  Variables Ratio (PyPSA/Antares Modeler): N/A")
     else:
-        print("  Modeler constraints/variables: N/A (not reported by this Antares version)")
+        print("  Antares Modeler constraints/variables: N/A (not reported by this Antares version)")
     if n_const_gemspy or n_var_gemspy:
         print(f"  GemsPy Constraints: {int(n_const_gemspy)}")
         print(f"  GemsPy Variables: {int(n_var_gemspy)}")
@@ -230,10 +241,10 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     gemspy_obj = _n(row.get("gemspy_objective_value"))
     print("\n🎯 OBJECTIVE VALUES:")
     print(f"  PyPSA Objective: {pypsa_obj:.6f}")
-    print(f"  Modeler Objective: {modeler_obj:.6f}")
+    print(f"  Antares Modeler Objective: {modeler_obj:.6f}")
     obj_diff = pypsa_obj - modeler_obj
     obj_diff_pct = (obj_diff / modeler_obj) * 100 if modeler_obj else 0.0
-    print(f"  Difference (PyPSA - Modeler): {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
+    print(f"  Difference (PyPSA - Antares Modeler): {obj_diff:.6f} ({obj_diff_pct:+.4f}%)")
     if gemspy_obj:
         print(f"  GemsPy Objective: {gemspy_obj:.6f}")
         gemspy_diff = pypsa_obj - gemspy_obj
@@ -242,38 +253,32 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     print("\n⚙️  SOLVER INFORMATION:")
     print(f"  PyPSA Solver: {row['solver_name_pypsa']} {row['solver_version_pypsa']}")
-    print(f"  Modeler Solver: {row['modeler_solver_name']}")
-    print(f"  Modeler Solver Parameters: {row['modeler_solver_parameters']}")
+    print(f"  Antares Modeler Solver: {row['modeler_solver_name']}")
+    print(f"  Antares Modeler Solver Parameters: {row['modeler_solver_parameters']}")
     if gemspy_obj:
         print(f"  GemsPy Solver: {row.get('gemspy_solver_name', 'N/A')}")
         print(f"  GemsPy Solver Parameters: {row.get('gemspy_solver_parameters', 'N/A')}")
 
     total_pypsa = _n(row["total_time_pypsa"])
-    total_modeler = _n(row["modeler_total_time"])  # parsing+build+solve+writing (Antares binary)
-    full_modeler_path = preproc + conversion + total_modeler
+    total_modeler = _n(row["modeler_total_time"])
     print("\n📊 PERFORMANCE COMPARISON:")
-    time_ratio_binary = total_pypsa / total_modeler if total_modeler else float("nan")
-    print(f"  Time Ratio PyPSA / Modeler (parsing+build+solve+writing): {time_ratio_binary:.4f}x")
-    time_ratio_full = total_pypsa / full_modeler_path if full_modeler_path else float("nan")
-    print(f"  Time Ratio PyPSA / Full modeler path: {time_ratio_full:.4f}x")
-    if pd.notna(time_ratio_binary) and time_ratio_binary > 0:
-        if time_ratio_binary < 1:
-            print(f"  → PyPSA is {1 / time_ratio_binary:.2f}x faster (vs modeler binary)")
+    time_ratio_modeler = total_pypsa / total_modeler if total_modeler else float("nan")
+    print(f"  Time Ratio PyPSA / Antares Modeler: {time_ratio_modeler:.4f}x")
+    if pd.notna(time_ratio_modeler) and time_ratio_modeler > 0:
+        if time_ratio_modeler < 1:
+            print(f"  → PyPSA is {1 / time_ratio_modeler:.2f}x faster")
         else:
-            print(f"  → Modeler binary is {time_ratio_binary:.2f}x faster")
-    if pd.notna(time_ratio_full) and time_ratio_full > 0:
-        if time_ratio_full < 1:
-            print(f"  → PyPSA is {1 / time_ratio_full:.2f}x faster (vs full modeler path)")
-        else:
-            print(f"  → Full modeler path is {time_ratio_full:.2f}x faster")
-    if pd.isna(time_ratio_binary) and pd.isna(time_ratio_full):
-        print("  → N/A (missing or invalid times)")
+            print(f"  → Antares Modeler is {time_ratio_modeler:.2f}x faster")
+    elif pd.isna(time_ratio_modeler):
+        print("  → N/A (missing or invalid Antares Modeler time)")
     if gemspy_obj and gemspy_total:
-        full_gemspy_path = preproc + conversion + gemspy_total
         gemspy_ratio = total_pypsa / gemspy_total if gemspy_total else float("nan")
-        print(f"  Time Ratio PyPSA / GemsPy (parsing+build+solve+writing): {gemspy_ratio:.4f}x")
-        gemspy_ratio_full = total_pypsa / full_gemspy_path if full_gemspy_path else float("nan")
-        print(f"  Time Ratio PyPSA / Full GemsPy path: {gemspy_ratio_full:.4f}x")
+        print(f"  Time Ratio PyPSA / GemsPy: {gemspy_ratio:.4f}x")
+        if pd.notna(gemspy_ratio) and gemspy_ratio > 0:
+            if gemspy_ratio < 1:
+                print(f"  → PyPSA is {1 / gemspy_ratio:.2f}x faster")
+            else:
+                print(f"  → GemsPy is {gemspy_ratio:.2f}x faster")
 
     print("\n" + "=" * 80)
 
@@ -308,7 +313,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     # PyPSA parsing = loading the .nc file; tracked separately, NOT included in build time
     pypsa_parsing_time_plot = _n(row.get("parsing_time"))
 
-    # 2. Total time: parsing+build+solve for PyPSA (no writing); parsing+build+solve+writing for Modeler/GemsPy
+    # 2. Total time: parsing + build + solve (+ writing for Antares Modeler / GemsPy)
     ax2 = fig.add_subplot(gs[0, 2:4])
     pypsa_build = _n(row["build_optimization_problem_time_pypsa"])
     pypsa_solve = _n(row["pypsa_optimization_time"])
@@ -318,8 +323,8 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         modeler_build = 0.0
         modeler_solve = total_modeler
 
-    # PyPSA: parsing (.nc load) / build / solve — no writing (results stay in-memory)
-    # Modeler/GemsPy: parsing (YAML/study load) / build / solve / writing (simulation table to disk)
+    # PyPSA: parsing / build / solve — no writing (results stay in-memory)
+    # Antares Modeler / GemsPy: parsing / build / solve / writing
     bottom_pypsa: float = 0.0
     bottom_modeler: float = 0.0
     bottom_gemspy: float = 0.0
@@ -346,7 +351,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         bottom_gemspy += gem_val
 
     ax2.set_ylabel("Time (seconds)", fontsize=11)
-    ax2.set_title("Time Comparison (Build + Solve)", fontsize=12, fontweight="bold", pad=10)
+    ax2.set_title("Time Comparison (Parsing + Build + Solve + Writing)", fontsize=12, fontweight="bold", pad=10)
     ax2.grid(True, alpha=0.3, axis="y")
     for i, total_h in enumerate([bottom_pypsa, bottom_modeler, bottom_gemspy]):
         if total_h > 0:
@@ -393,7 +398,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         ax5.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax5.transAxes)
     ax5.set_title("PyPSA Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
-    # 6. Modeler Time Breakdown (parsing / build / solve / writing)
+    # 6. Antares Modeler Time Breakdown (parsing / build / solve / writing)
     ax6 = fig.add_subplot(gs[1, 2:4])
     _modeler_build = _n(row.get("modeler_build_time"))
     _modeler_solve = _n(row.get("modeler_solve_time"))
@@ -410,7 +415,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
         ax6.pie(f_vals, labels=f_labels, autopct="%1.1f%%", startangle=90, colors=f_colors)
     else:
         ax6.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax6.transAxes)
-    ax6.set_title("Modeler Time Breakdown (binary)", fontsize=12, fontweight="bold", pad=10)
+    ax6.set_title("Antares Modeler Time Breakdown", fontsize=12, fontweight="bold", pad=10)
 
     # 7. GemsPy Time Breakdown (parsing / build / solve / writing)
     ax7 = fig.add_subplot(gs[1, 4:6])
@@ -427,7 +432,7 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
 
     # 8. End-to-end comparison: full PyPSA / Antares Modeler / GemsPy paths (stacked bars)
     # PyPSA:   Parsing (.nc) / Preprocessing / Build / Solve
-    # Modeler/GemsPy: Preprocessing / Conversion / Parsing (YAML/study) / Build / Solve / Writing sim. table
+    # Antares Modeler / GemsPy: Preprocessing / Conversion / Parsing / Build / Solve / Writing
     ax8 = fig.add_subplot(gs[1, 6:8])
     modeler_build_time = _n(row.get("modeler_build_time"))
     modeler_solve_time = _n(row.get("modeler_solve_time"))
