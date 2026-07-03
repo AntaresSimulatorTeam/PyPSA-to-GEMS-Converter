@@ -132,7 +132,7 @@ All listed components must have `active=1` (inactive ones are dropped). Lines an
 ### Commands
 
 ```bash
-uv sync --group dev          # install runtime + dev dependencies (uv project; no requirements*.txt)
+uv sync --group dev          # installs/updates .venv dev dependencies
 
 # Unit tests (no Antares needed)
 uv run pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO
