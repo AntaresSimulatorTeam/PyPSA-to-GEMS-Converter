@@ -55,7 +55,7 @@ tests/
   e2e/                        # E2E tests: convert + run Antares + compare objectives
   e2e_2_stage_stochastic/     # E2E tests for stochastic (Benders) studies
   local_benchmark/            # Benchmark suite with Jupyter notebook for analysis
-  utils.py                    # Shared test helpers (load .nc, replace_lines_by_links, etc.)
+  utils.py                    # Shared test helpers
 ```
 
 ---
