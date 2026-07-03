@@ -43,7 +43,7 @@ src/
   models/
     modified_base_model.py    # ModifiedBaseModel: Pydantic base model applied across all internal models
     gems_system_yml_schema/   #  models for system.yml output
-    pypsa_model_schema/       # PyPSAComponentData, PyPSAGlobalConstraintData dataclasses
+    pypsa_model_schema/       # Containers for PyPSA data
     modeler_parameter_yml_schema/  # ModelerParameters for parameters.yml
 resources/
   pypsa_models/
