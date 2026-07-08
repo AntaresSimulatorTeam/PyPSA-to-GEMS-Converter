@@ -70,16 +70,16 @@ def test_2_stage_stochastic_study() -> None:
     ).to_gems_study()
 
     study_dir = current_dir / "tmp" / "test_2_stage_stochastic_study"
-    modeler_bin = get_antares_modeler_bin(current_dir)
-    if not modeler_bin.is_file():
-        pytest.skip(f"Antares modeler not installed (expected {modeler_bin})")
+    antares_modeler_bin = get_antares_modeler_bin(current_dir)
+    if not antares_modeler_bin.is_file():
+        pytest.skip(f"Antares modeler not installed (expected {antares_modeler_bin})")
 
     result = subprocess.run(
-        [str(modeler_bin), str(study_dir / "systems")],
+        [str(antares_modeler_bin), str(study_dir / "systems")],
         capture_output=True,
         text=True,
         check=False,
-        cwd=str(modeler_bin.parent),
+        cwd=str(antares_modeler_bin.parent),
     )
     print("================================")
     print("Antares modeler output:")

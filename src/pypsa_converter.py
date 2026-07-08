@@ -96,7 +96,7 @@ class PyPSAStudyConverter:
 
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
-        gems_study_writer.write_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
+        gems_study_writer.write_antares_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
         # Write optim_config.yml if there are scenarios
         # One scenario -> deterministic study
         if len(self.scenario_weightings.keys()) > 1:

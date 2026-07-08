@@ -16,7 +16,7 @@ from pathlib import Path
 import polars as pl
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection, GemsSystem
-from src.models.modeler_parameter_yml_schema import ModelerParameters
+from src.models.modeler_parameter_yml_schema import AntaresModelerParameters
 from src.models.pypsa_model_schema import PyPSAComponentData
 
 _COLUMN_SEP = "__"
@@ -47,15 +47,14 @@ class GemsStudyWriter:
     ) -> None:
         GemsSystem(
             id=system_id,
-            nodes=[],
             components=list_components,
             connections=list_connections,
             model_libraries=pypsalib_id,
             area_connections=None,
         ).to_yml(self.study_dir / "systems" / "input" / "system.yml")
 
-    def write_modeler_parameters_yml(self, last_time_step: int, solver_name: str) -> None:
-        ModelerParameters(
+    def write_antares_modeler_parameters_yml(self, last_time_step: int, solver_name: str) -> None:
+        AntaresModelerParameters(
             solver=solver_name,
             solver_logs=False,
             solver_parameters="THREADS 1",

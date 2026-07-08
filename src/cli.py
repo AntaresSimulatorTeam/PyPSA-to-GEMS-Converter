@@ -47,7 +47,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--solver",
         default="highs",
-        help="Solver name written to GEMS modeler parameters (default: highs).",
+        help="Solver name written to GEMS Antares Modeler parameters (default: highs).",
     )
     return parser
 

@@ -28,7 +28,6 @@ class GemsSystem(ModifiedBaseModel):
     _components: List[GemsComponent] = PrivateAttr(default=[])
     _connections: Optional[List[GemsPortConnection]] = PrivateAttr(default=[])
     _area_connections: Optional[List[GemsAreaConnection]] = PrivateAttr(default=[])
-    _nodes: Optional[List[GemsComponent]] = PrivateAttr(default=[])
 
     def __init__(
         self,
@@ -37,7 +36,6 @@ class GemsSystem(ModifiedBaseModel):
         components: List[GemsComponent],
         connections: Optional[List[GemsPortConnection]],
         area_connections: Optional[List[GemsAreaConnection]],
-        nodes: Optional[List[GemsComponent]],
     ):
         super().__init__()
         self._id = id
@@ -45,7 +43,6 @@ class GemsSystem(ModifiedBaseModel):
         self._components = components
         self._connections = connections
         self._area_connections = area_connections
-        self._nodes = nodes
 
     def to_yml(self, output_path: Path) -> None:
         ordered_data = self.to_dict(by_alias=True, exclude_unset=True)
@@ -79,5 +76,4 @@ class GemsSystem(ModifiedBaseModel):
             ]
             if self._area_connections
             else None,
-            "nodes": [node.model_dump(by_alias=by_alias, exclude_unset=exclude_unset) for node in (self._nodes or [])],
         }
