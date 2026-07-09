@@ -78,11 +78,11 @@ PyPSA Network (deep-copied)
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
-**CO₂ snapshotting:** Carrier CO₂ emission values are captured into `network._carrier_co2_snapshot` before `set_scenarios()` is called, because PyPSA overwrites them during scenario expansion.
+**CO₂ emission factors:** For emission-bearing component types (`_EMISSION_FACTOR_COMPONENTS`), the preprocessor resolves each component's `co2_emissions` from `network.carriers` via `_carrier_co2_by_scenario()` (`src/pypsa_preprocessor.py`), which preserves per-scenario values when `carriers` is scenario-indexed (MultiIndex). Components with no carrier get a fictitious `null` carrier with `co2_emissions=0`.
 
 **Data format:** Static data is converted from pandas to Polars via `static_pypsa_to_polars()`; time-series data via `dynamic_dict_pypsa_to_polars()`. PyPSA objects remain as pandas internally; only the Polars copies are used downstream.
 
-**Float clamping:** `any_to_float()` (in `src/utils.py`) clamps all floats to `±PYPSA_CONVERTER_MAX_FLOAT` (100 billion). `inf`/`-inf` become `1e20`/`-1e20` in output files.
+**Float clamping:** `any_to_float()` (in `src/utils.py`) clamps all floats to `±PYPSA_CONVERTER_MAX_FLOAT` (100 billion, i.e. `1e11`). Separately, `GemsStudyWriter` writes unbounded `inf`/`-inf` bounds as `±1e20` in output files (`src/gems_study_writer.py`) — a distinct mechanism from `any_to_float()`.
 
 **Time series naming:** Files written to `systems/input/data-series/` follow the pattern `{system_name}_{component}_{param}.csv`. Multi-scenario dynamic columns use `__` as separator: `scenario__component`.
 
@@ -126,8 +126,8 @@ All listed components must have `active=1` (inactive ones are dropped). Lines an
 
 ### Prerequisites
 
-- **Antares Simulator binary** (version in `dependencies.json`). CI downloads it automatically. For local runs, extract the archive at the repo root — the path is resolved by `src/dependencies.py`.
-- **Antares Xpansion** for stochastic E2E tests.
+- **Antares Simulator binary** (the `antares-modeler`, version in `dependencies.json`). CI downloads it automatically. For local runs, extract the archive at the repo root — the path is resolved by `src/dependencies.py`. Both the standard and stochastic E2E tests currently invoke `antares-modeler` and skip if it is not installed.
+- **Antares Xpansion (benders):** helpers exist in `src/dependencies.py`, but the Xpansion/benders solve in the stochastic E2E test is currently commented out, so Xpansion is **not** exercised at present.
 
 ### Commands
 
@@ -159,7 +159,7 @@ uv run pre-commit run --all-files
 |-----------|---------------|-----------------|
 | `tests/unit_tests/` | Conversion logic, data mapping, YAML output | No |
 | `tests/e2e/` | Convert → run modeler → compare objective values | Yes |
-| `tests/e2e_2_stage_stochastic/` | Stochastic conversion + Benders solve | Yes + Xpansion |
+| `tests/e2e_2_stage_stochastic/` | Stochastic conversion; runs `antares-modeler` (Benders/Xpansion solve is currently commented out) | Yes (modeler) |
 | `tests/local_benchmark/` | Performance profiling; Jupyter notebook for analysis | Yes |
 
 E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConverter`, run `antares-modeler` via `subprocess`, and parse the objective value from the output CSV/TSV using `get_objective_value()` in `tests/utils.py`.
@@ -207,7 +207,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 5. **The Antares modeler fails silently.** `subprocess.run` in E2E tests uses `check=False` with `capture_output=True`. If the modeler exits non-zero, no output directory is created and the test fails with `FileNotFoundError` on the objective value file. To debug, run the modeler binary directly and inspect stderr.
 
-6. **CO₂ carrier values must be set before `set_scenarios()`.** If you build a PyPSA network and need emission factors to appear in the converted study, add carriers with `co2_emissions` before calling `set_scenarios()`. The preprocessor snapshots carrier values prior to scenario expansion because PyPSA resets them afterward.
+6. **CO₂ emission factors come from `network.carriers`.** For emission-bearing components, the preprocessor resolves each component's `co2_emissions` from the carrier definitions via `_carrier_co2_by_scenario()`, preserving per-scenario values when `carriers` is scenario-indexed. So define carriers with the correct `co2_emissions` if you need emission factors in the output; components with no carrier get a fictitious `null` carrier (`co2_emissions=0`).
 
 7. **All studies use the multi-scenario code path internally.** Even deterministic studies are converted with a single `"default"` scenario. There is no "deterministic vs stochastic" branch in the data-handling code — only the final `optim-config.yml` generation differs.
 
