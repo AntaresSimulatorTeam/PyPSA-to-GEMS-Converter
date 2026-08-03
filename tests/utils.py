@@ -415,7 +415,9 @@ def analyze_benchmark_study(row_number: int, results_file: Path | None = None) -
     antares_modeler_pie_colors = ["#2e86ab", "steelblue", "coral", "#f18f01"]
     # Only include non-zero slices
     filtered = [
-        (lbl, v, c) for lbl, v, c in zip(antares_modeler_pie_labels, antares_modeler_pie_vals, antares_modeler_pie_colors) if v > 0
+        (lbl, v, c)
+        for lbl, v, c in zip(antares_modeler_pie_labels, antares_modeler_pie_vals, antares_modeler_pie_colors)
+        if v > 0
     ]
     if filtered:
         f_labels, f_vals, f_colors = zip(*filtered)

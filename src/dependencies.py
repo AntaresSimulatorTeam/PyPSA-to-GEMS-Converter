@@ -65,6 +65,11 @@ def get_antares_modeler_bin(base_dir: Path) -> Path:
     return base_dir / get_antares_dir_name() / "bin" / "antares-modeler"
 
 
+def get_antares_solver_bin(base_dir: Path) -> Path:
+    """Return path to antares-solver binary under base_dir."""
+    return base_dir / get_antares_dir_name() / "bin" / "antares-solver"
+
+
 def get_antares_xpansion_benders_bin(base_dir: Path) -> Path:
     """Return path to benders binary under base_dir (Antares Xpansion)."""
     return base_dir / get_antares_xpansion_dir_name() / "bin" / "benders"

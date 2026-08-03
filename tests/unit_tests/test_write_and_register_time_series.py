@@ -71,10 +71,13 @@ def base_network() -> Network:
 
 @pytest.fixture()
 def scenario_network(base_network: Network) -> Network:
+    # Equal weights: PyPSAStudyConverter requires every scenario to carry the same
+    # weight (see PyPSAStudyConverter._validate_scenario_weightings) -- this test only
+    # exercises data-series writing/registration, not weight-dependent results.
     scenarios = {
-        "low": 0.3,
-        "medium": 0.5,
-        "high": 0.2,
+        "low": 1 / 3,
+        "medium": 1 / 3,
+        "high": 1 / 3,
     }
 
     if hasattr(base_network, "has_scenarios"):

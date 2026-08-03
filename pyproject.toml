@@ -23,6 +23,7 @@ dependencies = [
     "pypsa==1.2.4",
     "pyyaml>=6.0.2",
     "pydantic>=2.12.5",
+    "antares-craft==0.15.1",
 ]
 classifiers = [
     # Classifiers here: https://pypi.org/classifiers/
@@ -52,7 +53,7 @@ dev = [
     "pre-commit>=4.1.0",
     "pandas-stubs>=2.0.0",
     "types-PyYAML>=6.0.0",
-    "gemspy==0.1.2",
+    "gemspy==0.1.3",
 ]
 
 [tool.setuptools.packages.find]
@@ -90,9 +91,9 @@ module = ["src.models", "src.models.gems_system_yml_schema", "src.models.modeler
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["tests.e2e.end_2_end_tests", "tests.local_benchmark.benchmark"]
+module = ["tests.e2e.end_2_end_tests", "tests.e2e.test_hybrid_study_comparison", "tests.local_benchmark.benchmark"]
 disable_error_code = ["operator"]
 
 [[tool.mypy.overrides]]
-module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*", "gems.*"]
+module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*", "gems_craft.*", "gems_runner.*", "gems_craft_hybrid.*", "antares.*"]
 ignore_missing_imports = true
