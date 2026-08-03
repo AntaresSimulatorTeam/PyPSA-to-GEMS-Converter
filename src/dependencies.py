@@ -60,6 +60,22 @@ def get_antares_xpansion_dir_name() -> str:
     return f"antaresXpansion-{get_antares_xpansion_version()}-ubuntu-22.04"
 
 
+def get_antares_xpansion_dir(base_dir: Path) -> Path:
+    """Return Antares Xpansion root directory under base_dir."""
+    return base_dir / get_antares_xpansion_dir_name()
+
+
+def get_antares_xpansion_launcher_bin(base_dir: Path) -> Path:
+    """Return path to antares-xpansion-launcher under base_dir.
+
+    The launcher orchestrates the full pipeline (antares -> problem_generation -> benders ->
+    study_update, plus a "gems" step) directly against a converter-generated GEMS ``system.yml``
+    study -- unlike the legacy classic-study ``candidates.ini`` workflow, it needs no companion
+    virtual-area study (see ``GemsStudyWriter.prepare_xpansion_runnable_study``).
+    """
+    return get_antares_xpansion_dir(base_dir) / "antares-xpansion-launcher"
+
+
 def get_antares_modeler_bin(base_dir: Path) -> Path:
     """Return path to antares-modeler binary under base_dir."""
     return base_dir / get_antares_dir_name() / "bin" / "antares-modeler"
@@ -68,8 +84,3 @@ def get_antares_modeler_bin(base_dir: Path) -> Path:
 def get_antares_solver_bin(base_dir: Path) -> Path:
     """Return path to antares-solver binary under base_dir."""
     return base_dir / get_antares_dir_name() / "bin" / "antares-solver"
-
-
-def get_antares_xpansion_benders_bin(base_dir: Path) -> Path:
-    """Return path to benders binary under base_dir (Antares Xpansion)."""
-    return base_dir / get_antares_xpansion_dir_name() / "bin" / "benders"

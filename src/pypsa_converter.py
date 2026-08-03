@@ -76,7 +76,8 @@ class PyPSAStudyConverter:
 
     def _validate_scenario_weightings(self) -> None:
         """
-        Multi-scenario studies currently require every scenario to carry the SAME weight.
+        Multi-scenario, non-investment studies currently require every scenario to carry the
+        SAME weight.
 
         GemsPy's own ``expec()`` operator (used to combine each scenario's operational
         objective contribution) currently computes a plain, unweighted arithmetic mean
@@ -89,6 +90,16 @@ class PyPSAStudyConverter:
         0.5/0.5). Rather than silently producing a GEMS study whose GemsPy/antares-modeler
         results don't match PyPSA's, we fail fast at conversion time until GemsPy's
         ``expec()`` supports per-scenario weights.
+
+        Investment studies (run through ``antares-xpansion-launcher``, see
+        ``GemsStudyWriter.prepare_xpansion_runnable_study``) currently have the SAME restriction:
+        the launcher's Benders decomposition weights every Monte-Carlo year uniformly by default
+        (confirmed empirically -- see ``tests/e2e/test_xpansion_study_comparison.py``), and this
+        converter does not yet emit a custom per-scenario Xpansion ``yearly-weights`` file (its
+        exact expected file format -- one ``<mps path> <weight>`` line per subproblem plus a
+        trailing ``WEIGHT_SUM`` line, normally produced by an internal weight-merging step -- is
+        not stably reproducible from here). So equal weights are required across the board until
+        that's wired up.
         """
         weights = list(self.scenario_weightings.values())
         if len(weights) <= 1:
@@ -97,12 +108,11 @@ class PyPSAStudyConverter:
         if not all(math.isclose(w, reference, rel_tol=1e-9, abs_tol=1e-12) for w in weights):
             raise ValueError(
                 "Multi-scenario studies currently require every scenario to have the same "
-                f"weight, but got unequal weights: {self.scenario_weightings!r}. GemsPy's "
-                "expec() operator computes an unweighted average across scenarios, so "
-                "unequal weights would silently produce GemsPy/antares-modeler results that "
-                "don't match PyPSA's true (probability-weighted) objective. Use equal "
-                "weights for every scenario until GemsPy's expec() supports per-scenario "
-                "weights."
+                f"weight, but got unequal weights: {self.scenario_weightings!r}. Neither GemsPy's "
+                "expec() (non-investment path) nor antares-xpansion-launcher's default Benders "
+                "decomposition (investment path) consume PyPSA's true per-scenario weights yet, "
+                "so unequal weights would silently produce results that don't match PyPSA's "
+                "true (probability-weighted) objective. Use equal weights for every scenario."
             )
 
     def _has_extendable_capacity(self) -> bool:
@@ -164,24 +174,46 @@ class PyPSAStudyConverter:
         gems_study_writer.write_antares_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
         # One scenario -> deterministic study, nothing more to write.
         if len(self.scenario_weightings.keys()) > 1:
-            if self._has_extendable_capacity():
+            is_investment = self._has_extendable_capacity()
+            if is_investment:
                 # Investment study: optim-config.yml's model-decomposition is what lets
-                # antares-modeler/GemsPy run the master/subproblem Benders split.
+                # antares-modeler/GemsPy run the master/subproblem Benders split, but
+                # antares-modeler invoked directly only ever solves scenario 0 (same
+                # limitation as the non-investment case below).
+                if self.solver_name.lower() not in {"coin", "xpress"}:
+                    raise ValueError(
+                        "Multi-scenario investment studies are run through antares-xpansion-launcher, "
+                        f"which only supports the 'coin' and 'xpress' solvers, got {self.solver_name!r}."
+                    )
                 gems_study_writer.write_optim_config_yml()
-            else:
-                # Multi-scenario, non-investment study: antares-modeler invoked directly has
-                # no notion of Monte-Carlo years, so it silently only ever solves scenario 0.
-                # To get a study that is directly runnable end-to-end with the real Antares
-                # engine and produces the correct scenario-weighted result, we additionally
-                # emit a companion classic Antares study wired via the trick validated in
-                # tests/e2e/test_hybrid_study_comparison.py: running
-                # `antares-solver -i <path printed below>` solves every declared scenario
-                # and combines them per generaldata.ini's nb_years / scenario weights.
-                antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir).write(
-                    gems_systems_dir=self.study_dir / "systems",
-                    pypsa_network=self.pypsa_network,
-                    n_scenarios=len(self.scenario_weightings),
+
+            # Multi-scenario studies (investment or not) are directly runnable end-to-end
+            # via the real Antares engine only through the companion classic Antares study
+            # wired by the trick validated in tests/e2e/test_hybrid_study_comparison.py /
+            # tests/e2e/test_xpansion_study_comparison.py: a bare classic study whose only
+            # area is inert, with the GEMS system.yml grafted into its own input/ directory,
+            # and nb_years set to the scenario count.
+            antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir).write(
+                gems_systems_dir=self.study_dir / "systems",
+                pypsa_network=self.pypsa_network,
+                n_scenarios=len(self.scenario_weightings),
+            )
+            if is_investment:
+                # `antares-xpansion-launcher`'s GEMS driver understands Monte-Carlo years and
+                # runs Benders decomposition across every scenario (unlike antares-modeler
+                # invoked directly, which only ever solves scenario 0); it only needs a
+                # `user/expansion/settings.ini` on top of the classic hybrid study (see
+                # GemsStudyWriter.prepare_xpansion_runnable_study).
+                gems_study_writer.prepare_xpansion_runnable_study(
+                    solver_name=self.solver_name, target_dir=antares_hybrid_dir
                 )
+                self.logger.info(
+                    "Antares-Xpansion-runnable study written to %s "
+                    "(run: antares-xpansion-launcher -i %s)",
+                    antares_hybrid_dir,
+                    antares_hybrid_dir,
+                )
+            else:
                 self.logger.info(
                     "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
                     antares_hybrid_dir,

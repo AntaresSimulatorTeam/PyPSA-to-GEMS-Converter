@@ -196,3 +196,32 @@ class GemsStudyWriter:
         project_root = Path(__file__).parent.parent
         source_file = project_root / "resources" / "optim-config.yml"
         shutil.copy(source_file, destination_file)
+
+    def prepare_xpansion_runnable_study(self, solver_name: str, target_dir: Path) -> None:
+        """
+        Write the ``user/expansion/settings.ini`` that ``antares-xpansion-launcher``'s GEMS
+        workflow needs on top of the companion classic Antares study (``target_dir``, built by
+        ``AntaresHybridStudyWriter`` -- the launcher's ``antares-problem-generator`` step refuses
+        any folder without a ``study.antares`` marker, so unlike the plain GEMS `systems/` folder,
+        it must run against that classic study, same as the non-investment ``antares-solver``
+        hybrid trick), so a multi-scenario investment study is directly runnable via
+        ``antares-xpansion-launcher -i <target_dir>`` (see
+        ``src/dependencies.get_antares_xpansion_launcher_bin`` and
+        ``tests/e2e/test_xpansion_study_comparison.py``).
+
+        Only the solver choice is written. Xpansion's per-Monte-Carlo-year ``yearly-weights``
+        file has a nontrivial expected format (one ``<mps path> <weight>`` line per generated
+        subproblem plus a trailing ``WEIGHT_SUM`` line, normally produced by an internal
+        weight-merging step run *after* problem generation -- not reproducible from here ahead of
+        time), so it is intentionally omitted: the launcher then falls back to weighting every
+        Monte-Carlo year uniformly, which is exactly what
+        ``PyPSAStudyConverter._validate_scenario_weightings`` requires of every scenario anyway.
+        """
+        solver = solver_name.lower()
+        if solver not in {"coin", "xpress"}:
+            raise ValueError(f"Multi-scenario investment studies support only 'coin' and 'xpress' solvers, got {solver_name!r}.")
+
+        xpansion_solver = "Cbc" if solver == "coin" else "Xpress"
+        settings_path = target_dir / "user" / "expansion" / "settings.ini"
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(f"solver = {xpansion_solver}\n", encoding="utf-8")
