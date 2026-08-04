@@ -11,5 +11,5 @@
 # This file is part of the Antares project.
 
 from .gems_system_yml_schema import GemsComponent, GemsComponentParameter, GemsPortConnection, GemsSystem
-from .modeler_parameter_yml_schema import ModelerParameters
+from .modeler_parameter_yml_schema import AntaresModelerParameters
 from .modified_base_model import ModifiedBaseModel

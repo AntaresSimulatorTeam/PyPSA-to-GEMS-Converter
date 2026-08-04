@@ -19,7 +19,7 @@ from pydantic import PrivateAttr
 from ..modified_base_model import ModifiedBaseModel
 
 
-class ModelerParameters(ModifiedBaseModel):
+class AntaresModelerParameters(ModifiedBaseModel):
     solver: str = "highs"
     solver_logs: bool = False
     solver_parameters: str = "THREADS 1"
@@ -45,7 +45,7 @@ class ModelerParameters(ModifiedBaseModel):
         self._last_time_step = last_time_step
 
     def to_dict(self, by_alias: bool = True, exclude_unset: bool = True) -> dict[str, Any]:
-        """Convert ModelerParameters object to dictionary, handling PrivateAttr fields."""
+        """Convert AntaresModelerParameters object to dictionary, handling PrivateAttr fields."""
         return {
             "solver": self.solver,
             "solver-logs": self.solver_logs,
