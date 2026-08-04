@@ -62,26 +62,36 @@ class PyPSAStudyConverter:
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
         self.pypsa_network, self.scenario_weightings = determine_pypsa_study_type(self.pypsa_network)
-        self._validate_scenario_weightings()
         self.solver_name = solver_name
+        self.is_investment_study = self._has_extendable_capacity()
+
+        if len(self.scenario_weightings) > 1:
+            if self.is_investment_study:
+                self._validate_xpansion_solver()
+            else:
+                self._validate_scenario_weightings()
 
         # Preprocess the network
         self.pypsa_network = PyPSAPreprocessor(self.pypsa_network).network_preprocessing()
         # Register the PyPSA components and global constraints
         self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(self.pypsa_network).register()
 
+    def _validate_xpansion_solver(self) -> None:
+        """Multi-scenario investment studies are solved end-to-end via the antares-xpansion-launcher
+        GEMS workflow, which only supports the 'coin' and 'xpress' solvers."""
+        if self.solver_name.lower() not in {"coin", "xpress"}:
+            raise ValueError("Multi-scenario investment studies support only 'coin' and 'xpress' solvers.")
+
     def _validate_scenario_weightings(self) -> None:
         """
-        Multi-scenario studies currently require every scenario to carry the SAME weight.
+        Multi-scenario, non-investment studies currently require every scenario to carry the SAME weight.
         Because of GEMSPy behavior, 1/N where N is the number of scenarios.
         """
         weights = list(self.scenario_weightings.values())
-        if len(weights) <= 1:
-            return
         reference = weights[0]
         if not all(math.isclose(w, reference, rel_tol=1e-9, abs_tol=1e-12) for w in weights):
             raise ValueError(
-                "Multi-scenario studies currently require every scenario to have the same "
+                "Multi-scenario, non-investment studies currently require every scenario to have the same "
                 f"weight, but got unequal weights: {self.scenario_weightings!r}. GemsPy's "
                 "expec() operator computes an unweighted average across scenarios, so "
                 "unequal weights would silently produce GemsPy/antares-modeler results that "
@@ -151,10 +161,14 @@ class PyPSAStudyConverter:
         # One scenario -> deterministic study, nothing more to write.
         # Runnable by antares modeler directly
         if len(self.scenario_weightings.keys()) > 1:
-            if self._has_extendable_capacity():
-                # Investment study: optim-config.yml's model-decomposition is what lets
-                # antares-modeler/GemsPy run the master/subproblem Benders split.
+            if self.is_investment_study:
+                # Investment study: optim-config.yml's model-decomposition is what lets the
+                # antares-xpansion-launcher GEMS workflow (antares-problem-generator + benders)
+                # run the master/subproblem Benders split end-to-end.
                 gems_study_writer.write_optim_config_yml()
+                gems_study_writer.prepare_xpansion_runnable_study(
+                    solver_name=self.solver_name, scenario_weights=self.scenario_weightings
+                )
             else:
                 # Multi-scenario, operational study: antares-modeler invoked directly has
                 # no notion of Monte-Carlo years, so it silently only ever solves scenario 0.

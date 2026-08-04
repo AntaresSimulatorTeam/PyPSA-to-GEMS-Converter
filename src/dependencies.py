@@ -73,3 +73,14 @@ def get_antares_solver_bin(base_dir: Path) -> Path:
 def get_antares_xpansion_benders_bin(base_dir: Path) -> Path:
     """Return path to benders binary under base_dir (Antares Xpansion)."""
     return base_dir / get_antares_xpansion_dir_name() / "bin" / "benders"
+
+
+def get_antares_xpansion_dir(base_dir: Path) -> Path:
+    """Return Antares Xpansion root directory under base_dir."""
+    return base_dir / get_antares_xpansion_dir_name()
+
+
+def get_antares_xpansion_launcher_bin(base_dir: Path) -> Path:
+    """Return path to antares-xpansion-launcher under base_dir. This is the GEMS-workflow
+    launcher (antares-problem-generator + benders) used to run investment studies end-to-end."""
+    return get_antares_xpansion_dir(base_dir) / "antares-xpansion-launcher"

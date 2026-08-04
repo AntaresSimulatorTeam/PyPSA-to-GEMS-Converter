@@ -11,6 +11,11 @@
 # This file is part of the Antares project.
 from __future__ import annotations
 
+import json
+import logging
+import subprocess
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
@@ -47,6 +52,37 @@ def determine_pypsa_study_type(pypsa_network: Network) -> tuple[Network, dict[st
     # No scenarios: add single default scenario so all studies use the same multi-index path
     pypsa_network.set_scenarios({"default": 1})
     return pypsa_network, cast(dict[str, float], pypsa_network.scenario_weightings["weight"].to_dict())
+
+
+def run_xpansion_launcher(
+    study_root: Path,
+    launcher_bin: Path,
+    *,
+    extra_args: Sequence[str] | None = None,
+    logger: logging.Logger | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run ``antares-xpansion-launcher -i <study_root>`` on a converter-generated GEMS study."""
+    command = [str(launcher_bin), "-i", str(study_root)]
+    if extra_args:
+        command.extend(str(arg) for arg in extra_args)
+    if logger is not None:
+        logger.info("Running Antares-Xpansion launcher: %s", " ".join(command))
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(launcher_bin.parent),
+    )
+
+
+def read_xpansion_out_json(study_root: Path) -> dict[str, Any]:
+    """Load the Antares-Xpansion ``out.json`` produced by the launcher under ``<study_root>/output``."""
+    output_root = study_root / "output"
+    out_json = next(output_root.glob("**/out.json"), None)
+    if out_json is None:
+        raise FileNotFoundError(f"No Antares-Xpansion out.json found under {output_root}")
+    return cast(dict[str, Any], json.loads(out_json.read_text(encoding="utf-8")))
 
 
 # --- PyPSA pandas to Polars conversion (PyPSA objects stay as pandas) ---

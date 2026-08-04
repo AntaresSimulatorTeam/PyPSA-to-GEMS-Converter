@@ -37,10 +37,10 @@ This writer builds a "hybrid" study to get the best of both, validated end-to-en
 3. Set nb_years (Monte-Carlo years) in generaldata.ini, via antares-craft, to the
    number of scenarios declared by the GEMS/PyPSA study, so Antares' own MC-year loop
    lines up with the GEMS scenario axis.
-4. Add resolution-mode: benders-decomposition to optim-config.yml. This is required
-   by antares-solver's hybrid loader for ANY model with an investment-style variable --
-   even non-extendable (p_nom_extendable=False) generators declare p_nom as a
-   "master-and-subproblems" decomposition variable in pypsa_models.yml (see
+4. Copy optim-config.yml as-is. Its ``resolution-mode: benders-decomposition`` is
+   required by antares-solver's hybrid loader for ANY model with an investment-style
+   variable -- even non-extendable (p_nom_extendable=False) generators declare p_nom
+   as a "master-and-subproblems" decomposition variable in pypsa_models.yml (see
    resources/optim-config.yml) -- so this applies even though this writer is only
    ever invoked for non-investment studies (see PyPSAStudyConverter._has_extendable_capacity).
    Without it, the solver refuses to load with "Scenario-independent variables are not
@@ -143,15 +143,12 @@ class AntaresHybridStudyWriter:
         shutil.copytree(gems_input / "model-libraries", antares_input / "model-libraries", dirs_exist_ok=True)
         shutil.copytree(gems_input / "data-series", antares_input / "data-series", dirs_exist_ok=True)
 
-        # `resolution-mode: benders-decomposition` is required by antares-solver's
-        # hybrid loader (see module docstring, step 4) -- this deliberately overrides
-        # whatever optim-config.yml GemsStudyWriter itself wrote for the GEMS-only
-        # (antares-modeler/GemsPy) path, reusing the same per-model decomposition
-        # config for the hybrid, antares-solver-driven path.
+        # optim-config.yml already carries `resolution-mode: benders-decomposition`
+        # (see module docstring, step 4), required by antares-solver's hybrid loader --
+        # reusing the same per-model decomposition config for the hybrid,
+        # antares-solver-driven path.
         optim_config_src = Path(__file__).parent.parent / "resources" / "optim-config.yml"
-        (antares_input / "optim-config.yml").write_text(
-            "resolution-mode: benders-decomposition\n" + optim_config_src.read_text()
-        )
+        shutil.copy(optim_config_src, antares_input / "optim-config.yml")
 
         # Tag every component with the same scenario-group and add an identity
         # modeler-scenariobuilder.dat (MC year i -> data-series column i+1), so
