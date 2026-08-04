@@ -23,7 +23,7 @@ regardless of how many scenarios the PyPSA/GEMS study actually declares.
 
 antares-solver (the real Antares engine) does understand Monte-Carlo years, but it
 only understands classic Antares studies (areas/links/thermal clusters) -- it has no
-notion of a GEMS system on its own. 
+notion of a GEMS system on its own.
 This writer builds a "hybrid" study to get the best of both, validated end-to-end in tests/e2e/test_hybrid_study_comparison.py:
 
 1. Create a bare-bones classic Antares study with antares-craft, containing a single

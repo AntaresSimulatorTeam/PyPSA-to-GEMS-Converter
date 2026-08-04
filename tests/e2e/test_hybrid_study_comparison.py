@@ -49,14 +49,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 HOURS_PER_WEEK = 168
 
 
-def _antares_craft_available() -> bool:
-    try:
-        import antares.craft  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
 @pytest.fixture(autouse=True)
 def check_hybrid_prerequisites() -> None:
     """Skip (rather than fail) when the Antares binaries or antares-craft aren't available."""
@@ -65,8 +57,6 @@ def check_hybrid_prerequisites() -> None:
             f"Antares binaries not found. Please download version from "
             f"https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases into {PROJECT_ROOT}"
         )
-    if not _antares_craft_available():
-        pytest.skip("antares-craft is not installed (needed to build the hybrid-study trick).")
 
 
 def _run_hybrid_solver(antares_study_dir: Path) -> Path:
@@ -77,18 +67,13 @@ def _run_hybrid_solver(antares_study_dir: Path) -> Path:
     if antares_study_dir.joinpath("output").exists():
         shutil.rmtree(antares_study_dir / "output")
 
-    result = subprocess.run(
+    subprocess.run(
         [str(solver_bin), "-i", str(antares_study_dir)],
         capture_output=True,
         text=True,
         check=False,
         cwd=str(solver_bin.parent),
     )
-    print("================================")
-    print("Antares solver (hybrid) output: returncode=%s" % result.returncode)
-    print("stdout:", result.stdout)
-    print("stderr:", result.stderr)
-    print("================================")
 
     result_file = next(antares_study_dir.glob("output/**/simulation_table*"), None)
     if result_file is None:
@@ -179,11 +164,6 @@ def test_hybrid_deterministic_matches_all_execution_paths() -> None:
     hybrid_result_file = _run_hybrid_solver(antares_study_dir)
     hybrid_objective = _weighted_objective(hybrid_result_file, scenario_weights=[1.0])
 
-    print(
-        f"pypsa={pypsa_objective} modeler={modeler_objective} "
-        f"gemspy={gemspy_objective} antares_solver_hybrid={hybrid_objective}"
-    )
-
     assert math.isclose(pypsa_objective, modeler_objective, rel_tol=1e-6)
     assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
     assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
@@ -235,7 +215,6 @@ def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
     network.optimize()
     pypsa_objective = network.objective + network.objective_constant
 
-    modeler_objective = _antares_modeler_objective(gems_systems_dir)
     gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
 
     antares_study_dir = gems_dir / AntaresHybridStudyWriter.STUDY_NAME
@@ -245,11 +224,6 @@ def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
     )
     hybrid_result_file = _run_hybrid_solver(antares_study_dir)
     hybrid_objective = _weighted_objective(hybrid_result_file, scenario_weights=scenario_weights)
-
-    print(
-        f"pypsa={pypsa_objective} modeler(single-scenario only)={modeler_objective} "
-        f"gemspy={gemspy_objective} antares_solver_hybrid={hybrid_objective}"
-    )
 
     assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
     assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
