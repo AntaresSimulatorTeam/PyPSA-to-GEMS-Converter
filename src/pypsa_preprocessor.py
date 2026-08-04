@@ -199,8 +199,25 @@ class PyPSAPreprocessor:
         if attribute_name is not None:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 
+    def _buses_with_ac_branches(self) -> set[str]:
+        """Bus names that are endpoints of at least one Line or Transformer (angle-coupled)."""
+        buses: set[str] = set()
+        for component_type in ("lines", "transformers"):
+            df = getattr(self.pypsa_network, component_type)
+            if len(df) == 0:
+                continue
+            buses.update(df["bus0"].astype(str))
+            buses.update(df["bus1"].astype(str))
+        return buses
+
     def _add_bus_theta_bounds(self) -> None:
-        """Add theta angle bounds to buses for DC LOPF. Fix reference bus angle to 0."""
+        """Add theta angle bounds to buses for DC LOPF. Fix reference bus angle to 0.
+
+        Only Slack buses that participate in a Line/Transformer get theta fixed. Island
+        buses (Links-only AC subnetworks, non-AC carriers, etc.) never enter the angle
+        constraint matrix; FX bounds on those unused theta variables make Antares-Xpansion's
+        Clp MPS reader fail with "No match for column ...theta...".
+        """
         if len(self.pypsa_network.buses) == 0:
             return
 
@@ -212,17 +229,28 @@ class PyPSAPreprocessor:
         buses_df["theta_min"] = float("-inf")
         buses_df["theta_max"] = float("inf")
 
+        ac_branch_buses = self._buses_with_ac_branches()
+        if not ac_branch_buses:
+            return
+
         index = buses_df.index
         names = index.get_level_values(-1) if isinstance(index, pd.MultiIndex) else index
 
         slack_buses: list[str] = []
         for name in dict.fromkeys(names):
+            bus_name = str(name)
+            if bus_name not in ac_branch_buses:
+                continue
             mask = (index.get_level_values(-1) == name) if isinstance(index, pd.MultiIndex) else (index == name)
             if buses_df.loc[mask, "control"].iloc[0] == "Slack":
-                slack_buses.append(str(name))
+                slack_buses.append(bus_name)
 
         if not slack_buses:
-            slack_buses = [str(names[0])]
+            for name in dict.fromkeys(names):
+                bus_name = str(name)
+                if bus_name in ac_branch_buses:
+                    slack_buses = [bus_name]
+                    break
 
         for slack_bus in slack_buses:
             mask = (
