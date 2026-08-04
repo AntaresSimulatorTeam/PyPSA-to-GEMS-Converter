@@ -8,9 +8,10 @@ on:
         required: true
         type: string
       antares_xpansion_version:
-        description: 'Antares Xpansion version to test against'
-        required: true
+        description: 'Antares Xpansion version to test against (leave empty to skip the Xpansion E2E job)'
+        required: false
         type: string
+        default: ''
       pypsa_version:
         description: 'PyPSA version to override the pinned version (leave empty to use pinned)'
         required: false
@@ -23,8 +24,8 @@ on:
         default: 'e2e-test-failures'
     outputs:
       test_outcome:
-        description: 'Outcome of the E2E test run (success or failure)'
-        value: ${{ jobs.e2e.outputs.test_outcome }}
+        description: 'Outcome of the E2E test run (success if all jobs that ran succeeded)'
+        value: ${{ jobs.summary.outputs.test_outcome }}
 
 jobs:
   e2e:
@@ -37,15 +38,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libopenmpi3 openmpi-bin coinor-cbc
-
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
 
       - name: Install dependencies
         run: uv sync --frozen --group dev
@@ -68,27 +66,9 @@ jobs:
           VERSION="${{ inputs.antares_version }}"
           tar -xzf "antares-${VERSION}-Ubuntu-22.04.tar.gz"
 
-      - name: Download Antares Xpansion release
-        run: |
-          VERSION="${{ inputs.antares_xpansion_version }}"
-          ARCHIVE="antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
-          echo "Downloading Antares Xpansion v${VERSION}..."
-          curl -L -f -o "${ARCHIVE}" \
-            "https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/${ARCHIVE}"
-          echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
-
-      - name: Extract Antares Xpansion binaries
-        run: |
-          VERSION="${{ inputs.antares_xpansion_version }}"
-          tar -xzf "antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
-
       - name: Run end-to-end tests
         id: run_tests
-        run: |
-          uv run pytest \
-            tests/e2e/end_2_end_tests.py \
-            tests/e2e_2_stage_stochastic/test_2_stage_stochastic_study.py \
-            -v --tb=short -rA
+        run: uv run pytest tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
 
       - name: Upload test artifacts on failure
@@ -104,13 +84,98 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          ANTARES_VERSION="${{ inputs.antares_version }}"
-          XPANSION_VERSION="${{ inputs.antares_xpansion_version }}"
-          rm -f "antares-${ANTARES_VERSION}-Ubuntu-22.04.tar.gz"
-          rm -rf "antares-${ANTARES_VERSION}-Ubuntu-22.04"
-          rm -f "antaresXpansion-${XPANSION_VERSION}-ubuntu-22.04.tar.gz"
-          rm -rf "antaresXpansion-${XPANSION_VERSION}-ubuntu-22.04"
+          VERSION="${{ inputs.antares_version }}"
+          rm -f "antares-${VERSION}-Ubuntu-22.04.tar.gz"
+          rm -rf "antares-${VERSION}-Ubuntu-22.04"
 
       - name: Fail job if tests failed
         if: steps.run_tests.outcome == 'failure'
         run: exit 1
+
+  e2e-xpansion:
+    name: E2E Tests (Antares Xpansion v${{ inputs.antares_xpansion_version }})
+    if: inputs.antares_xpansion_version != ''
+    runs-on: ubuntu-22.04
+    outputs:
+      test_outcome: ${{ steps.run_tests.outcome }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenmpi3 openmpi-bin coinor-cbc
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Override PyPSA version
+        if: inputs.pypsa_version != ''
+        run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
+
+      - name: Download Antares Xpansion release
+        run: |
+          VERSION="${{ inputs.antares_xpansion_version }}"
+          ARCHIVE="antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
+          echo "Downloading Antares Xpansion v${VERSION}..."
+          curl -L -f -o "${ARCHIVE}" \
+            "https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/${ARCHIVE}"
+          echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
+
+      - name: Extract Antares Xpansion binaries
+        run: |
+          VERSION="${{ inputs.antares_xpansion_version }}"
+          tar -xzf "antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
+
+      - name: Run Xpansion end-to-end tests
+        id: run_tests
+        run: uv run pytest tests/e2e_2_stage_stochastic/test_2_stage_stochastic_study.py -v -s --log-cli-level=INFO --tb=short -rA
+        continue-on-error: true
+
+      - name: Upload test artifacts on failure
+        if: steps.run_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-xpansion
+          path: |
+            tmp/
+            **/*.log
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: |
+          VERSION="${{ inputs.antares_xpansion_version }}"
+          rm -f "antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
+          rm -rf "antaresXpansion-${VERSION}-ubuntu-22.04"
+
+      - name: Fail job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: exit 1
+
+  summary:
+    name: E2E Tests Summary
+    if: always()
+    needs: [e2e, e2e-xpansion]
+    runs-on: ubuntu-22.04
+    outputs:
+      test_outcome: ${{ steps.combine.outputs.test_outcome }}
+
+    steps:
+      - name: Combine job outcomes
+        id: combine
+        run: |
+          if [ "${{ needs.e2e.result }}" = "success" ] && [ "${{ needs.e2e-xpansion.result }}" != "failure" ]; then
+            echo "test_outcome=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "test_outcome=failure" >> "$GITHUB_OUTPUT"
+          fi
