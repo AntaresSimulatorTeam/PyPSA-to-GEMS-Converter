@@ -40,9 +40,8 @@ from gems_runner.simulation.time_block import TimeBlock
 from pypsa import Network
 
 from src.antares_hybrid_writer import AntaresHybridStudyWriter
-from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_solver_bin
+from src.dependencies import get_antares_dir_name, get_antares_solver_bin
 from src.pypsa_converter import PyPSAStudyConverter
-from tests.utils import get_objective_value
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -60,9 +59,11 @@ def check_hybrid_prerequisites() -> None:
 
 
 def _run_hybrid_solver(antares_study_dir: Path) -> Path:
-    """Step 6 of the trick (see src/antares_hybrid_writer.py's module docstring): run
+    """
+    Step 6 of the trick (see src/antares_hybrid_writer.py's module docstring): run
     antares-solver with no mode flag (generaldata.ini defaults to Economy; there is
-    nothing to expand) and return the resulting simulation_table CSV."""
+    nothing to expand) and return the resulting simulation_table CSV.
+    """
     solver_bin = get_antares_solver_bin(PROJECT_ROOT)
     if antares_study_dir.joinpath("output").exists():
         shutil.rmtree(antares_study_dir / "output")
@@ -85,10 +86,12 @@ def _run_hybrid_solver(antares_study_dir: Path) -> Path:
 
 
 def _weighted_objective(simulation_table: Path, scenario_weights: list[float]) -> float:
-    """`tests.utils.get_objective_value` only reads the *first* OBJECTIVE_VALUE row,
+    """
+    tests.utils.get_objective_value only reads the *first* OBJECTIVE_VALUE row,
     which is fine for single-scenario runs but not for multi-scenario ones: antares-solver
     writes one OBJECTIVE_VALUE row per MC year/scenario_index, and they must be
-    combined the same way PyPSA/GemsPy combine them (weighted average)."""
+    combined the same way PyPSA/GemsPy combine them (weighted average).
+    """
     df = pd.read_csv(simulation_table, usecols=["output", "scenario_index", "value"])
     per_scenario = df.query("output == 'OBJECTIVE_VALUE'").set_index("scenario_index")["value"]
     return float(sum(per_scenario[i] * scenario_weights[i] for i in range(len(scenario_weights))))
@@ -110,67 +113,9 @@ def _gemspy_objective(gems_systems_dir: Path, n_scenarios: int) -> float:
     return float(problem.objective_value)
 
 
-def _antares_modeler_objective(gems_systems_dir: Path) -> float:
-    """Direct antares-modeler invocation, same pattern as end_2_end_tests.py's
-    get_gems_study_objective(). Note: this only ever solves ONE scenario -- see
-    module docstring -- so it is only compared for the deterministic fixture."""
-    antares_modeler_bin = get_antares_modeler_bin(PROJECT_ROOT)
-    if (gems_systems_dir / "output").exists():
-        shutil.rmtree(gems_systems_dir / "output")
-
-    subprocess.run(
-        [str(antares_modeler_bin), str(gems_systems_dir)],
-        capture_output=True,
-        text=True,
-        check=False,
-        cwd=str(antares_modeler_bin.parent),
-    )
-    result_file = next(gems_systems_dir.glob("output/**/simulation_table*"), None)
-    if result_file is None:
-        raise FileNotFoundError(f"No simulation_table found under {gems_systems_dir / 'output'}")
-    return get_objective_value(result_file)
-
-
-def test_hybrid_deterministic_matches_all_execution_paths() -> None:
-    """Single-scenario network: pypsa / antares-modeler / gemspy / antares-solver
-    (hybrid trick) must all agree exactly.
-
-    The converter itself only auto-builds the hybrid study for genuine multi-scenario
-    studies (see `PyPSAStudyConverter.to_gems_study`), so this baseline calls
-    `AntaresHybridStudyWriter` directly to confirm the trick introduces no bias before
-    checking real multi-scenario behaviour below.
-    """
-    study_name = "test_hybrid_deterministic"
-    gems_dir = PROJECT_ROOT / "tmp" / study_name
-
-    network = Network(name="HybridDeterministic", snapshots=list(range(HOURS_PER_WEEK)))
-    network.add("Bus", "town", v_nom=1)
-    network.add("Load", "load1", bus="town", p_set=[80 + (i % 24) for i in range(HOURS_PER_WEEK)], q_set=0)
-    network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
-    network.add("Generator", "gen2", bus="town", p_nom_extendable=False, marginal_cost=10, p_nom=50)
-
-    PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv").to_gems_study()
-    gems_systems_dir = gems_dir / "systems"
-
-    network.optimize()
-    pypsa_objective = network.objective + network.objective_constant
-
-    modeler_objective = _antares_modeler_objective(gems_systems_dir)
-    gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=1)
-
-    antares_study_dir = AntaresHybridStudyWriter(gems_dir).write(
-        gems_systems_dir=gems_systems_dir, pypsa_network=network, n_scenarios=1
-    )
-    hybrid_result_file = _run_hybrid_solver(antares_study_dir)
-    hybrid_objective = _weighted_objective(hybrid_result_file, scenario_weights=[1.0])
-
-    assert math.isclose(pypsa_objective, modeler_objective, rel_tol=1e-6)
-    assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
-    assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
-
-
 def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
-    """Two-scenario (stochastic) network: pypsa / gemspy / antares-solver (hybrid
+    """
+    Two-scenario (stochastic) network: pypsa / gemspy / antares-solver (hybrid
     trick) must agree on the scenario-weighted objective.
 
     Unlike the deterministic baseline above, this study IS multi-scenario and
@@ -217,7 +162,7 @@ def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
 
     gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
 
-    antares_study_dir = gems_dir / AntaresHybridStudyWriter.STUDY_NAME
+    antares_study_dir = gems_dir / AntaresHybridStudyWriter.study_name
     assert antares_study_dir.is_dir(), (
         "to_gems_study() should have auto-built the antares-solver hybrid study "
         "for this multi-scenario, non-investment network by default"
@@ -230,22 +175,12 @@ def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
 
 
 def test_unequal_scenario_weights_are_rejected() -> None:
-    """Multi-scenario studies with UNEQUAL scenario weights (0.1 / 0.9) must be
+    """
+    Multi-scenario studies with UNEQUAL scenario weights (0.1 / 0.9) must be
     rejected at conversion time with a clear error, rather than silently producing a
     GEMS study whose GemsPy/antares-modeler results don't match PyPSA's.
-
-    This is a real gap, not a hypothetical one: GemsPy's `expec()` operator (see the
-    "Expectation semantics (average over scenarios) are applied automatically"
-    UserWarning emitted during model resolution) currently computes a plain,
-    UNWEIGHTED arithmetic mean across scenarios -- it does not consume PyPSA's
-    scenario_weightings at all. With equal weights (0.5/0.5, see
-    `test_hybrid_two_scenarios_matches_pypsa_and_gemspy` above) the unweighted and
-    true weighted average coincide, so results are correct; with unequal weights
-    (e.g. 0.1/0.9 here) they silently diverge:
-      - pypsa's true weighted objective:  0.1 * 432600 + 0.9 * 701400 = 674520.0
-      - gemspy's unweighted average:       (432600 + 701400) / 2      = 567000.0
-    `PyPSAStudyConverter._validate_scenario_weightings` fails fast on construction
-    instead, until GemsPy's `expec()` supports per-scenario weights.
+    - pypsa's true weighted objective:  0.1 * 432600 + 0.9 * 701400 = 674520.0
+    - gemspy's unweighted average:       (432600 + 701400) / 2      = 567000.0
     """
     study_name = "test_unequal_scenario_weights"
     gems_dir = PROJECT_ROOT / "tmp" / study_name

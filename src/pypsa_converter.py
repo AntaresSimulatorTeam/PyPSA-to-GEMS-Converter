@@ -32,11 +32,7 @@ _EXTENDABLE_CAPACITY_COMPONENTS: dict[str, str] = {
     "links": "p_nom_extendable",
     "storage_units": "p_nom_extendable",
     "stores": "e_nom_extendable",
-    # For consideration: do we want to support this too? Lines/transformers have their
-    # own extendable-capacity attribute (s_nom_extendable). Left out for now, so a
-    # study with only extendable lines/transformers (no extendable generator/link/
-    # storage_unit/store) is currently misclassified as non-investment here and would
-    # get the antares-solver hybrid trick applied (see _has_extendable_capacity below).
+    # For consideration, currently not processed
     # "lines": "s_nom_extendable",
     # "transformers": "s_nom_extendable",
 }
@@ -77,18 +73,7 @@ class PyPSAStudyConverter:
     def _validate_scenario_weightings(self) -> None:
         """
         Multi-scenario studies currently require every scenario to carry the SAME weight.
-
-        GemsPy's own ``expec()`` operator (used to combine each scenario's operational
-        objective contribution) currently computes a plain, unweighted arithmetic mean
-        across scenarios -- it does not consume PyPSA's scenario_weightings at all. With
-        equal weights the unweighted and true weighted average coincide, so results are
-        correct; with unequal weights they silently diverge (see
-        tests/e2e/test_hybrid_study_comparison.py::
-        test_hybrid_two_scenarios_unequal_weights_matches_pypsa for a worked example: pypsa's
-        true weighted objective differs from GemsPy's for 0.1/0.9 weights, but not for
-        0.5/0.5). Rather than silently producing a GEMS study whose GemsPy/antares-modeler
-        results don't match PyPSA's, we fail fast at conversion time until GemsPy's
-        ``expec()`` supports per-scenario weights.
+        Because of GEMSPy behavior, 1/N where N is the number of scenarios.
         """
         weights = list(self.scenario_weightings.values())
         if len(weights) <= 1:
@@ -162,14 +147,16 @@ class PyPSAStudyConverter:
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
         gems_study_writer.write_antares_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
+
         # One scenario -> deterministic study, nothing more to write.
+        # Runnable by antares modeler directly
         if len(self.scenario_weightings.keys()) > 1:
             if self._has_extendable_capacity():
                 # Investment study: optim-config.yml's model-decomposition is what lets
                 # antares-modeler/GemsPy run the master/subproblem Benders split.
                 gems_study_writer.write_optim_config_yml()
             else:
-                # Multi-scenario, non-investment study: antares-modeler invoked directly has
+                # Multi-scenario, operational study: antares-modeler invoked directly has
                 # no notion of Monte-Carlo years, so it silently only ever solves scenario 0.
                 # To get a study that is directly runnable end-to-end with the real Antares
                 # engine and produces the correct scenario-weighted result, we additionally
