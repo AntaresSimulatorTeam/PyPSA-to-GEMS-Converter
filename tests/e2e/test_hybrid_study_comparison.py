@@ -20,10 +20,9 @@ why optim-config.yml/system.yml/modeler-scenariobuilder.dat need patching).
 
 `PyPSAStudyConverter.to_gems_study()` now builds this hybrid study automatically for
 any multi-scenario, non-investment study (see `_has_extendable_capacity` there) --
-`test_hybrid_two_scenarios_matches_pypsa_and_gemspy` below exercises exactly that
-automatic path. The single-scenario baseline test builds it manually via
-`AntaresHybridStudyWriter` directly, since the converter only triggers it for genuine
-multi-scenario studies.
+`test_hybrid_two_scenarios_matches_pypsa_and_gemspy` and the parametrized
+`test_hybrid_n_scenarios_matches_pypsa_and_gemspy` (3 / 6 scenarios) exercise that
+automatic path.
 """
 
 import math
@@ -161,6 +160,56 @@ def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
     pypsa_objective = network.objective + network.objective_constant
 
     gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
+
+    antares_study_dir = gems_dir / AntaresHybridStudyWriter.study_name
+    assert antares_study_dir.is_dir(), (
+        "to_gems_study() should have auto-built the antares-solver hybrid study "
+        "for this multi-scenario, non-investment network by default"
+    )
+    hybrid_result_file = _run_hybrid_solver(antares_study_dir)
+    hybrid_objective = _weighted_objective(hybrid_result_file, scenario_weights=scenario_weights)
+
+    assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
+    assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
+
+
+@pytest.mark.parametrize("n_scenarios", [3, 6])
+def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
+    """Same hybrid cross-check as the two-scenario test, parametrized for 3 and 6
+    equal-weight scenarios (GemsPy currently requires equal weights)."""
+    study_name = f"test_hybrid_{n_scenarios}_scenarios"
+    gems_dir = PROJECT_ROOT / "tmp" / study_name
+    weight = 1.0 / n_scenarios
+    scenario_weights = [weight] * n_scenarios
+    scenarios = {f"s{i}": weight for i in range(n_scenarios)}
+
+    network = Network(name=f"Hybrid{n_scenarios}Scenarios", snapshots=list(range(HOURS_PER_WEEK)))
+    network.add("Bus", "town", v_nom=1)
+    network.add("Load", "load1", bus="town", p_set=[80 + (i % 24) for i in range(HOURS_PER_WEEK)], q_set=0)
+    network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
+    network.add(
+        "Generator",
+        "gen2",
+        bus="town",
+        p_nom_extendable=False,
+        marginal_cost=10,
+        p_nom=50,
+        p_max_pu=[0.9] * HOURS_PER_WEEK,
+    )
+    network.set_scenarios(scenarios)
+    # Distinct per-scenario availability so the scenario axis is exercised (see
+    # comment in test_hybrid_two_scenarios_matches_pypsa_and_gemspy).
+    for i in range(n_scenarios):
+        availability = 1.0 - 0.8 * i / (n_scenarios - 1)
+        network.generators_t.p_max_pu[(f"s{i}", "gen2")] = [availability] * HOURS_PER_WEEK
+
+    PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv").to_gems_study()
+    gems_systems_dir = gems_dir / "systems"
+
+    network.optimize()
+    pypsa_objective = network.objective + network.objective_constant
+
+    gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=n_scenarios)
 
     antares_study_dir = gems_dir / AntaresHybridStudyWriter.study_name
     assert antares_study_dir.is_dir(), (
