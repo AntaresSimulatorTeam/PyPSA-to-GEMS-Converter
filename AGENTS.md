@@ -44,7 +44,7 @@ src/
     modified_base_model.py    # ModifiedBaseModel: Pydantic base model applied across all internal models
     gems_system_yml_schema/   #  models for system.yml output
     pypsa_model_schema/       # Containers for PyPSA data
-    modeler_parameter_yml_schema/  # ModelerParameters for parameters.yml
+    modeler_parameter_yml_schema/  # AntaresModelerParameters for parameters.yml
 resources/
   pypsa_models/
     pypsa_models.yml          # GEMS model library used by all converted studies
@@ -188,7 +188,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 - Type hints everywhere; `pathlib.Path` for file paths
 - Pydantic models inherit from `ModifiedBaseModel` which applies an alias generator transforming `_` → `-` for all YAML keys
-- `GemsSystem` and `ModelerParameters` use `PrivateAttr` for their core data fields — an unusual Pydantic pattern; serialization is done via manual `to_dict()` / `to_yml()` methods
+- `GemsSystem` and `AntaresModelerParameters` use `PrivateAttr` for their core data fields — an unusual Pydantic pattern; serialization is done via manual `to_dict()` / `to_yml()` methods
 - Logging via `logging.getLogger(__name__)` — no bare `print()`
 - **Ruff**: line-length 120, Python 3.11, rules E4/E7/E9/F/I (config in `pyproject.toml`)
 - **mypy**: strict mode with Pydantic plugin; `src/models/` has `ignore_errors = true`
