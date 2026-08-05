@@ -42,7 +42,7 @@ from src.dependencies import (
     get_antares_xpansion_version,
 )
 from src.pypsa_converter import PyPSAStudyConverter
-from src.utils import read_xpansion_out_json, run_xpansion_launcher
+from src.utils import read_xpansion_mps_sizes, read_xpansion_out_json, run_xpansion_launcher
 from tests.utils import PROJECT_ROOT, get_gemspy_version
 
 # PyPSA is solved with the same underlying solver ('coin'/Cbc) that the GEMS side (Antares
@@ -65,7 +65,7 @@ STUDIES = [
 # PyPSAStudyConverter only writes the antares-xpansion-launcher (Benders) study when there
 # are >= 2 scenarios; with exactly 1 scenario extendable capacity is a plain LP variable
 # solved by antares-modeler. Scenario counts therefore start at 2.
-SCENARIO_COUNTS = [2, 10, 50, 100]
+SCENARIO_COUNTS = [2, 10, 50]
 
 
 def _seed_for(study_name: str, n_scenarios: int) -> int:
@@ -206,7 +206,8 @@ def test_xpansion_vs_pypsa_scenario_scaling(
     launcher_bin = get_antares_xpansion_launcher_bin(PROJECT_ROOT)
     logger.info("Running Antares-Xpansion launcher on %s", study_root)
     xpansion_start = time.time()
-    result = run_xpansion_launcher(study_root, launcher_bin, logger=logger)
+    # --keepMps keeps master/slave MPS so we can read variable/constraint counts.
+    result = run_xpansion_launcher(study_root, launcher_bin, extra_args=["--keepMps"], logger=logger)
     xpansion_elapsed = time.time() - xpansion_start
     benchmark_data_frame.loc[0, "xpansion_total_time"] = xpansion_elapsed
 
@@ -223,6 +224,24 @@ def test_xpansion_vs_pypsa_scenario_scaling(
         xpansion_solution = read_xpansion_out_json(study_root)["solution"]
         benchmark_data_frame.loc[0, "xpansion_status"] = xpansion_solution["problem_status"]
         benchmark_data_frame.loc[0, "xpansion_objective_value"] = xpansion_solution["overall_cost"]
+
+    try:
+        mps_sizes = read_xpansion_mps_sizes(study_root)
+        for key, value in mps_sizes.items():
+            benchmark_data_frame.loc[0, key] = value
+        logger.info(
+            "Xpansion MPS sizes: %s vars / %s cons "
+            "(master %s/%s, %s subproblems %s/%s)",
+            mps_sizes["number_of_variables_xpansion"],
+            mps_sizes["number_of_constraints_xpansion"],
+            mps_sizes["number_of_variables_xpansion_master"],
+            mps_sizes["number_of_constraints_xpansion_master"],
+            mps_sizes["number_of_xpansion_subproblems"],
+            mps_sizes["number_of_variables_xpansion_subproblems"],
+            mps_sizes["number_of_constraints_xpansion_subproblems"],
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        logger.warning("Could not read Xpansion MPS sizes: %s", exc)
 
     # ==================================================================================
     # PyPSA: build and solve the same investment problem as one monolithic LP

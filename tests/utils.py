@@ -550,8 +550,11 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     pypsa_total = _n(row.get("pypsa_total_time"), pypsa_build + pypsa_solve)
     xpansion_obj = _n(row.get("xpansion_objective_value"))
     pypsa_obj = _n(row.get("pypsa_objective"))
-    n_cons = int(_n(row.get("number_of_constraints_pypsa")))
-    n_vars = int(_n(row.get("number_of_variables_pypsa")))
+    n_cons_pypsa = int(_n(row.get("number_of_constraints_pypsa")))
+    n_vars_pypsa = int(_n(row.get("number_of_variables_pypsa")))
+    n_cons_xpansion = int(_n(row.get("number_of_constraints_xpansion")))
+    n_vars_xpansion = int(_n(row.get("number_of_variables_xpansion")))
+    has_xpansion_size = n_cons_xpansion > 0 or n_vars_xpansion > 0
     speedup = (pypsa_total / xpansion_time) if xpansion_time > 0 else float("nan")
 
     print("=" * 80)
@@ -578,15 +581,25 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     print(f"  PyPSA:    {pypsa_obj:.6e}")
     if pypsa_obj != 0:
         print(f"  Rel. gap: {abs(xpansion_obj - pypsa_obj) / abs(pypsa_obj) * 100:.2f} %")
-    print("\nPYPSA MODEL SIZE:")
-    print(f"  Constraints: {n_cons:,}")
-    print(f"  Variables:   {n_vars:,}")
+    print("\nMODEL SIZE:")
+    print(f"  PyPSA constraints / variables:    {n_cons_pypsa:,} / {n_vars_pypsa:,}")
+    if has_xpansion_size:
+        print(f"  Xpansion constraints / variables: {n_cons_xpansion:,} / {n_vars_xpansion:,}")
+        print(
+            f"    (master {int(_n(row.get('number_of_constraints_xpansion_master'))):,} / "
+            f"{int(_n(row.get('number_of_variables_xpansion_master'))):,}; "
+            f"{int(_n(row.get('number_of_xpansion_subproblems')))} subproblems "
+            f"{int(_n(row.get('number_of_constraints_xpansion_subproblems'))):,} / "
+            f"{int(_n(row.get('number_of_variables_xpansion_subproblems'))):,})"
+        )
+    else:
+        print("  Xpansion constraints / variables: N/A (re-run benchmark to capture MPS sizes)")
     print("\n" + "=" * 80)
 
     categories = ["PyPSA", "Antares-Xpansion"]
     colors = ["steelblue", "coral"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 4, figsize=(18, 5))
 
     # 1. Objective
     ax = axes[0]
@@ -609,6 +622,26 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     ax.text(0, pypsa_total, f"{pypsa_total:.3f}s", ha="center", va="bottom", fontsize=9)
     ax.text(1, xpansion_time, f"{xpansion_time:.3f}s", ha="center", va="bottom", fontsize=9)
     ax.legend(fontsize=9)
+
+    # 3. Constraints
+    ax = axes[2]
+    cons_vals = [n_cons_pypsa, n_cons_xpansion]
+    bars = ax.bar(categories, cons_vals, color=colors, alpha=0.7, edgecolor="black")
+    ax.set_ylabel("Number of Constraints", fontsize=11)
+    ax.set_title("Constraints Comparison", fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(bars, cons_vals):
+        ax.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:,}", ha="center", va="bottom", fontsize=9)
+
+    # 4. Variables
+    ax = axes[3]
+    vars_vals = [n_vars_pypsa, n_vars_xpansion]
+    bars = ax.bar(categories, vars_vals, color=colors, alpha=0.7, edgecolor="black")
+    ax.set_ylabel("Number of Variables", fontsize=11)
+    ax.set_title("Variables Comparison", fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(bars, vars_vals):
+        ax.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:,}", ha="center", va="bottom", fontsize=9)
 
     fig.suptitle(
         f"{study_name} — {n_scenarios} scenarios, {n_buses} buses × {n_timesteps} timesteps",

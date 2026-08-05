@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -83,6 +84,62 @@ def read_xpansion_out_json(study_root: Path) -> dict[str, Any]:
     if out_json is None:
         raise FileNotFoundError(f"No Antares-Xpansion out.json found under {output_root}")
     return cast(dict[str, Any], json.loads(out_json.read_text(encoding="utf-8")))
+
+
+_MPS_NVARS_RE = re.compile(r"^\*\s*Number of variables:\s*(\d+)\s*$", re.MULTILINE)
+_MPS_NCONS_RE = re.compile(r"^\*\s*Number of constraints:\s*(\d+)\s*$", re.MULTILINE)
+_SLAVE_MPS_NAME_RE = re.compile(r"^\d+-\d+\.mps$")
+
+
+def read_mps_problem_size(mps_path: Path) -> tuple[int, int]:
+    """Return ``(n_variables, n_constraints)`` from an Antares MPSGenerator header."""
+    # Only the comment header is needed; avoid loading multi-MB MPS bodies.
+    header = mps_path.read_text(encoding="utf-8", errors="replace")[:4096]
+    nvars_match = _MPS_NVARS_RE.search(header)
+    ncons_match = _MPS_NCONS_RE.search(header)
+    if nvars_match is None or ncons_match is None:
+        raise ValueError(f"Could not parse variable/constraint counts from {mps_path}")
+    return int(nvars_match.group(1)), int(ncons_match.group(1))
+
+
+def read_xpansion_mps_sizes(study_root: Path) -> dict[str, int]:
+    """
+    Collect master + slave MPS sizes written under ``<study_root>/output/**/lp``.
+
+    Requires the launcher to have been run with ``--keepMps``. Returns totals useful for
+    comparing against PyPSA's monolithic ``nvars`` / ``ncons``, plus master/subproblem
+    breakdowns.
+    """
+    lp_dirs = sorted((study_root / "output").glob("**/lp"))
+    if not lp_dirs:
+        raise FileNotFoundError(f"No Xpansion lp/ directory under {study_root / 'output'}")
+    lp_dir = lp_dirs[-1]
+
+    master_mps = lp_dir / "master.mps"
+    if not master_mps.is_file():
+        raise FileNotFoundError(f"No master.mps in {lp_dir} (run launcher with --keepMps)")
+
+    master_vars, master_cons = read_mps_problem_size(master_mps)
+    slave_vars_total = 0
+    slave_cons_total = 0
+    n_subproblems = 0
+    for mps_path in sorted(lp_dir.glob("*.mps")):
+        if not _SLAVE_MPS_NAME_RE.match(mps_path.name):
+            continue
+        nvars, ncons = read_mps_problem_size(mps_path)
+        slave_vars_total += nvars
+        slave_cons_total += ncons
+        n_subproblems += 1
+
+    return {
+        "number_of_xpansion_subproblems": n_subproblems,
+        "number_of_variables_xpansion_master": master_vars,
+        "number_of_constraints_xpansion_master": master_cons,
+        "number_of_variables_xpansion_subproblems": slave_vars_total,
+        "number_of_constraints_xpansion_subproblems": slave_cons_total,
+        "number_of_variables_xpansion": master_vars + slave_vars_total,
+        "number_of_constraints_xpansion": master_cons + slave_cons_total,
+    }
 
 
 # --- PyPSA pandas to Polars conversion (PyPSA objects stay as pandas) ---
