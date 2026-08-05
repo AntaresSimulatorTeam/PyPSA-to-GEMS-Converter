@@ -151,9 +151,7 @@ def build_synthetic_investment_network(n_buses: int, n_timesteps: int, *, name: 
 
 @pytest.mark.parametrize("n_buses, n_timesteps, study_name", STUDIES)
 @pytest.mark.parametrize("n_scenarios", SCENARIO_COUNTS)
-def test_xpansion_vs_pypsa_scenario_scaling(
-    n_buses: int, n_timesteps: int, study_name: str, n_scenarios: int
-) -> None:
+def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, study_name: str, n_scenarios: int) -> None:
     if not (PROJECT_ROOT / get_antares_dir_name()).is_dir():
         pytest.skip(
             f"Antares binaries not found. Please download version {get_antares_version()} from "
@@ -214,8 +212,7 @@ def test_xpansion_vs_pypsa_scenario_scaling(
     if result.returncode != 0:
         benchmark_data_frame.loc[0, "xpansion_status"] = "FAILED"
         logger.error(
-            "antares-xpansion-launcher failed (returncode=%s):\n--- stdout (tail) ---\n%s\n"
-            "--- stderr (tail) ---\n%s",
+            "antares-xpansion-launcher failed (returncode=%s):\n--- stdout (tail) ---\n%s\n--- stderr (tail) ---\n%s",
             result.returncode,
             result.stdout[-4000:],
             result.stderr[-2000:],
@@ -230,8 +227,7 @@ def test_xpansion_vs_pypsa_scenario_scaling(
         for key, value in mps_sizes.items():
             benchmark_data_frame.loc[0, key] = value
         logger.info(
-            "Xpansion MPS sizes: %s vars / %s cons "
-            "(master %s/%s, %s subproblems %s/%s)",
+            "Xpansion MPS sizes: %s vars / %s cons (master %s/%s, %s subproblems %s/%s)",
             mps_sizes["number_of_variables_xpansion"],
             mps_sizes["number_of_constraints_xpansion"],
             mps_sizes["number_of_variables_xpansion_master"],
@@ -261,6 +257,8 @@ def test_xpansion_vs_pypsa_scenario_scaling(
 
     benchmark_data_frame.loc[0, "number_of_constraints_pypsa"] = network.model.ncons
     benchmark_data_frame.loc[0, "number_of_variables_pypsa"] = network.model.nvars
+    assert network.objective is not None
+    assert network.objective_constant is not None
     benchmark_data_frame.loc[0, "pypsa_objective"] = network.objective + network.objective_constant
     benchmark_data_frame.loc[0, "pypsa_solver_name"] = network.model.solver_name
 

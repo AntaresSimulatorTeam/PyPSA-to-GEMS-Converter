@@ -609,12 +609,16 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     ax.set_title("Objective Value Comparison", fontsize=12, fontweight="bold", pad=10)
     ax.grid(True, alpha=0.3, axis="y")
     for bar, val in zip(bars, objs):
-        ax.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:.2e}", ha="center", va="bottom", fontsize=9)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:.2e}", ha="center", va="bottom", fontsize=9
+        )
 
     # 2. Time (stacked build+solve for PyPSA)
     ax = axes[1]
     ax.bar(["PyPSA"], [pypsa_build], color="#2e86ab", alpha=0.8, edgecolor="black", label="Build")
-    ax.bar(["PyPSA"], [pypsa_solve], bottom=[pypsa_build], color="steelblue", alpha=0.8, edgecolor="black", label="Solve")
+    ax.bar(
+        ["PyPSA"], [pypsa_solve], bottom=[pypsa_build], color="steelblue", alpha=0.8, edgecolor="black", label="Solve"
+    )
     ax.bar(["Antares-Xpansion"], [xpansion_time], color="coral", alpha=0.7, edgecolor="black", label="Total")
     ax.set_ylabel("Time (seconds)", fontsize=11)
     ax.set_title("Time Comparison", fontsize=12, fontweight="bold", pad=10)
