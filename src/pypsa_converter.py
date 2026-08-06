@@ -27,7 +27,7 @@ CONVERTER_LOGGER_NAME = "pypsa_to_gems_converter"
 _CONVERTER_LOG = logging.getLogger(CONVERTER_LOGGER_NAME)
 
 # Components carrying an extendable capacity variable, keyed by their "*_extendable" column.
-_EXTENDABLE_CAPACITY_COMPONENTS: dict[str, str] = {
+_EXTENDABLE_CAPACITY_FLAGS: dict[str, str] = {
     "generators": "p_nom_extendable",
     "links": "p_nom_extendable",
     "storage_units": "p_nom_extendable",
