@@ -69,18 +69,17 @@ from typing import Any
 
 import antares.craft as antares_craft
 import yaml
-from pypsa import Network
 
 
 @dataclass
 class AntaresHybridStudyWriter:
     study_dir: Path
-    study_name: str = "antares_hybrid_master"
-    study_version: str = "9.2"
+    study_name: str
+    study_version: str = "9.3"
 
-    def write(self, gems_systems_dir: Path, pypsa_network: Network, n_scenarios: int) -> Path:
+    def write(self, gems_systems_dir: Path, n_timesteps: int, n_scenarios: int) -> Path:
         """Build the hybrid study and return its directory (self.study_dir / self.study_name)."""
-        antares_study_dir = self._build_virtual_antares_study(pypsa_network, n_scenarios)
+        antares_study_dir = self._build_virtual_antares_study(n_timesteps, n_scenarios)
         self._add_gems_system(antares_study_dir, gems_systems_dir, n_scenarios)
         return antares_study_dir
 
@@ -110,8 +109,6 @@ class AntaresHybridStudyWriter:
             # Deliberately no create_link, create_thermal_cluster, etc.: this area
             # is connected to nothing and contributes nothing to the objective.
         )
-
-        n_timesteps = len(pypsa_network.snapshots)
         simulation_end_days = max(1, math.ceil(n_timesteps / 24))
         study.update_settings(
             antares_craft.StudySettingsUpdate(
@@ -127,7 +124,7 @@ class AntaresHybridStudyWriter:
         )
         return study_dir
 
-    def _install_gems_system(self, antares_study_dir: Path, gems_systems_dir: Path, n_scenarios: int) -> None:
+    def _add_gems_system(self, antares_study_dir: Path, gems_systems_dir: Path, n_scenarios: int) -> None:
         """
                                                           ^
                                                           |

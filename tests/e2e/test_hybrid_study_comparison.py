@@ -38,7 +38,6 @@ from gems_runner.simulation.optimization import build_problem
 from gems_runner.simulation.time_block import TimeBlock
 from pypsa import Network
 
-from src.antares_hybrid_writer import AntaresHybridStudyWriter
 from src.dependencies import get_antares_dir_name, get_antares_solver_bin
 from src.pypsa_converter import PyPSAStudyConverter
 
@@ -161,7 +160,7 @@ def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
 
     gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
 
-    antares_study_dir = gems_dir / AntaresHybridStudyWriter.study_name
+    antares_study_dir = gems_dir / network.name
     assert antares_study_dir.is_dir(), (
         "to_gems_study() should have auto-built the antares-solver hybrid study "
         "for this multi-scenario, non-investment network by default"
@@ -210,8 +209,7 @@ def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
     pypsa_objective = network.objective + network.objective_constant
 
     gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=n_scenarios)
-
-    antares_study_dir = gems_dir / AntaresHybridStudyWriter.study_name
+    antares_study_dir = gems_dir / network.name
     assert antares_study_dir.is_dir(), (
         "to_gems_study() should have auto-built the antares-solver hybrid study "
         "for this multi-scenario, non-investment network by default"

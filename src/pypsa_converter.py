@@ -100,7 +100,7 @@ class PyPSAStudyConverter:
         (see PyPSAPreprocessor._fix_capacity_non_extendable_attribute), so they never introduce a
         master variable.
         """
-        for component_type, extendable_col in _EXTENDABLE_CAPACITY_COMPONENTS.items():
+        for component_type, extendable_col in _EXTENDABLE_CAPACITY_FLAGS.items():
             df = getattr(self.pypsa_network, component_type)
             if len(df) > 0 and bool(df[extendable_col].any()):
                 return True
@@ -164,9 +164,9 @@ class PyPSAStudyConverter:
                 # tests/e2e/test_hybrid_study_comparison.py: running
                 # `antares-solver -i <path printed below>` solves every declared scenario
                 # and combines them per generaldata.ini's nb_years / scenario weights.
-                antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir).write(
+                antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
                     gems_systems_dir=self.study_dir / "systems",
-                    pypsa_network=self.pypsa_network,
+                    n_timesteps=len(self.pypsa_network.snapshots),
                     n_scenarios=len(self.scenario_weightings),
                 )
                 self.logger.info(
