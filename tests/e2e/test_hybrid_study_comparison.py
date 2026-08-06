@@ -56,42 +56,66 @@ def check_hybrid_prerequisites() -> None:
         )
 
 
-def _run_hybrid_solver(antares_study_dir: Path) -> Path:
+def _run_hybrid_solver(antares_study_dir: Path) -> list[Path]:
     """
     Step 6 of the trick (see src/antares_hybrid_writer.py's module docstring): run
     antares-solver with no mode flag (generaldata.ini defaults to Economy; there is
-    nothing to expand) and return the resulting simulation_table CSV.
+    nothing to expand) and return every simulation_table CSV under output/.
+
+    Antares emit more than one table (e.g. simulation_table--optim-nb-1/2.csv).
+    Callers must read them all when building the scenario-weighted objective.
     """
     solver_bin = get_antares_solver_bin(PROJECT_ROOT)
     if antares_study_dir.joinpath("output").exists():
         shutil.rmtree(antares_study_dir / "output")
 
-    subprocess.run(
-        [str(solver_bin), "-i", str(antares_study_dir)],
+    completed = subprocess.run(
+        [str(solver_bin), "-i", str(antares_study_dir.resolve())],
         capture_output=True,
         text=True,
         check=False,
         cwd=str(solver_bin.parent),
     )
 
-    result_file = next(antares_study_dir.glob("output/**/simulation_table*"), None)
-    if result_file is None:
+    result_files = list(antares_study_dir.glob("output/**/simulation_table*"))
+    if not result_files:
         raise FileNotFoundError(
             f"No simulation_table found under {antares_study_dir / 'output'}; "
-            "antares-solver likely failed to load the hybrid study, see stdout/stderr above."
+            "antares-solver likely failed to load the hybrid study.\n"
+            f"exit_code={completed.returncode}\n"
+            f"stdout:\n{completed.stdout}\n"
+            f"stderr:\n{completed.stderr}"
         )
-    return result_file
+    return result_files
 
 
-def _weighted_objective(simulation_table: Path, scenario_weights: list[float]) -> float:
+def _weighted_objective(simulation_tables: list[Path], scenario_weights: list[float]) -> float:
     """
-    tests.utils.get_objective_value only reads the *first* OBJECTIVE_VALUE row,
-    which is fine for single-scenario runs but not for multi-scenario ones: antares-solver
-    writes one OBJECTIVE_VALUE row per MC year/scenario_index, and they must be
-    combined the same way PyPSA/GemsPy combine them (weighted average).
+    Scenario-weighted objective from all antares-solver simulation tables.
+
+    Each table is read; OBJECTIVE_VALUE
+    rows are collected per scenario_index (duplicate tables / optim-nb passes must
+    agree); then the weighted average over scenarios is returned.
     """
-    df = pd.read_csv(simulation_table, usecols=["output", "scenario_index", "value"])
-    per_scenario = df.query("output == 'OBJECTIVE_VALUE'").set_index("scenario_index")["value"]
+    frames = [pd.read_csv(path, usecols=["output", "scenario_index", "value"]) for path in simulation_tables]
+    objectives = (
+        pd.concat(frames, ignore_index=True)
+        .query("output == 'OBJECTIVE_VALUE'")
+        .groupby("scenario_index", sort=True)["value"]
+        .agg(["min", "max", "first"])
+    )
+    inconsistent = objectives.index[objectives["min"] != objectives["max"]].tolist()
+    if inconsistent:
+        raise AssertionError(
+            f"Conflicting OBJECTIVE_VALUE across simulation tables for scenario_index={inconsistent}: "
+            f"{objectives.loc[inconsistent].to_dict()}"
+        )
+    if list(objectives.index) != list(range(len(scenario_weights))):
+        raise AssertionError(
+            f"Expected OBJECTIVE_VALUE for scenario_index 0..{len(scenario_weights) - 1}, "
+            f"got {list(objectives.index)} from {[p.name for p in simulation_tables]}"
+        )
+    per_scenario = objectives["first"]
     return float(sum(per_scenario[i] * scenario_weights[i] for i in range(len(scenario_weights))))
 
 
@@ -111,68 +135,7 @@ def _gemspy_objective(gems_systems_dir: Path, n_scenarios: int) -> float:
     return float(problem.objective_value)
 
 
-def test_hybrid_two_scenarios_matches_pypsa_and_gemspy() -> None:
-    """
-    Two-scenario (stochastic) network: pypsa / gemspy / antares-solver (hybrid
-    trick) must agree on the scenario-weighted objective.
-
-    Unlike the deterministic baseline above, this study IS multi-scenario and
-    non-investment, so `PyPSAStudyConverter.to_gems_study()` builds the hybrid study
-    automatically -- this test uses that auto-built study directly (no manual
-    `AntaresHybridStudyWriter` call), proving the production wiring itself works.
-
-    antares-modeler alone is deliberately NOT asserted equal here: invoked directly
-    (without the hybrid trick) it only ever solves one scenario -- this is exactly
-    the multi-scenario gap the hybrid trick exists to validate (see
-    src/antares_hybrid_writer.py's module docstring). It is still computed and
-    printed for visibility.
-    """
-    study_name = "test_hybrid_two_scenarios"
-    gems_dir = PROJECT_ROOT / "tmp" / study_name
-    scenario_weights = [0.5, 0.5]
-
-    network = Network(name="HybridTwoScenarios", snapshots=list(range(HOURS_PER_WEEK)))
-    network.add("Bus", "town", v_nom=1)
-    network.add("Load", "load1", bus="town", p_set=[80 + (i % 24) for i in range(HOURS_PER_WEEK)], q_set=0)
-    network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
-    network.add(
-        "Generator",
-        "gen2",
-        bus="town",
-        p_nom_extendable=False,
-        marginal_cost=10,
-        p_nom=50,
-        p_max_pu=[0.9] * HOURS_PER_WEEK,
-    )
-    network.set_scenarios({"low": 0.5, "high": 0.5})
-    # Static (non-time-series) per-scenario overrides are collapsed to a single value
-    # by the converter today (see gems_model_builder.py's first_per_component logic),
-    # so the scenario axis must be exercised through a genuinely time-varying
-    # attribute: gen2's availability differs per scenario.
-    network.generators_t.p_max_pu[("low", "gen2")] = [1.0] * HOURS_PER_WEEK
-    network.generators_t.p_max_pu[("high", "gen2")] = [0.2] * HOURS_PER_WEEK
-
-    PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv").to_gems_study()
-    gems_systems_dir = gems_dir / "systems"
-
-    network.optimize()
-    pypsa_objective = network.objective + network.objective_constant
-
-    gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
-
-    antares_study_dir = gems_dir / network.name
-    assert antares_study_dir.is_dir(), (
-        "to_gems_study() should have auto-built the antares-solver hybrid study "
-        "for this multi-scenario, non-investment network by default"
-    )
-    hybrid_result_file = _run_hybrid_solver(antares_study_dir)
-    hybrid_objective = _weighted_objective(hybrid_result_file, scenario_weights=scenario_weights)
-
-    assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
-    assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
-
-
-@pytest.mark.parametrize("n_scenarios", [3, 6])
+@pytest.mark.parametrize("n_scenarios", [2, 3, 6])
 def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
     """Same hybrid cross-check as the two-scenario test, parametrized for 3 and 6
     equal-weight scenarios (GemsPy currently requires equal weights)."""
@@ -214,8 +177,64 @@ def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
         "to_gems_study() should have auto-built the antares-solver hybrid study "
         "for this multi-scenario, non-investment network by default"
     )
-    hybrid_result_file = _run_hybrid_solver(antares_study_dir)
-    hybrid_objective = _weighted_objective(hybrid_result_file, scenario_weights=scenario_weights)
+    hybrid_result_files = _run_hybrid_solver(antares_study_dir)
+    hybrid_objective = _weighted_objective(hybrid_result_files, scenario_weights=scenario_weights)
+
+    assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
+    assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
+
+
+def test_hybrid_distinct_scenario_timeseries_matches_pypsa_and_gemspy() -> None:
+    """
+    Multi-scenario hybrid check where each scenario has a *different* time-series
+    shape (not just a different constant availability): load profiles and gen2
+    availability patterns are anti-correlated across scenarios so that mixing up
+    MC-year data-series columns would change the objective.
+    """
+    study_name = "test_hybrid_distinct_scenario_timeseries"
+    gems_dir = PROJECT_ROOT / "tmp" / study_name
+    scenario_weights = [0.5, 0.5]
+    hours = list(range(HOURS_PER_WEEK))
+
+    # Scenario "day": daytime-heavy load, cheap gen available only in daytime.
+    # Scenario "night": nighttime-heavy load, cheap gen available only at night.
+    day_load = [120.0 if 8 <= (h % 24) < 20 else 40.0 for h in hours]
+    night_load = [40.0 if 8 <= (h % 24) < 20 else 120.0 for h in hours]
+    day_availability = [1.0 if 8 <= (h % 24) < 20 else 0.0 for h in hours]
+    night_availability = [0.0 if 8 <= (h % 24) < 20 else 1.0 for h in hours]
+
+    network = Network(name="HybridDistinctTimeseries", snapshots=hours)
+    network.add("Bus", "town", v_nom=1)
+    network.add("Load", "load1", bus="town", p_set=day_load, q_set=0)
+    network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
+    network.add(
+        "Generator",
+        "gen2",
+        bus="town",
+        p_nom_extendable=False,
+        marginal_cost=10,
+        p_nom=80,
+        p_max_pu=[0.5] * HOURS_PER_WEEK,
+    )
+    network.set_scenarios({"day": 0.5, "night": 0.5})
+    network.loads_t.p_set[("day", "load1")] = day_load
+    network.loads_t.p_set[("night", "load1")] = night_load
+    network.generators_t.p_max_pu[("day", "gen2")] = day_availability
+    network.generators_t.p_max_pu[("night", "gen2")] = night_availability
+
+    PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv").to_gems_study()
+    gems_systems_dir = gems_dir / "systems"
+
+    network.optimize()
+    pypsa_objective = network.objective + network.objective_constant
+
+    gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
+    antares_study_dir = gems_dir / network.name
+    assert antares_study_dir.is_dir()
+
+    hybrid_result_files = _run_hybrid_solver(antares_study_dir)
+    assert len(hybrid_result_files) >= 1
+    hybrid_objective = _weighted_objective(hybrid_result_files, scenario_weights=scenario_weights)
 
     assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
     assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)

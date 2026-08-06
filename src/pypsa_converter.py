@@ -106,6 +106,48 @@ class PyPSAStudyConverter:
                 return True
         return False
 
+    def _write_multi_scenario_outputs(self, gems_study_writer: GemsStudyWriter) -> None:
+        """
+        Extra outputs required when the study has more than one scenario.
+
+        - Investment (extendable capacity): write optim-config.yml for Benders / modeler.
+        - Operational (no extendable capacity): write a companion Antares hybrid study so
+          antares-solver can run every Monte-Carlo year. Only when the horizon is a
+          multiple of 168 hours (full weeks); otherwise skip the hybrid study (GEMS
+          systems/ is still written). Antares Economy truncates incomplete weeks
+          (see Antares StudyRuntimeInfos::initializeRangeLimits).
+        """
+        if len(self.scenario_weightings) <= 1:
+            return
+
+        if self._has_extendable_capacity():
+            # Investment study: optim-config.yml's model-decomposition is what lets
+            # antares-xpansion/GemsPy run the master/subproblem Benders split.
+            gems_study_writer.write_optim_config_yml()
+            return
+
+        n_timesteps = len(self.pypsa_network.snapshots)
+        if n_timesteps % 168 != 0:
+            raise ValueError(
+                "Horizon has %s timesteps, not a multiple of 168 (full weeks). Antares Economy would drop the incomplete trailing week.",
+                n_timesteps,
+            )
+
+        # Multi-scenario operational study: antares-modeler invoked directly has no notion
+        # of Monte-Carlo years, so it silently only ever solves scenario 0. Emit a companion
+        # classic Antares study (trick validated in tests/e2e/test_hybrid_study_comparison.py)
+        # so `antares-solver -i <path>` solves every declared scenario.
+        antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
+            gems_systems_dir=self.study_dir / "systems",
+            n_timesteps=n_timesteps,
+            n_scenarios=len(self.scenario_weightings),
+        )
+        self.logger.info(
+            "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
+            antares_hybrid_dir,
+            antares_hybrid_dir,
+        )
+
     def to_gems_study(self) -> None:
         """Main function, to export PyPSA as Gems study"""
 
@@ -148,30 +190,6 @@ class PyPSAStudyConverter:
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
         gems_study_writer.write_antares_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
 
-        # One scenario -> deterministic study, nothing more to write.
-        # Runnable by antares modeler directly
-        if len(self.scenario_weightings.keys()) > 1:
-            if self._has_extendable_capacity():
-                # Investment study: optim-config.yml's model-decomposition is what lets
-                # antares-modeler/GemsPy run the master/subproblem Benders split.
-                gems_study_writer.write_optim_config_yml()
-            else:
-                # Multi-scenario, operational study: antares-modeler invoked directly has
-                # no notion of Monte-Carlo years, so it silently only ever solves scenario 0.
-                # To get a study that is directly runnable end-to-end with the real Antares
-                # engine and produces the correct scenario-weighted result, we additionally
-                # emit a companion classic Antares study wired via the trick validated in
-                # tests/e2e/test_hybrid_study_comparison.py: running
-                # `antares-solver -i <path printed below>` solves every declared scenario
-                # and combines them per generaldata.ini's nb_years / scenario weights.
-                antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
-                    gems_systems_dir=self.study_dir / "systems",
-                    n_timesteps=len(self.pypsa_network.snapshots),
-                    n_scenarios=len(self.scenario_weightings),
-                )
-                self.logger.info(
-                    "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
-                    antares_hybrid_dir,
-                    antares_hybrid_dir,
-                )
+        # One scenario -> deterministic study, runnable by antares-modeler directly.
+        self._write_multi_scenario_outputs(gems_study_writer)
         self.logger.info("Study conversion completed!")

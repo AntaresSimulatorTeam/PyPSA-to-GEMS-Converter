@@ -140,15 +140,12 @@ class AntaresHybridStudyWriter:
         shutil.copytree(gems_input / "model-libraries", antares_input / "model-libraries", dirs_exist_ok=True)
         shutil.copytree(gems_input / "data-series", antares_input / "data-series", dirs_exist_ok=True)
 
-        # `resolution-mode: benders-decomposition` is required by antares-solver's
-        # hybrid loader (see module docstring, step 4) -- this deliberately overrides
-        # whatever optim-config.yml GemsStudyWriter itself wrote for the GEMS-only
-        # (antares-modeler/GemsPy) path, reusing the same per-model decomposition
-        # config for the hybrid, antares-solver-driven path.
+        # Step 4: hybrid loader requires benders-decomposition for any study whose
+        # models declare master/subproblem variables (including fixed p_nom). Without
+        # this file, antares-solver refuses to load the hybrid study.
+        # resources/optim-config.yml already sets resolution-mode: benders-decomposition.
         optim_config_src = Path(__file__).parent.parent / "resources" / "optim-config.yml"
-        (antares_input / "optim-config.yml").write_text(
-            "resolution-mode: benders-decomposition\n" + optim_config_src.read_text()
-        )
+        shutil.copy(optim_config_src, antares_input / "optim-config.yml")
 
         # Tag every component with the same scenario-group and add an identity
         # modeler-scenariobuilder.dat (MC year i -> data-series column i+1), so
