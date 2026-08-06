@@ -84,7 +84,7 @@ class AntaresHybridStudyWriter:
         self._add_gems_system(antares_study_dir, gems_systems_dir, n_scenarios)
         return antares_study_dir
 
-    def _build_virtual_antares_study(self, pypsa_network: Network, n_scenarios: int) -> Path:
+    def _build_virtual_antares_study(self, n_timesteps: int, n_scenarios: int) -> Path:
         """
                                                        ^
                                                        |
