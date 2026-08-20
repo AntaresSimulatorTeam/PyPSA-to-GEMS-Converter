@@ -45,6 +45,11 @@ jobs:
         if: inputs.pypsa_version != ''
         run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
 
+      - name: Install Open MPI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin libopenmpi-dev
+
       - name: Download Antares release
         run: |
           VERSION="${{ inputs.antares_version }}"
