@@ -46,8 +46,8 @@ def get_antares_version() -> str:
 
 
 def get_antares_xpansion_version() -> str:
-    """Return antares_xpansion_version from dependencies.json (e.g. '1.7.2')."""
-    return str(get_dependencies().get("antares_xpansion_version", "1.7.2"))
+    """Return antares_xpansion_version from dependencies.json (e.g. '1.9.0')."""
+    return str(get_dependencies().get("antares_xpansion_version", "1.9.0"))
 
 
 def get_antares_dir_name() -> str:
@@ -56,7 +56,7 @@ def get_antares_dir_name() -> str:
 
 
 def get_antares_xpansion_dir_name() -> str:
-    """Return Antares Xpansion archive/dir name (e.g. 'antaresXpansion-1.7.2-ubuntu-22.04')."""
+    """Return Antares Xpansion archive/dir name (e.g. 'antaresXpansion-1.9.0-ubuntu-22.04')."""
     return f"antaresXpansion-{get_antares_xpansion_version()}-ubuntu-22.04"
 
 
@@ -73,3 +73,18 @@ def get_antares_solver_bin(base_dir: Path) -> Path:
 def get_antares_xpansion_benders_bin(base_dir: Path) -> Path:
     """Return path to benders binary under base_dir (Antares Xpansion)."""
     return base_dir / get_antares_xpansion_dir_name() / "bin" / "benders"
+
+
+def get_antares_xpansion_launcher(base_dir: Path) -> Path:
+    """Return path to antares-xpansion-launcher under base_dir."""
+    return base_dir / get_antares_xpansion_dir_name() / "antares-xpansion-launcher"
+
+
+def get_antares_xpansion_install_dir(base_dir: Path) -> Path:
+    """Return path to the Xpansion bin/ directory (passed as --installDir)."""
+    return base_dir / get_antares_xpansion_dir_name() / "bin"
+
+
+def get_antares_problem_generator_bin(base_dir: Path) -> Path:
+    """Return path to antares-problem-generator under base_dir (Antares Xpansion)."""
+    return get_antares_xpansion_install_dir(base_dir) / "antares-problem-generator"

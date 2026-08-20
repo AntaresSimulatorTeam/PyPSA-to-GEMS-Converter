@@ -128,10 +128,13 @@ class PyPSAStudyConverter:
 
         n_timesteps = len(self.pypsa_network.snapshots)
         if n_timesteps % 168 != 0:
-            raise ValueError(
-                "Horizon has %s timesteps, not a multiple of 168 (full weeks). Antares Economy would drop the incomplete trailing week.",
+            self.logger.warning(
+                "Horizon has %s timesteps, not a multiple of 168 (full weeks). "
+                "Skipping the Antares hybrid study; Antares Economy would drop the incomplete trailing week. "
+                "GEMS systems/ is still written.",
                 n_timesteps,
             )
+            return
 
         # Multi-scenario operational study: antares-modeler invoked directly has no notion
         # of Monte-Carlo years, so it silently only ever solves scenario 0. Emit a companion

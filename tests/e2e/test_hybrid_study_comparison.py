@@ -25,12 +25,13 @@ any multi-scenario, non-investment study (see `_has_extendable_capacity` there) 
 automatic path.
 """
 
+import json
 import math
 import shutil
 import subprocess
 from pathlib import Path
 
-import pandas as pd
+import highspy
 import pytest
 from gems_craft.optim_config.parsing import OptimConfig, validate_optim_config
 from gems_craft.study.folder import load_study
@@ -38,7 +39,11 @@ from gems_runner.simulation.optimization import build_problem
 from gems_runner.simulation.time_block import TimeBlock
 from pypsa import Network
 
-from src.dependencies import get_antares_dir_name, get_antares_solver_bin
+from src.dependencies import (
+    get_antares_dir_name,
+    get_antares_problem_generator_bin,
+    get_antares_xpansion_benders_bin,
+)
 from src.pypsa_converter import PyPSAStudyConverter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -48,75 +53,158 @@ HOURS_PER_WEEK = 168
 
 @pytest.fixture(autouse=True)
 def check_hybrid_prerequisites() -> None:
-    """Skip (rather than fail) when the Antares binaries or antares-craft aren't available."""
+    """Skip (rather than fail) when the Antares or Xpansion binaries aren't available."""
     if not (PROJECT_ROOT / get_antares_dir_name()).is_dir():
         pytest.skip(
             f"Antares binaries not found. Please download version from "
             f"https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases into {PROJECT_ROOT}"
         )
+    problem_generator = get_antares_problem_generator_bin(PROJECT_ROOT)
+    benders = get_antares_xpansion_benders_bin(PROJECT_ROOT)
+    if not problem_generator.is_file() or not benders.is_file():
+        pytest.skip(f"Antares Xpansion binaries not found (expected {problem_generator} and {benders})")
 
 
-def _run_hybrid_solver(antares_study_dir: Path) -> list[Path]:
+def _rewrite_mps_for_coin(src: Path, dst: Path) -> None:
     """
-    Step 6 of the trick (see src/antares_hybrid_writer.py's module docstring): run
-    antares-solver with no mode flag (generaldata.ini defaults to Economy; there is
-    nothing to expand) and return every simulation_table CSV under output/.
+    Re-emit GEMS MPS through HiGHS so Coin/CLP sees slack-bus theta in COLUMNS.
 
-    Antares emit more than one table (e.g. simulation_table--optim-nb-1/2.csv).
-    Callers must read them all when building the scenario-weighted objective.
+    This is not a copy and not a text patch. HiGHS parses src into an in-memory LP
+    (readModel) and serializes it to dst (writeModel). Its writer lists every variable
+    in COLUMNS, including unused/zero-coefficient theta that problem-generator put
+    only in BOUNDS. Coin requires those names to exist in COLUMNS.
     """
-    solver_bin = get_antares_solver_bin(PROJECT_ROOT)
+
+    highs = highspy.Highs()
+    highs.setOptionValue("output_flag", False)
+    read_status = highs.readModel(str(src))
+    if read_status not in (highspy.HighsStatus.kOk, highspy.HighsStatus.kWarning):
+        raise RuntimeError(f"HiGHS failed to read {src}: {read_status}")
+    write_status = highs.writeModel(str(dst))
+    if not dst.exists():
+        raise RuntimeError(f"HiGHS failed to write {dst}: {write_status}")
+
+
+def _latest_simulation_dir(antares_study_dir: Path) -> Path:
+    output_dir = antares_study_dir / "output"
+    sim_dirs = [path for path in output_dir.iterdir() if path.is_dir()]
+    if not sim_dirs:
+        raise FileNotFoundError(f"No simulation directory under {output_dir}")
+    return max(sim_dirs, key=lambda path: path.stat().st_mtime)
+
+
+def _write_benders_options(lp_dir: Path, simulation_dir: Path, n_subproblems: int) -> Path:
+    expansion_dir = simulation_dir / "expansion"
+    expansion_dir.mkdir(exist_ok=True)
+    options_path = lp_dir / "options.json"
+    options = {
+        "LOG_LEVEL": 0,
+        "MAX_ITERATIONS": -1,
+        "ABSOLUTE_GAP": 1e-06,
+        "RELATIVE_GAP": 1e-06,
+        "RELAXED_GAP": 1e-05,
+        "SEPARATION_PARAM": 0.5,
+        "MASTER_FORMULATION": "relaxed",
+        "NB_CUTS_PER_ITER": 0,
+        "MICRO_ITERATIONS": False,
+        "OUTPUTROOT": ".",
+        "TRACE": True,
+        "SLAVE_WEIGHT": "CONSTANT",
+        "SLAVE_WEIGHT_VALUE": n_subproblems,
+        "MASTER_NAME": "master",
+        "PROBLEMS_FORMAT": "MPS",
+        "STRUCTURE_FILE": "structure.txt",
+        "INPUTROOT": ".",
+        "CSV_NAME": "benders_output_trace",
+        "BOUND_ALPHA": False,
+        "SOLVER_NAME": "COIN",
+        "JSON_FILE": str(expansion_dir / "out.json"),
+        "LAST_ITERATION_JSON_FILE": str(expansion_dir / "last_iteration.json"),
+        "TIME_LIMIT": 1e12,
+        "LAST_MASTER_MPS": "master_last_iteration",
+        "RESUME": False,
+        "LAST_MASTER_BASIS": "master_last_basis.bss",
+        "BATCH_SIZE": 0,
+        "DO_OUTER_LOOP": False,
+        "OUTER_LOOP_OPTION_FILE": "adequacy_criterion.yml",
+        "AREA_FILE": "area.txt",
+        "CACHE_PROBLEMS": False,
+        "MASTER_SOLUTION_TOLERANCE": 0.0001,
+        "CUT_COEFFICIENT_TOLERANCE": 0.005,
+        "KEEP_FULL": False,
+        "FULL_DIR": "full",
+    }
+    options_path.write_text(json.dumps(options, indent=2), encoding="utf-8")
+    return expansion_dir / "out.json"
+
+
+def _run_hybrid_xpansion(antares_study_dir: Path) -> float:
+    """
+    Step 6: antares-problem-generator (Xpansion 1.9.0) then benders.
+
+    MPS COLUMNS lists variables; MPS BOUNDS lists their limits (or FX = fixed). Coin/CLP
+    requires every BOUNDS name to already appear in COLUMNS. Slack-bus theta is unused
+    on a 1-bus network with no lines, so it is written only in BOUNDS. We do not patch
+    the MPS: HiGHS readModel/writeModel into lp/ is what adds those columns. overall_cost
+    is read from expansion/out.json.
+    """
+    problem_generator = get_antares_problem_generator_bin(PROJECT_ROOT)
+    benders = get_antares_xpansion_benders_bin(PROJECT_ROOT)
     if antares_study_dir.joinpath("output").exists():
         shutil.rmtree(antares_study_dir / "output")
+    locker = antares_study_dir / ".xpansion_locker"
+    if locker.exists():
+        locker.unlink()
 
-    completed = subprocess.run(
-        [str(solver_bin), "-i", str(antares_study_dir.resolve())],
+    generated = subprocess.run(
+        [str(problem_generator), str(antares_study_dir.resolve())],
         capture_output=True,
         text=True,
         check=False,
-        cwd=str(solver_bin.parent),
+        cwd=str(problem_generator.parent),
     )
+    if generated.returncode != 0:
+        raise RuntimeError(
+            "antares-problem-generator failed.\n"
+            f"exit_code={generated.returncode}\n"
+            f"stdout:\n{generated.stdout}\n"
+            f"stderr:\n{generated.stderr}"
+        )
 
-    result_files = list(antares_study_dir.glob("output/**/simulation_table*"))
-    if not result_files:
+    simulation_dir = _latest_simulation_dir(antares_study_dir)
+    lp_dir = simulation_dir / "lp"
+    lp_dir.mkdir(exist_ok=True)
+    mps_files = list(simulation_dir.glob("*.mps"))
+    if not mps_files:
+        raise FileNotFoundError(f"No MPS files written under {simulation_dir}")
+    for mps_path in mps_files:
+        _rewrite_mps_for_coin(mps_path, lp_dir / mps_path.name)
+    shutil.copy(simulation_dir / "structure.txt", lp_dir / "structure.txt")
+    (lp_dir / "area.txt").touch()
+
+    n_subproblems = len(list(lp_dir.glob("problem-*.mps")))
+    out_json = _write_benders_options(lp_dir, simulation_dir, n_subproblems)
+    solved = subprocess.run(
+        [str(benders), "options.json"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(lp_dir),
+    )
+    if solved.returncode != 0 or not out_json.exists():
         raise FileNotFoundError(
-            f"No simulation_table found under {antares_study_dir / 'output'}; "
-            "antares-solver likely failed to load the hybrid study.\n"
-            f"exit_code={completed.returncode}\n"
-            f"stdout:\n{completed.stdout}\n"
-            f"stderr:\n{completed.stderr}"
+            f"benders failed (exit_code={solved.returncode}).\nstdout:\n{solved.stdout}\nstderr:\n{solved.stderr}"
         )
-    return result_files
-
-
-def _weighted_objective(simulation_tables: list[Path], scenario_weights: list[float]) -> float:
-    """
-    Scenario-weighted objective from all antares-solver simulation tables.
-
-    Each table is read; OBJECTIVE_VALUE
-    rows are collected per scenario_index (duplicate tables / optim-nb passes must
-    agree); then the weighted average over scenarios is returned.
-    """
-    frames = [pd.read_csv(path, usecols=["output", "scenario_index", "value"]) for path in simulation_tables]
-    objectives = (
-        pd.concat(frames, ignore_index=True)
-        .query("output == 'OBJECTIVE_VALUE'")
-        .groupby("scenario_index", sort=True)["value"]
-        .agg(["min", "max", "first"])
-    )
-    inconsistent = objectives.index[objectives["min"] != objectives["max"]].tolist()
-    if inconsistent:
-        raise AssertionError(
-            f"Conflicting OBJECTIVE_VALUE across simulation tables for scenario_index={inconsistent}: "
-            f"{objectives.loc[inconsistent].to_dict()}"
+    payload = json.loads(out_json.read_text(encoding="utf-8"))
+    solution = payload.get("solution")
+    if not isinstance(solution, dict) or "overall_cost" not in solution:
+        raise FileNotFoundError(
+            f"expansion/out.json at {out_json} has no solution.\n"
+            f"payload={payload}\n"
+            f"stdout:\n{solved.stdout}\n"
+            f"stderr:\n{solved.stderr}"
         )
-    if list(objectives.index) != list(range(len(scenario_weights))):
-        raise AssertionError(
-            f"Expected OBJECTIVE_VALUE for scenario_index 0..{len(scenario_weights) - 1}, "
-            f"got {list(objectives.index)} from {[p.name for p in simulation_tables]}"
-        )
-    per_scenario = objectives["first"]
-    return float(sum(per_scenario[i] * scenario_weights[i] for i in range(len(scenario_weights))))
+    return float(solution["overall_cost"])
 
 
 def _gemspy_objective(gems_systems_dir: Path, n_scenarios: int) -> float:
@@ -191,10 +279,10 @@ def _assert_hybrid_matches_pypsa_and_gemspy(
         "to_gems_study() should have auto-built the antares-solver hybrid study "
         "for this multi-scenario, non-investment network by default"
     )
-    hybrid_objective = _weighted_objective(_run_hybrid_solver(antares_study_dir), scenario_weights=scenario_weights)
+    xpansion_objective = _run_hybrid_xpansion(antares_study_dir)
 
     assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
-    assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
+    assert math.isclose(pypsa_objective, xpansion_objective, rel_tol=1e-6)
 
 
 @pytest.mark.parametrize("n_scenarios", [2, 3, 6])
