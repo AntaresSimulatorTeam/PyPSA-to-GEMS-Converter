@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 from pypsa import Network
 
-from src.antares_hybrid_writer import AntaresHybridStudyWriter
 from src.pypsa_converter import PyPSAStudyConverter
 
 logger = logging.getLogger(__name__)
@@ -65,10 +64,10 @@ def test_converter_deterministic_study() -> None:
     PyPSAStudyConverter(network, Path("tmp") / "test_two", "csv").to_gems_study()
     logger.info("Converted scenario study to test_two")
 
-    # Multi-scenario but no extendable capacity -> non-investment study: no optim-config.yml
-    # under the GEMS-only path, a companion antares-solver hybrid study is emitted instead.
+    # Multi-scenario but no extendable capacity -> non-investment study: no optim-config.yml.
+    # Hybrid Antares study is skipped when the horizon is not a multiple of 168 hours.
     assert not (Path("tmp") / "test_two" / "systems" / "input" / "optim-config.yml").exists()
-    assert (Path("tmp") / "test_two" / AntaresHybridStudyWriter.study_name).is_dir()
+    assert not (Path("tmp") / "test_two" / "Simple_Network").is_dir()
 
 
 def test_converter_multiscenario_investment_study_prepares_xpansion_launcher() -> None:

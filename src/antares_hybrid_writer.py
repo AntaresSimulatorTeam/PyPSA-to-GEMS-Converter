@@ -52,7 +52,19 @@ This writer builds a "hybrid" study to get the best of both, validated end-to-en
    GemsPy's own Python loader, which defaults ungrouped components to an identity
    mapping automatically) -- so multi-scenario studies would silently solve every MC
    year against scenario 0 only.
-6. Run antares-solver -i <study_dir> (NOT antares-modeler), these studies are non-investment
+6. Run antares-problem-generator then benders (Xpansion 1.9.0). The generator writes
+   one MPS file per subproblem. MPS is a text LP format with named sections: COLUMNS
+   lists decision variables (and their constraint/objective coefficients); BOUNDS lists
+   lower/upper limits on those variables (or FX = fixed). Coin/CLP requires every name
+   in BOUNDS to already appear in COLUMNS. On a 1-bus slack network with no lines, the
+   voltage-angle variable theta is unused in the matrix, so problem-generator writes
+   it only as a BOUNDS row (FX at 0, from the preprocessor pinning theta_min=theta_max=0)
+   and never in COLUMNS -- Coin then fails with "No match for column ...theta...".
+   tests/e2e/test_hybrid_study_comparison.py does not edit the MPS text. It loads each
+   file with HiGHS (readModel) and writes a new one under lp/ (writeModel). HiGHS's
+   writer emits every variable in COLUMNS, including unused/zero-coefficient theta,
+   which is the only change Coin needs. structure.txt is copied as-is (column order
+   is preserved). Benders then runs with cwd=lp/ on those rewritten files.
 
 All of the above (steps 2-5 in particular) were reverse-engineered empirically against
 the actual antares-solver binary -- none of it is documented, hence the heavy
@@ -109,7 +121,6 @@ class AntaresHybridStudyWriter:
             # Deliberately no create_link, create_thermal_cluster, etc.: this area
             # is connected to nothing and contributes nothing to the objective.
         )
-
         simulation_end_days = max(1, math.ceil(n_timesteps / 24))
         study.update_settings(
             antares_craft.StudySettingsUpdate(
@@ -141,10 +152,10 @@ class AntaresHybridStudyWriter:
         shutil.copytree(gems_input / "model-libraries", antares_input / "model-libraries", dirs_exist_ok=True)
         shutil.copytree(gems_input / "data-series", antares_input / "data-series", dirs_exist_ok=True)
 
-        # optim-config.yml already carries `resolution-mode: benders-decomposition`
-        # (see module docstring, step 4), required by antares-solver's hybrid loader --
-        # reusing the same per-model decomposition config for the hybrid,
-        # antares-solver-driven path.
+        # Step 4: hybrid loader requires benders-decomposition for any study whose
+        # models declare master/subproblem variables (including fixed p_nom). Without
+        # this file, antares-solver refuses to load the hybrid study.
+        # resources/optim-config.yml already sets resolution-mode: benders-decomposition.
         optim_config_src = Path(__file__).parent.parent / "resources" / "optim-config.yml"
         shutil.copy(optim_config_src, antares_input / "optim-config.yml")
 

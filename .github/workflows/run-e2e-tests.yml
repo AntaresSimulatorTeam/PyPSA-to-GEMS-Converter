@@ -29,7 +29,7 @@ on:
 
 jobs:
   e2e:
-    name: E2E Tests (Antares v${{ inputs.antares_version }})
+    name: E2E Tests
     runs-on: ubuntu-22.04
     outputs:
       test_outcome: ${{ steps.run_tests.outcome }}
@@ -52,6 +52,11 @@ jobs:
         if: inputs.pypsa_version != ''
         run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
 
+      - name: Install Open MPI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin libopenmpi-dev
+
       - name: Download Antares release
         run: |
           VERSION="${{ inputs.antares_version }}"
@@ -66,9 +71,25 @@ jobs:
           VERSION="${{ inputs.antares_version }}"
           tar -xzf "antares-${VERSION}-Ubuntu-22.04.tar.gz"
 
+      - name: Download Antares Xpansion release
+        id: xpansion
+        run: |
+          VERSION=$(jq -r '.antares_xpansion_version' dependencies.json)
+          ARCHIVE="antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Downloading Antares Xpansion v${VERSION}..."
+          curl -L -f -o "${ARCHIVE}" \
+            "https://github.com/AntaresSimulatorTeam/antares-xpansion/releases/download/v${VERSION}/${ARCHIVE}"
+          echo "Download successful. File size: $(ls -lh "${ARCHIVE}" | awk '{print $5}')"
+
+      - name: Extract Antares Xpansion binaries
+        run: |
+          VERSION="${{ steps.xpansion.outputs.version }}"
+          tar -xzf "antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
+
       - name: Run end-to-end tests
         id: run_tests
-        run: uv run pytest tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO --tb=short -rA
+        run: uv run pytest tests/e2e/ -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
 
       - name: Upload test artifacts on failure
@@ -85,8 +106,11 @@ jobs:
         if: always()
         run: |
           VERSION="${{ inputs.antares_version }}"
+          XPANSION_VERSION="${{ steps.xpansion.outputs.version }}"
           rm -f "antares-${VERSION}-Ubuntu-22.04.tar.gz"
           rm -rf "antares-${VERSION}-Ubuntu-22.04"
+          rm -f "antaresXpansion-${XPANSION_VERSION}-ubuntu-22.04.tar.gz"
+          rm -rf "antaresXpansion-${XPANSION_VERSION}-ubuntu-22.04"
 
       - name: Fail job if tests failed
         if: steps.run_tests.outcome == 'failure'
