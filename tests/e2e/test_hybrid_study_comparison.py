@@ -135,19 +135,26 @@ def _gemspy_objective(gems_systems_dir: Path, n_scenarios: int) -> float:
     return float(problem.objective_value)
 
 
-@pytest.mark.parametrize("n_scenarios", [2, 3, 6])
-def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
-    """Same hybrid cross-check as the two-scenario test, parametrized for 3 and 6
-    equal-weight scenarios (GemsPy currently requires equal weights)."""
-    study_name = f"test_hybrid_{n_scenarios}_scenarios"
-    gems_dir = PROJECT_ROOT / "tmp" / study_name
-    weight = 1.0 / n_scenarios
-    scenario_weights = [weight] * n_scenarios
-    scenarios = {f"s{i}": weight for i in range(n_scenarios)}
+def _build_hybrid_network(
+    name: str,
+    scenarios: dict[str, float],
+    *,
+    load_p_set: list[float] | None = None,
+    gen2_p_nom: float = 50,
+    gen2_p_max_pu: list[float] | None = None,
+    scenario_load_p_set: dict[str, list[float]] | None = None,
+    scenario_gen2_p_max_pu: dict[str, list[float]] | None = None,
+) -> Network:
+    """One-bus town: expensive always-available gen1 plus cheap, availability-limited gen2."""
+    hours = list(range(HOURS_PER_WEEK))
+    if load_p_set is None:
+        load_p_set = [80 + (h % 24) for h in hours]
+    if gen2_p_max_pu is None:
+        gen2_p_max_pu = [0.9] * HOURS_PER_WEEK
 
-    network = Network(name=f"Hybrid{n_scenarios}Scenarios", snapshots=list(range(HOURS_PER_WEEK)))
+    network = Network(name=name, snapshots=hours)
     network.add("Bus", "town", v_nom=1)
-    network.add("Load", "load1", bus="town", p_set=[80 + (i % 24) for i in range(HOURS_PER_WEEK)], q_set=0)
+    network.add("Load", "load1", bus="town", p_set=load_p_set, q_set=0)
     network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
     network.add(
         "Generator",
@@ -155,33 +162,59 @@ def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
         bus="town",
         p_nom_extendable=False,
         marginal_cost=10,
-        p_nom=50,
-        p_max_pu=[0.9] * HOURS_PER_WEEK,
+        p_nom=gen2_p_nom,
+        p_max_pu=gen2_p_max_pu,
     )
     network.set_scenarios(scenarios)
-    # Distinct per-scenario availability so the scenario axis is exercised (see
-    # comment in test_hybrid_two_scenarios_matches_pypsa_and_gemspy).
-    for i in range(n_scenarios):
-        availability = 1.0 - 0.8 * i / (n_scenarios - 1)
-        network.generators_t.p_max_pu[(f"s{i}", "gen2")] = [availability] * HOURS_PER_WEEK
+    if scenario_load_p_set is not None:
+        for scenario, series in scenario_load_p_set.items():
+            network.loads_t.p_set[(scenario, "load1")] = series
+    if scenario_gen2_p_max_pu is not None:
+        for scenario, series in scenario_gen2_p_max_pu.items():
+            network.generators_t.p_max_pu[(scenario, "gen2")] = series
+    return network
 
+
+def _assert_hybrid_matches_pypsa_and_gemspy(
+    network: Network,
+    gems_dir: Path,
+    scenario_weights: list[float],
+) -> None:
     PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv").to_gems_study()
-    gems_systems_dir = gems_dir / "systems"
 
     network.optimize()
     pypsa_objective = network.objective + network.objective_constant
 
-    gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=n_scenarios)
+    gemspy_objective = _gemspy_objective(gems_dir / "systems", n_scenarios=len(scenario_weights))
     antares_study_dir = gems_dir / network.name
     assert antares_study_dir.is_dir(), (
         "to_gems_study() should have auto-built the antares-solver hybrid study "
         "for this multi-scenario, non-investment network by default"
     )
-    hybrid_result_files = _run_hybrid_solver(antares_study_dir)
-    hybrid_objective = _weighted_objective(hybrid_result_files, scenario_weights=scenario_weights)
+    hybrid_objective = _weighted_objective(_run_hybrid_solver(antares_study_dir), scenario_weights=scenario_weights)
 
     assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
     assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
+
+
+@pytest.mark.parametrize("n_scenarios", [2, 3, 6])
+def test_hybrid_n_scenarios_matches_pypsa_and_gemspy(n_scenarios: int) -> None:
+    """Hybrid cross-check parametrized for 2, 3 and 6 equal-weight scenarios
+    (GemsPy currently requires equal weights)."""
+    weight = 1.0 / n_scenarios
+    scenario_weights = [weight] * n_scenarios
+    # Distinct per-scenario availability so the scenario axis is exercised.
+    scenario_gen2_p_max_pu = {f"s{i}": [1.0 - 0.8 * i / (n_scenarios - 1)] * HOURS_PER_WEEK for i in range(n_scenarios)}
+    network = _build_hybrid_network(
+        f"Hybrid{n_scenarios}Scenarios",
+        {f"s{i}": weight for i in range(n_scenarios)},
+        scenario_gen2_p_max_pu=scenario_gen2_p_max_pu,
+    )
+    _assert_hybrid_matches_pypsa_and_gemspy(
+        network,
+        PROJECT_ROOT / "tmp" / f"test_hybrid_{n_scenarios}_scenarios",
+        scenario_weights,
+    )
 
 
 def test_hybrid_distinct_scenario_timeseries_matches_pypsa_and_gemspy() -> None:
@@ -191,11 +224,7 @@ def test_hybrid_distinct_scenario_timeseries_matches_pypsa_and_gemspy() -> None:
     availability patterns are anti-correlated across scenarios so that mixing up
     MC-year data-series columns would change the objective.
     """
-    study_name = "test_hybrid_distinct_scenario_timeseries"
-    gems_dir = PROJECT_ROOT / "tmp" / study_name
-    scenario_weights = [0.5, 0.5]
     hours = list(range(HOURS_PER_WEEK))
-
     # Scenario "day": daytime-heavy load, cheap gen available only in daytime.
     # Scenario "night": nighttime-heavy load, cheap gen available only at night.
     day_load = [120.0 if 8 <= (h % 24) < 20 else 40.0 for h in hours]
@@ -203,41 +232,20 @@ def test_hybrid_distinct_scenario_timeseries_matches_pypsa_and_gemspy() -> None:
     day_availability = [1.0 if 8 <= (h % 24) < 20 else 0.0 for h in hours]
     night_availability = [0.0 if 8 <= (h % 24) < 20 else 1.0 for h in hours]
 
-    network = Network(name="HybridDistinctTimeseries", snapshots=hours)
-    network.add("Bus", "town", v_nom=1)
-    network.add("Load", "load1", bus="town", p_set=day_load, q_set=0)
-    network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
-    network.add(
-        "Generator",
-        "gen2",
-        bus="town",
-        p_nom_extendable=False,
-        marginal_cost=10,
-        p_nom=80,
-        p_max_pu=[0.5] * HOURS_PER_WEEK,
+    network = _build_hybrid_network(
+        "HybridDistinctTimeseries",
+        {"day": 0.5, "night": 0.5},
+        load_p_set=day_load,
+        gen2_p_nom=80,
+        gen2_p_max_pu=[0.5] * HOURS_PER_WEEK,
+        scenario_load_p_set={"day": day_load, "night": night_load},
+        scenario_gen2_p_max_pu={"day": day_availability, "night": night_availability},
     )
-    network.set_scenarios({"day": 0.5, "night": 0.5})
-    network.loads_t.p_set[("day", "load1")] = day_load
-    network.loads_t.p_set[("night", "load1")] = night_load
-    network.generators_t.p_max_pu[("day", "gen2")] = day_availability
-    network.generators_t.p_max_pu[("night", "gen2")] = night_availability
-
-    PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv").to_gems_study()
-    gems_systems_dir = gems_dir / "systems"
-
-    network.optimize()
-    pypsa_objective = network.objective + network.objective_constant
-
-    gemspy_objective = _gemspy_objective(gems_systems_dir, n_scenarios=2)
-    antares_study_dir = gems_dir / network.name
-    assert antares_study_dir.is_dir()
-
-    hybrid_result_files = _run_hybrid_solver(antares_study_dir)
-    assert len(hybrid_result_files) >= 1
-    hybrid_objective = _weighted_objective(hybrid_result_files, scenario_weights=scenario_weights)
-
-    assert math.isclose(pypsa_objective, gemspy_objective, rel_tol=1e-6)
-    assert math.isclose(pypsa_objective, hybrid_objective, rel_tol=1e-6)
+    _assert_hybrid_matches_pypsa_and_gemspy(
+        network,
+        PROJECT_ROOT / "tmp" / "test_hybrid_distinct_scenario_timeseries",
+        [0.5, 0.5],
+    )
 
 
 def test_unequal_scenario_weights_are_rejected() -> None:
@@ -248,25 +256,17 @@ def test_unequal_scenario_weights_are_rejected() -> None:
     - pypsa's true weighted objective:  0.1 * 432600 + 0.9 * 701400 = 674520.0
     - gemspy's unweighted average:       (432600 + 701400) / 2      = 567000.0
     """
-    study_name = "test_unequal_scenario_weights"
-    gems_dir = PROJECT_ROOT / "tmp" / study_name
-
-    network = Network(name="HybridUnequalWeights", snapshots=list(range(HOURS_PER_WEEK)))
-    network.add("Bus", "town", v_nom=1)
-    network.add("Load", "load1", bus="town", p_set=[80 + (i % 24) for i in range(HOURS_PER_WEEK)], q_set=0)
-    network.add("Generator", "gen1", bus="town", p_nom_extendable=False, marginal_cost=50, p_nom=200)
-    network.add(
-        "Generator",
-        "gen2",
-        bus="town",
-        p_nom_extendable=False,
-        marginal_cost=10,
-        p_nom=50,
-        p_max_pu=[0.9] * HOURS_PER_WEEK,
+    network = _build_hybrid_network(
+        "HybridUnequalWeights",
+        {"low": 0.1, "high": 0.9},
+        scenario_gen2_p_max_pu={
+            "low": [1.0] * HOURS_PER_WEEK,
+            "high": [0.2] * HOURS_PER_WEEK,
+        },
     )
-    network.set_scenarios({"low": 0.1, "high": 0.9})
-    network.generators_t.p_max_pu[("low", "gen2")] = [1.0] * HOURS_PER_WEEK
-    network.generators_t.p_max_pu[("high", "gen2")] = [0.2] * HOURS_PER_WEEK
-
     with pytest.raises(ValueError, match="same weight"):
-        PyPSAStudyConverter(pypsa_network=network, study_dir=gems_dir, series_file_format=".tsv")
+        PyPSAStudyConverter(
+            pypsa_network=network,
+            study_dir=PROJECT_ROOT / "tmp" / "test_unequal_scenario_weights",
+            series_file_format=".tsv",
+        )
