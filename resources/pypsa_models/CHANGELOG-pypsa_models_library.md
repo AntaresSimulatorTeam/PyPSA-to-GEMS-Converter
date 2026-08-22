@@ -22,10 +22,6 @@ Versioning follows the rules defined in `COMPATIBILITY.md`:
 All expressions reduce to the previous ones when both parameters equal 1, so results are unchanged for
 hourly studies. Capital cost contributions are deliberately left unweighted, matching PyPSA.
 
-> Requires an expression parser supporting the `^` operator: Antares-Simulator ≥ 10.1.1. GemsPy ≤ 0.1.3
-> cannot parse it, so `tests/local_benchmark/benchmark.py` (GemsPy path) does not run against this
-> library version.
-
 ---
 
 ## [2.0.1] — 2026-05-21
