@@ -78,6 +78,17 @@ PyPSA Network (deep-copied)
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
+**Time granularity:** the converter supports any time granularity, read **only** from
+`network.snapshot_weightings` — never inferred from the spacing of the snapshot index (PyPSA itself
+treats a weighting of 1 as one hour whatever the index says). Each column must be constant over
+snapshots, and the two physical columns (`stores`, `generators`) must be equal; otherwise
+`_check_snapshot_weightings()` raises. They become two scalar GEMS parameters written by
+`_add_time_weights()` (`src/pypsa_preprocessor.py`): `hours_per_time_step` (physical duration of a
+time step, used in the storage balances, `e_sum_*` and the CO₂ emission port) and
+`objective_weighting` (hours a time step represents in the objective, PyPSA's `objective` column,
+which may legitimately differ). The `store`/`storage_unit` balances use `^` for the compounded
+standing loss, which requires Antares-Simulator ≥ 10.1.1.
+
 **CO₂ emission factors:** For emission-bearing component types (`_EMISSION_FACTOR_COMPONENTS`), the preprocessor resolves each component's `co2_emissions` from `network.carriers` via `_carrier_co2_by_scenario()` (`src/pypsa_preprocessor.py`), which preserves per-scenario values when `carriers` is scenario-indexed (MultiIndex). Components with no carrier get a fictitious `null` carrier with `co2_emissions=0`.
 
 **Data format:** Static data is converted from pandas to Polars via `static_pypsa_to_polars()`; time-series data via `dynamic_dict_pypsa_to_polars()`. PyPSA objects remain as pandas internally; only the Polars copies are used downstream.
@@ -116,7 +127,7 @@ This file defines all component models (generator, load, bus, link, line, transf
 | Supported | Not Supported |
 |-----------|---------------|
 | generators, loads, buses, links, storage_units, stores, lines, transformers | quadratic costs (`marginal_cost_quadratic`), `committable=True`, non-cyclic state of charge |
-| global_constraints (`co2_emissions`, `primary_energy` type, `<=` or `==` sense) | multi-investment periods, snapshot weightings ≠ 1 |
+| global_constraints (`co2_emissions`, `primary_energy` type, `<=` or `==` sense) | multi-investment periods, time-varying snapshot weightings |
 
 All listed components must have `active=1` (inactive ones are dropped). Lines and Transformers are converted **natively**: their `type` (LineTypes/TransformerTypes) is resolved into reactance by PyPSA's `calculate_dependent_values()` during preprocessing — see [pypsa_preprocessor.py](src/pypsa_preprocessor.py) and the authoritative limitations list in [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations). The `replace_lines_by_links()` helper in `tests/utils.py` (bidirectional link pairs with `p_min_pu=-1`) is still available for tests that prefer to model lines as links, but is no longer required.
 

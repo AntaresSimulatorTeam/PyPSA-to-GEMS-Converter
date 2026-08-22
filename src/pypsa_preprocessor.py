@@ -21,6 +21,23 @@ from src.utils import any_to_float
 # Add a type here when its GEMS model gains emission_factor.
 _EMISSION_FACTOR_COMPONENTS: frozenset[str] = frozenset({"generators", "stores", "storage_units"})
 
+# GEMS time-granularity parameters, and the PyPSA snapshot_weightings column each one comes from.
+# hours_per_time_step is the physical duration of a time step; PyPSA splits it into a "stores" column
+# (storage energy balances) and a "generators" column (energy and emission accounting), which the
+# converter requires to be equal. objective_weighting is the number of hours a time step represents in
+# the objective, which PyPSA allows to differ (e.g. costs annualised over representative periods).
+_HOURS_PER_TIME_STEP = "hours_per_time_step"
+_OBJECTIVE_WEIGHTING = "objective_weighting"
+
+# Component types that have time-granularity parameters in the GEMS model, and which ones.
+# Add a type here when its GEMS model gains one of them.
+_TIME_WEIGHT_COMPONENTS: dict[str, tuple[str, ...]] = {
+    "generators": (_HOURS_PER_TIME_STEP, _OBJECTIVE_WEIGHTING),
+    "links": (_OBJECTIVE_WEIGHTING,),
+    "storage_units": (_HOURS_PER_TIME_STEP, _OBJECTIVE_WEIGHTING),
+    "stores": (_HOURS_PER_TIME_STEP, _OBJECTIVE_WEIGHTING),
+}
+
 
 def _carrier_scalar(val: Any) -> str:
     """Extract scalar carrier name (PyPSA with scenarios store carrier as array per row)."""
@@ -60,7 +77,7 @@ class PyPSAPreprocessor:
     def _check_converter_limitations(self) -> None:
         """Assertion function to keep trace of the limitations of the converter"""
         assert len(self.pypsa_network.investment_periods) == 0
-        assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
+        self._check_snapshot_weightings()
         checks = [
             ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
             ("generators", "active", 1, "Generators", "active = 1"),
@@ -86,6 +103,64 @@ class PyPSAPreprocessor:
         for pypsa_model_id in self.pypsa_network.global_constraints.index:
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
             assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"] == "co2_emissions"
+
+    def _check_snapshot_weightings(self) -> None:
+        """Check the snapshot weightings against what the converter can express in GEMS.
+
+        The converter supports any time granularity, as long as it is the same for every snapshot:
+        each snapshot_weightings column must be constant, and the two physical columns ("stores" and
+        "generators") must agree, since GEMS models a single hours_per_time_step.
+        """
+        weightings = self.pypsa_network.snapshot_weightings
+
+        for column in ("objective", "stores", "generators"):
+            values = weightings[column]
+            if values.nunique() != 1:
+                raise ValueError(
+                    f"Converter supports only snapshot weightings that are constant over snapshots, "
+                    f"but 'snapshot_weightings.{column}' takes {values.nunique()} distinct values "
+                    f"(between {values.min()} and {values.max()})."
+                )
+
+        hours_per_time_step = float(weightings["stores"].iloc[0])
+        generators_weighting = float(weightings["generators"].iloc[0])
+        objective_weighting = float(weightings["objective"].iloc[0])
+
+        if hours_per_time_step != generators_weighting:
+            raise ValueError(
+                f"Converter models a single time step duration, so 'snapshot_weightings.stores' "
+                f"({hours_per_time_step}) and 'snapshot_weightings.generators' "
+                f"({generators_weighting}) must be equal."
+            )
+        if hours_per_time_step <= 0:
+            raise ValueError(
+                f"Converter supports only positive snapshot weightings, but "
+                f"'snapshot_weightings.stores' is {hours_per_time_step}."
+            )
+        if objective_weighting < 0:
+            raise ValueError(
+                f"Converter supports only non-negative snapshot weightings, but "
+                f"'snapshot_weightings.objective' is {objective_weighting}."
+            )
+
+    def _add_time_weights(self, component_type: str) -> None:
+        """Add the GEMS time-granularity parameters as static columns on a component type.
+
+        The weightings are constant over snapshots (enforced by _check_snapshot_weightings) and are
+        not scenario-dependent in PyPSA, so a scalar column is enough. GemsStudyWriter then writes
+        them as plain values in system.yml rather than as time series.
+        """
+        df = getattr(self.pypsa_network, component_type)
+        if len(df) == 0:
+            return
+
+        weightings = self.pypsa_network.snapshot_weightings
+        values = {
+            _HOURS_PER_TIME_STEP: any_to_float(weightings["stores"].iloc[0]),
+            _OBJECTIVE_WEIGHTING: any_to_float(weightings["objective"].iloc[0]),
+        }
+        for param in _TIME_WEIGHT_COMPONENTS[component_type]:
+            df[param] = values[param]
 
     def _add_fictitious_carrier(self) -> None:
         """Add fictitious carrier (co2_emissions=0) for components with no carrier.
@@ -245,6 +320,8 @@ class PyPSAPreprocessor:
         self._preprocess_pypsa_component("stores", "e_nom")
         self._preprocess_pypsa_component("storage_units", "p_nom")
         self._preprocess_pypsa_component("links", "p_nom")
+        for component_type in _TIME_WEIGHT_COMPONENTS:
+            self._add_time_weights(component_type)
         self._add_bus_theta_bounds()
         if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()

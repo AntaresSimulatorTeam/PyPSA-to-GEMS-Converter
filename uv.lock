@@ -1700,7 +1700,7 @@ wheels = [
 
 [[package]]
 name = "pypsa-to-gems-converter"
-version = "0.0.2"
+version = "0.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "pandas" },
