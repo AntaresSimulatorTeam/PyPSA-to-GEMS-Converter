@@ -228,6 +228,9 @@ class GemsStudyWriter:
             [
                 f"solver = {xpansion_solver}",
                 "yearly-weights = weights.txt",
+                # Tight gaps so Benders' overall_cost is comparable with PyPSA (pytest.approx).
+                "optimality_gap = 0",
+                "relative_gap = 1e-6",
                 "",
             ]
         )

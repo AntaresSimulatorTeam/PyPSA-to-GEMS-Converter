@@ -153,13 +153,15 @@ def test_2_stage_stochastic_investment_study_matches_pypsa(
     assert status == "ok"
     assert condition == "optimal"
 
-    study_root = study_dir / "systems"
-    assert (study_root / "input" / "optim-config.yml").exists()
+    gems_root = study_dir / "systems"
+    study_root = study_dir / network.name
+    assert (gems_root / "input" / "optim-config.yml").exists()
     settings_ini = study_root / "user" / "expansion" / "settings.ini"
     assert settings_ini.exists()
     settings_text = settings_ini.read_text(encoding="utf-8")
     assert "yearly-weights" in settings_text
     weights_file = study_root / "user" / "expansion" / "weights" / "weights.txt"
+    assert (study_root / "input" / "data-series" / "modeler-scenariobuilder.dat").exists()
     assert weights_file.exists()
     weights = [float(x) for x in weights_file.read_text(encoding="utf-8").splitlines() if x.strip()]
     assert len(weights) == len(scenario_weights)

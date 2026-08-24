@@ -17,6 +17,7 @@ import pytest
 from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
+from src.utils import write_benders_lp_weights
 
 logger = logging.getLogger(__name__)
 
@@ -124,3 +125,24 @@ def test_converter_multiscenario_investment_study_rejects_unsupported_solver() -
 
     with pytest.raises(ValueError, match="coin'.*xpress"):
         PyPSAStudyConverter(network, Path("tmp") / "test_investment_invalid_solver", "csv", solver_name="highs")
+
+
+def test_write_benders_lp_weights_maps_each_week_to_its_mc_year(tmp_path: Path) -> None:
+    lp_dir = tmp_path / "lp"
+    lp_dir.mkdir()
+    (lp_dir / "structure.txt").write_text(
+        "problem-1-1--optim-nb-1\tgenerator_gen1.p_nom\t0\n"
+        "problem-1-2--optim-nb-1\tgenerator_gen1.p_nom\t10\n"
+        "problem-2-1--optim-nb-1\tgenerator_gen1.p_nom\t0\n"
+        "problem-2-2--optim-nb-1\tgenerator_gen1.p_nom\t10\n"
+        "master\tgenerator_gen1.p_nom\t0\n",
+        encoding="utf-8",
+    )
+    weights_path = write_benders_lp_weights(lp_dir, [0.2, 0.8])
+    assert weights_path.read_text(encoding="utf-8") == (
+        "problem-1-1--optim-nb-1 0.2\n"
+        "problem-1-2--optim-nb-1 0.2\n"
+        "problem-2-1--optim-nb-1 0.8\n"
+        "problem-2-2--optim-nb-1 0.8\n"
+        "WEIGHT_SUM 1.0\n"
+    )

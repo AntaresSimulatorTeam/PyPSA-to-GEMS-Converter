@@ -196,7 +196,7 @@ def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, stud
     conversion_time = time.time() - start_time_conversion
     benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = conversion_time
 
-    study_root = study_dir / "systems"
+    study_root = study_dir / study_name
 
     # ==================================================================================
     # Antares-Xpansion: run antares-xpansion-launcher (antares-problem-generator + benders)

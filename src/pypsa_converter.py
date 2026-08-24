@@ -12,6 +12,7 @@
 import copy
 import logging
 import math
+import shutil
 from pathlib import Path
 
 from pypsa import Network
@@ -121,11 +122,13 @@ class PyPSAStudyConverter:
         Extra outputs required when the study has more than one scenario.
 
         - Investment (extendable capacity): write optim-config.yml for Benders / modeler
-          and Xpansion launcher inputs (settings.ini / yearly-weights).
-        - Operational (no extendable capacity): write a companion Antares hybrid study so
-          antares-solver can run every Monte-Carlo year. Only when the horizon is a
-          multiple of 168 hours (full weeks); otherwise skip the hybrid study (GEMS
-          systems/ is still written). Antares Economy truncates incomplete weeks
+          and Xpansion launcher inputs (settings.ini / yearly-weights). Also write a
+          companion hybrid Antares study (nb_years + scenario-group + scenariobuilder)
+          so antares-problem-generator emits one subproblem per scenario. Only when the
+          horizon is a multiple of 168 hours (full weeks).
+        - Operational (no extendable capacity): write the same hybrid study so
+          antares-solver can run every Monte-Carlo year. Same 168-hour restriction.
+          Antares Economy truncates incomplete weeks
           (see Antares StudyRuntimeInfos::initializeRangeLimits).
         """
         if len(self.scenario_weightings) <= 1:
@@ -139,8 +142,32 @@ class PyPSAStudyConverter:
             gems_study_writer.prepare_xpansion_runnable_study(
                 solver_name=self.solver_name, scenario_weights=self.scenario_weightings
             )
+
+        antares_hybrid_dir = self._write_antares_hybrid_study()
+        if antares_hybrid_dir is None:
             return
 
+        if self.is_investment_study:
+            expansion_src = self.study_dir / "systems" / "user" / "expansion"
+            if expansion_src.exists():
+                shutil.copytree(expansion_src, antares_hybrid_dir / "user" / "expansion", dirs_exist_ok=True)
+            self.logger.info(
+                "Xpansion-runnable hybrid study written to %s (run: antares-xpansion-launcher -i %s)",
+                antares_hybrid_dir,
+                antares_hybrid_dir,
+            )
+        else:
+            self.logger.info(
+                "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
+                antares_hybrid_dir,
+                antares_hybrid_dir,
+            )
+
+    def _write_antares_hybrid_study(self) -> Path | None:
+        """Write the companion classic Antares study used for multi-scenario MC years.
+
+        Returns None when the horizon is not a whole number of Antares weeks.
+        """
         n_timesteps = len(self.pypsa_network.snapshots)
         if n_timesteps % 168 != 0:
             self.logger.warning(
@@ -149,21 +176,12 @@ class PyPSAStudyConverter:
                 "GEMS systems/ is still written.",
                 n_timesteps,
             )
-            return
+            return None
 
-        # Multi-scenario operational study: antares-modeler invoked directly has no notion
-        # of Monte-Carlo years, so it silently only ever solves scenario 0. Emit a companion
-        # classic Antares study (trick validated in tests/e2e/test_hybrid_study_comparison.py)
-        # so `antares-solver -i <path>` solves every declared scenario.
-        antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
+        return AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
             gems_systems_dir=self.study_dir / "systems",
             n_timesteps=n_timesteps,
             n_scenarios=len(self.scenario_weightings),
-        )
-        self.logger.info(
-            "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
-            antares_hybrid_dir,
-            antares_hybrid_dir,
         )
 
     def to_gems_study(self) -> None:
