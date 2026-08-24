@@ -31,6 +31,9 @@ src/
 -  Build GEMS components
 -  Build port connections
 -  Handles global constraints separately 
+  time_granularity.py         # Maps PyPSA `snapshot_weightings` onto the GEMS time-granularity
+                              # parameters (`hours_per_time_step`, `objective_weighting`): validates
+                              # them and writes them onto the components that carry them
   gems_study_writer.py        # GemsStudyWriter: 
 - Writes `system.yml`- GEMS components and port connections 
 - Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
@@ -81,12 +84,13 @@ PyPSA Network (deep-copied)
 **Time granularity:** the converter supports any time granularity, read **only** from
 `network.snapshot_weightings` — never inferred from the spacing of the snapshot index (PyPSA itself
 treats a weighting of 1 as one hour whatever the index says). It becomes two scalar GEMS parameters,
-resolved by `_resolve_time_weights()` and written by `_add_time_weights()`
-(`src/pypsa_preprocessor.py`): `hours_per_time_step` (physical duration of a time step — used in the
-storage balances, `e_sum_*` and the CO₂ emission port) and `objective_weighting` (hours a time step
-represents in the objective, PyPSA's `objective` column, which may legitimately differ).
+resolved by `resolve_time_weights()` and written by `add_time_weights()`
+(`src/time_granularity.py`, called from `PyPSAPreprocessor`): `hours_per_time_step` (physical
+duration of a time step — used in the storage balances, `e_sum_*` and the CO₂ emission port) and
+`objective_weighting` (hours a time step represents in the objective, PyPSA's `objective` column,
+which may legitimately differ).
 
-`_resolve_time_weights()` validates **only the columns this network actually reads**: PyPSA reads
+`resolve_time_weights()` validates **only the columns this network actually reads**: PyPSA reads
 `stores` for `Store` *and* `StorageUnit` balances (there is no `storage_units` column), `generators`
 for `e_sum_*` and the CO₂ constraint, and `objective` for the operational costs. Each relevant column
 must be constant over snapshots, and `stores` must equal `generators` **only when the network has
