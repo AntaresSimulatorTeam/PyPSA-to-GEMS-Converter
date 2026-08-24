@@ -80,14 +80,21 @@ PyPSA Network (deep-copied)
 
 **Time granularity:** the converter supports any time granularity, read **only** from
 `network.snapshot_weightings` — never inferred from the spacing of the snapshot index (PyPSA itself
-treats a weighting of 1 as one hour whatever the index says). Each column must be constant over
-snapshots, and the two physical columns (`stores`, `generators`) must be equal; otherwise
-`_check_snapshot_weightings()` raises. They become two scalar GEMS parameters written by
-`_add_time_weights()` (`src/pypsa_preprocessor.py`): `hours_per_time_step` (physical duration of a
-time step, used in the storage balances, `e_sum_*` and the CO₂ emission port) and
-`objective_weighting` (hours a time step represents in the objective, PyPSA's `objective` column,
-which may legitimately differ). The `store`/`storage_unit` balances use `^` for the compounded
-standing loss, which requires Antares-Simulator ≥ 10.1.1.
+treats a weighting of 1 as one hour whatever the index says). It becomes two scalar GEMS parameters,
+resolved by `_resolve_time_weights()` and written by `_add_time_weights()`
+(`src/pypsa_preprocessor.py`): `hours_per_time_step` (physical duration of a time step — used in the
+storage balances, `e_sum_*` and the CO₂ emission port) and `objective_weighting` (hours a time step
+represents in the objective, PyPSA's `objective` column, which may legitimately differ).
+
+`_resolve_time_weights()` validates **only the columns this network actually reads**: PyPSA reads
+`stores` for `Store` *and* `StorageUnit` balances (there is no `storage_units` column), `generators`
+for `e_sum_*` and the CO₂ constraint, and `objective` for the operational costs. Each relevant column
+must be constant over snapshots, and `stores` must equal `generators` **only when the network has
+both a generator and a storage component** — otherwise `hours_per_time_step` comes from whichever
+column is read. Rejecting a network over a column PyPSA ignores would refuse a study PyPSA solves.
+
+The `store`/`storage_unit` balances use `^` for the compounded standing loss, which requires
+Antares-Simulator ≥ 10.1.1.
 
 **CO₂ emission factors:** For emission-bearing component types (`_EMISSION_FACTOR_COMPONENTS`), the preprocessor resolves each component's `co2_emissions` from `network.carriers` via `_carrier_co2_by_scenario()` (`src/pypsa_preprocessor.py`), which preserves per-scenario values when `carriers` is scenario-indexed (MultiIndex). Components with no carrier get a fictitious `null` carrier with `co2_emissions=0`.
 

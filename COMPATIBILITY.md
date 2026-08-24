@@ -44,8 +44,8 @@ When a new PyPSA version introduces features that the converter does not yet sup
 | Feature | Limitation | Enforced |
 |---|---|---|
 | Multi-investment periods | Not supported — `network.investment_periods` must be empty | Yes — `ValueError` since 0.0.1 |
-| Time-varying snapshot weightings | Each `snapshot_weightings` column must be constant over snapshots; any constant value is supported (the time granularity is read from `snapshot_weightings`, never inferred from the snapshot index) | Yes — `ValueError` since 0.0.3 |
-| `snapshot_weightings.stores` ≠ `.generators` | The GEMS models use a single `hours_per_time_step`, so both physical weightings must be equal. `snapshot_weightings.objective` may differ (`objective_weighting`) | Yes — `ValueError` since 0.0.3 |
+| Time-varying snapshot weightings | Each `snapshot_weightings` column the network actually reads must be constant over snapshots; any constant value is supported (the time granularity is read from `snapshot_weightings`, never inferred from the snapshot index) | Yes — `ValueError` since 0.0.3 |
+| `snapshot_weightings.stores` ≠ `.generators` | The GEMS models use a single `hours_per_time_step`, so both physical weightings must be equal **when the network has both a generator and a storage component**. PyPSA reads `stores` only for `Store`/`StorageUnit` and `generators` only for `Generator`, so a column no component reads is ignored. `snapshot_weightings.objective` may always differ (`objective_weighting`) | Yes — `ValueError` since 0.0.3 |
 | Link multi-port (bus2, bus3, …) | Only 2-port links (bus0 → bus1) supported | No — silently ignored |
 | Sub-network AC/DC topology | Not used in DC LOPF | No — silently ignored |
 

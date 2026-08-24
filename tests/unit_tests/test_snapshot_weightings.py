@@ -136,3 +136,54 @@ def test_mismatched_physical_weightings_are_rejected(tmp_path: Path) -> None:
             study_dir=tmp_path / "rejected_study",
             series_file_format=".tsv",
         )
+
+
+def _minimal_network(component: str) -> Network:
+    """A load plus a single component of the given type, so that only one physical column is read."""
+    n = Network(name="GranularityScope", snapshots=[i for i in range(4)])
+    n.add("Bus", "bus1", v_nom=1)
+    n.add("Load", "demand", bus="bus1", p_set=10, q_set=0)
+    if component == "Generator":
+        n.add("Generator", "gen", bus="bus1", p_nom=100, p_nom_extendable=False, marginal_cost=50)
+    elif component == "Store":
+        n.add("Store", "store", bus="bus1", e_nom=100, e_cyclic=True)
+    else:
+        n.add("StorageUnit", "storage", bus="bus1", p_nom=10, max_hours=4, cyclic_state_of_charge=True)
+    return n
+
+
+@pytest.mark.parametrize(
+    "component, component_id, source_column, other_column",
+    [
+        ("Generator", "generator_gen", "generators", "stores"),
+        ("Store", "store_store", "stores", "generators"),
+        ("StorageUnit", "storage_unit_storage", "stores", "generators"),
+    ],
+)
+def test_weighting_column_no_component_reads_is_ignored(
+    component: str, component_id: str, source_column: str, other_column: str, tmp_path: Path
+) -> None:
+    """PyPSA only reads `stores` for storage and `generators` for generators.
+
+    A network without storage never reads `stores`, and one without generators never reads
+    `generators`, so an inconsistent value in the unread column must not be rejected: it would refuse
+    a network that PyPSA itself solves without complaint.
+    """
+    network = _minimal_network(component)
+    network.snapshot_weightings[source_column] = 3.0
+    network.snapshot_weightings[other_column] = 1.0  # never read for this network
+    network.snapshot_weightings["objective"] = 3.0
+
+    system_yml = _convert(network, tmp_path / "scope_study")
+    assert _time_weights(system_yml, component_id)["hours_per_time_step"]["value"] == 3.0
+
+
+def test_time_varying_weighting_no_component_reads_is_ignored(tmp_path: Path) -> None:
+    """The constancy check also applies only to the columns the network actually reads."""
+    network = _minimal_network("Generator")
+    network.snapshot_weightings["generators"] = 3.0
+    network.snapshot_weightings["objective"] = 3.0
+    network.snapshot_weightings["stores"] = [1.0, 2.0, 3.0, 4.0]  # never read: no storage
+
+    system_yml = _convert(network, tmp_path / "scope_varying_study")
+    assert _time_weights(system_yml, "generator_gen")["hours_per_time_step"]["value"] == 3.0
