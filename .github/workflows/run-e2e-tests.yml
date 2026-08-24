@@ -29,7 +29,7 @@ on:
 
 jobs:
   e2e:
-    name: E2E Tests
+    name: E2E Tests (Antares Modeler v${{ inputs.antares_version }})
     runs-on: ubuntu-22.04
     outputs:
       test_outcome: ${{ steps.run_tests.outcome }}
@@ -47,10 +47,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen --group dev
-
-      - name: Override PyPSA version
-        if: inputs.pypsa_version != ''
-        run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
 
       - name: Install Open MPI
         run: |
@@ -92,16 +88,6 @@ jobs:
         run: uv run pytest tests/e2e/ -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
 
-      - name: Upload test artifacts on failure
-        if: steps.run_tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.artifact_name }}
-          path: |
-            tmp/
-            **/*.log
-          retention-days: 7
-
       - name: Cleanup
         if: always()
         run: |
@@ -118,7 +104,6 @@ jobs:
 
   e2e-xpansion:
     name: E2E Tests (Antares Xpansion v${{ inputs.antares_xpansion_version }})
-    if: inputs.antares_xpansion_version != ''
     runs-on: ubuntu-22.04
     outputs:
       test_outcome: ${{ steps.run_tests.outcome }}
@@ -142,10 +127,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --group dev
 
-      - name: Override PyPSA version
-        if: inputs.pypsa_version != ''
-        run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
-
       - name: Download Antares Xpansion release
         run: |
           VERSION="${{ inputs.antares_xpansion_version }}"
@@ -164,16 +145,6 @@ jobs:
         id: run_tests
         run: uv run pytest tests/e2e_2_stage_stochastic/test_2_stage_stochastic_study.py -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
-
-      - name: Upload test artifacts on failure
-        if: steps.run_tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.artifact_name }}-xpansion
-          path: |
-            tmp/
-            **/*.log
-          retention-days: 7
 
       - name: Cleanup
         if: always()
