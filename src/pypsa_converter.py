@@ -95,7 +95,7 @@ class PyPSAStudyConverter:
         Whether the network has at least one component with a free (extendable) capacity variable.
 
         This is what actually makes a study an investment problem, independently of scenario count:
-        p_nom/e_nom is a decision variable only when *_extendable=True. 
+        p_nom/e_nom is a decision variable only when *_extendable=True.
         Non-extendable components have their bounds fixed to the same value by the preprocessor
         (see PyPSAPreprocessor._fix_capacity_non_extendable_attribute), so they never introduce a
         master variable.
