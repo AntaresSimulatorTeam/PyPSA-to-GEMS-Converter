@@ -112,8 +112,6 @@ class AntaresHybridStudyWriter:
         study.create_area(
             "virtual_area",
             properties=antares_craft.AreaProperties(
-                energy_cost_unsupplied=0.0,
-                energy_cost_spilled=0.0,
                 non_dispatch_power=False,
                 dispatch_hydro_power=False,
                 other_dispatch_power=False,
@@ -162,7 +160,7 @@ class AntaresHybridStudyWriter:
         # Tag every component with the same scenario-group and add an identity
         # modeler-scenariobuilder.dat (MC year i -> data-series column i+1), so
         # antares-solver picks a distinct data-series column per MC year instead of
-        # silently reusing column 1 for every year (see module docstring, step 5).
+        # silently reusing column 0 for every year (see module docstring, step 5).
         system_yml_path = antares_input / "system.yml"
         with system_yml_path.open() as f:
             system_data: dict[str, Any] = yaml.safe_load(f)

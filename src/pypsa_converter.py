@@ -32,7 +32,7 @@ _EXTENDABLE_CAPACITY_FLAGS: dict[str, str] = {
     "links": "p_nom_extendable",
     "storage_units": "p_nom_extendable",
     "stores": "e_nom_extendable",
-    # For consideration, currently not processed
+    # Currently not processed
     # "lines": "s_nom_extendable",
     # "transformers": "s_nom_extendable",
 }
@@ -51,7 +51,7 @@ class PyPSAStudyConverter:
         object is never mutated. Note: do not pass a network that has been optimized
         (network.optimize()), as it contains non-copyable solver state (e.g. HiGHS).
 
-        Logging uses the logger named ``pypsa_to_gems_converter``. To see INFO/DEBUG
+        Logging uses the logger named `pypsa_to_gems_converter. To see INFO/DEBUG
         messages, configure the standard library (e.g. ``logging.basicConfig``) or attach
         handlers to that logger or the root logger.
         """
@@ -95,8 +95,8 @@ class PyPSAStudyConverter:
         Whether the network has at least one component with a free (extendable) capacity variable.
 
         This is what actually makes a study an investment problem, independently of scenario count:
-        p_nom/e_nom is a decision variable only when *_extendable=True. Non-extendable components
-        have their bounds fixed to the same value by the preprocessor
+        p_nom/e_nom is a decision variable only when *_extendable=True. 
+        Non-extendable components have their bounds fixed to the same value by the preprocessor
         (see PyPSAPreprocessor._fix_capacity_non_extendable_attribute), so they never introduce a
         master variable.
         """
@@ -135,7 +135,6 @@ class PyPSAStudyConverter:
                 n_timesteps,
             )
             return
-
         # Multi-scenario operational study: antares-modeler invoked directly has no notion
         # of Monte-Carlo years, so it silently only ever solves scenario 0. Emit a companion
         # classic Antares study (trick validated in tests/e2e/test_hybrid_study_comparison.py)

@@ -75,11 +75,6 @@ def get_antares_xpansion_benders_bin(base_dir: Path) -> Path:
     return base_dir / get_antares_xpansion_dir_name() / "bin" / "benders"
 
 
-def get_antares_xpansion_launcher(base_dir: Path) -> Path:
-    """Return path to antares-xpansion-launcher under base_dir."""
-    return base_dir / get_antares_xpansion_dir_name() / "antares-xpansion-launcher"
-
-
 def get_antares_xpansion_install_dir(base_dir: Path) -> Path:
     """Return path to the Xpansion bin/ directory (passed as --installDir)."""
     return base_dir / get_antares_xpansion_dir_name() / "bin"
