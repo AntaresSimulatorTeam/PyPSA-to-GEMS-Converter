@@ -115,8 +115,8 @@ def _build_investment_test_network(scenario_weights: dict[str, float]) -> Networ
     "scenario_weights",
     [
         {"low": 0.5, "high": 0.5},
-        {"dry": 0.2, "normal": 0.5, "wet": 0.3},
-        {"s1": 0.1, "s2": 0.2, "s3": 0.3, "s4": 0.4},
+        {"dry": 0.3333333333333333, "normal": 0.3333333333333333, "wet": 0.3333333333333333},
+        {"s1": 0.25, "s2": 0.25, "s3": 0.25, "s4": 0.25},
     ],
     ids=["two_scenarios", "three_scenarios", "four_scenarios"],
 )

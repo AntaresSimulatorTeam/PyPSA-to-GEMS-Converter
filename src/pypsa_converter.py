@@ -68,6 +68,7 @@ class PyPSAStudyConverter:
 
         if len(self.scenario_weightings) > 1:
             if self.is_investment_study:
+                self._validate_scenario_weightings()
                 self._validate_xpansion_solver()
             else:
                 self._validate_scenario_weightings()
@@ -151,17 +152,6 @@ class PyPSAStudyConverter:
             expansion_src = self.study_dir / "systems" / "user" / "expansion"
             if expansion_src.exists():
                 shutil.copytree(expansion_src, antares_hybrid_dir / "user" / "expansion", dirs_exist_ok=True)
-            self.logger.info(
-                "Xpansion-runnable hybrid study written to %s (run: antares-xpansion-launcher -i %s)",
-                antares_hybrid_dir,
-                antares_hybrid_dir,
-            )
-        else:
-            self.logger.info(
-                "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
-                antares_hybrid_dir,
-                antares_hybrid_dir,
-            )
 
     def _write_antares_hybrid_study(self) -> Path | None:
         """Write the companion classic Antares study used for multi-scenario MC years.
