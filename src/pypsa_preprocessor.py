@@ -229,7 +229,7 @@ class PyPSAPreprocessor:
         buses_df["theta_min"] = float("-inf")
         buses_df["theta_max"] = float("inf")
 
-        ac_branch_buses = self._buses_with_ac_branches()
+        ac_branch_buses: set[str] = self._buses_with_ac_branches()
         if not ac_branch_buses:
             return
 

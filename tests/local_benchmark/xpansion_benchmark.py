@@ -16,9 +16,9 @@ synthetic investment studies, scaled across network size and number of scenarios
 
 Networks are built in code (no .nc fixtures): a connected AC ring with one extendable
 generator and one load per bus, then fanned out into equal-weight scenarios with
-independently perturbed loads. That keeps the study on the antares-xpansion-launcher
-GEMS path and gives Benders genuinely different subproblems to exploit versus PyPSA
-solving one big block.
+independently perturbed loads. Extendable capacity puts the study on the
+antares-xpansion-launcher GEMS path; load noise gives Benders genuinely different
+operational subproblems versus PyPSA solving one big block.
 
 Run with, e.g.: pytest tests/local_benchmark/xpansion_benchmark.py -s
 Results are appended to tmp/xpansion_benchmark_results/xpansion_scenario_results.csv.
@@ -62,9 +62,9 @@ STUDIES = [
     (40, 672, "synthetic_mesh_40x672"),
 ]
 
-# PyPSAStudyConverter only writes the antares-xpansion-launcher (Benders) study when there
-# are >= 2 scenarios; with exactly 1 scenario extendable capacity is a plain LP variable
-# solved by antares-modeler. Scenario counts therefore start at 2.
+# Scenario counts start at 2 so Benders faces multiple distinct operational subproblems.
+# (A single-scenario investment study is still Xpansion-runnable, but uninteresting for
+# this scaling benchmark.)
 SCENARIO_COUNTS = [2, 10, 50]
 
 
@@ -83,7 +83,17 @@ _GEN_P_MAX_PU = 0.95
 
 
 def add_perturbed_scenarios(network: Network, n_scenarios: int, seed: int) -> Network:
-    """Fan a single-scenario network into n equal-weight scenarios with independent load noise."""
+    """
+    Fan a single-scenario network into n_scenarios equal-weight scenarios.
+
+    Each scenario scenario_i gets weight 1/n and its load time series
+    (loads_t.p_set) is multiplied by an independent factor drawn uniformly from
+    [_LOAD_NOISE_LOW, _LOAD_NOISE_HIGH] = [0.85, 1.15]. The same factor is applied
+    to every bus in that scenario, so relative load shape across buses is preserved
+    while absolute demand (and therefore the operational optimum) differs by year.
+
+    Generators p_max_pu and line ratings are left unchanged across scenarios.
+    """
     rng = np.random.default_rng(seed)
     scenario_names = [f"scenario_{i}" for i in range(n_scenarios)]
     weight = 1.0 / n_scenarios
@@ -96,7 +106,34 @@ def add_perturbed_scenarios(network: Network, n_scenarios: int, seed: int) -> Ne
 
 
 def build_synthetic_investment_network(n_buses: int, n_timesteps: int, *, name: str) -> Network:
-    """Connected AC-ring investment network: extendable gen + load per bus, Lines only."""
+    """
+    Connected AC-ring investment network used as the Xpansion vs PyPSA benchmark.
+
+    Topology
+      n_buses buses on a ring of fixed AC lines (s_nom=500, not extendable).
+      Every bus bus_i has one local load load_i and one extendable generator
+      gen_i. No Links / storage — Slack theta stays in the angle matrix so Clp
+      can read the MPS.
+
+    Loads (deterministic before scenario perturbation)
+      Bus i base demand 50 + 10*(i % 5) MW (cycles every 5 buses: 50…90), plus a
+      daily swing of amplitude 25 MW phase-shifted by 3*i hours:
+      p(t) = base + 25 * (((t + 3*i) % 24) / 23).
+      So neighbouring buses peak at different hours; the ring must carry some transfer.
+
+    Generators (all p_nom_extendable, p_max_pu=0.95)
+      Lower bound sized for feasibility under the worst load factor 1.15:
+      p_nom_min = (base+25) * 1.15 / 0.95 * 1.05, p_nom_max = 3 * p_nom_min.
+      Cost gradient with bus index (keeps expansion nontrivial):
+        - cheap OPEX / cheap CAPEX at low i: c_marg = 20 + 5*i, c_cap = 200 + 50*i
+        - expensive OPEX / expensive CAPEX at high i
+      So the optimizer prefers investing more on low-index gens and transferring power
+      over the ring rather than building expensive local capacity everywhere.
+
+    Scenarios
+      Added afterwards by add_perturbed_scenarios (equal weights, independent load
+      scale factors). Horizon must be a multiple of 168 h for the hybrid Xpansion study.
+    """
     if n_buses < 2:
         raise ValueError(f"n_buses must be >= 2, got {n_buses}")
     if n_timesteps < 1:
@@ -227,14 +264,14 @@ def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, stud
         for key, value in mps_sizes.items():
             benchmark_data_frame.loc[0, key] = value
         logger.info(
-            "Xpansion MPS sizes: %s vars / %s cons (master %s/%s, %s subproblems %s/%s)",
+            "Xpansion MPS sizes: %s vars / %s cons (master %s/%s, %s× one-sub %s/%s)",
             mps_sizes["number_of_variables_xpansion"],
             mps_sizes["number_of_constraints_xpansion"],
             mps_sizes["number_of_variables_xpansion_master"],
             mps_sizes["number_of_constraints_xpansion_master"],
             mps_sizes["number_of_xpansion_subproblems"],
-            mps_sizes["number_of_variables_xpansion_subproblems"],
-            mps_sizes["number_of_constraints_xpansion_subproblems"],
+            mps_sizes["number_of_variables_xpansion_subproblem"],
+            mps_sizes["number_of_constraints_xpansion_subproblem"],
         )
     except (FileNotFoundError, ValueError) as exc:
         logger.warning("Could not read Xpansion MPS sizes: %s", exc)

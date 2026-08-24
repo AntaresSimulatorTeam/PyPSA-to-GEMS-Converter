@@ -202,15 +202,15 @@ class GemsStudyWriter:
         Write the Antares-Xpansion inputs the launcher GEMS workflow needs on top of the GEMS study.
         - ``user/expansion/settings.ini`` configures the algorithm, including scenario/year weights.
 
-        For a PyPSA multi-scenario investment study, each scenario is mapped to one Monte-Carlo year by
-        the Antares-Xpansion GEMS workflow. We export the PyPSA scenario probabilities as Xpansion
-        ``yearly-weights``.
+        Each PyPSA scenario is mapped to one Monte-Carlo year by the Antares-Xpansion GEMS
+        workflow (including the single-scenario case). We export the PyPSA scenario
+        probabilities as Xpansion ``yearly-weights``.
         """
         solver = solver_name.lower()
         if solver not in {"coin", "xpress"}:
-            raise ValueError("Multi-scenario investment studies support only 'coin' and 'xpress' solvers.")
+            raise ValueError("Investment studies support only 'coin' and 'xpress' solvers.")
         if not scenario_weights:
-            raise ValueError("scenario_weights must be non-empty for multi-scenario investment studies.")
+            raise ValueError("scenario_weights must be non-empty for investment studies.")
 
         study_root = self.study_dir / "systems"
         settings_path = study_root / "user" / "expansion" / "settings.ini"

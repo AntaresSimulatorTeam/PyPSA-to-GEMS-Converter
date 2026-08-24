@@ -12,12 +12,11 @@
 
 """
 Cross-checks PyPSA against the real Antares-Xpansion GEMS workflow (antares-problem-generator
-+ benders, run via antares-xpansion-launcher) for multi-scenario INVESTMENT studies -- i.e.
-studies with at least one extendable (p_nom_extendable=True) component, which
-PyPSAStudyConverter._has_extendable_capacity routes through gems_study_writer's
-optim-config.yml + prepare_xpansion_runnable_study (settings.ini / weights.txt), rather than
-through the antares-solver hybrid trick used for non-investment studies (see
-tests/e2e/test_hybrid_study_comparison.py).
++ benders, run via antares-xpansion-launcher) for INVESTMENT studies -- i.e. studies with at
+least one extendable (p_nom_extendable=True) component. PyPSAStudyConverter routes those
+through optim-config.yml + prepare_xpansion_runnable_study (settings.ini / weights.txt)
+regardless of scenario count; non-investment multi-scenario studies use the antares-solver
+hybrid path instead (see tests/e2e/test_hybrid_study_comparison.py).
 """
 
 import logging
@@ -58,7 +57,29 @@ def _get_pypsa_total_objective(network: Network) -> float:
 
 
 def _build_investment_test_network(scenario_weights: dict[str, float]) -> Network:
-    """Tiny 2-bus expansion network with the given scenario probabilities (must sum to 1)."""
+    """
+    Topology (168 hourly snapshots = 1 Antares week):
+      bus 1 --line12-- bus 2
+        |                 |
+      gen1, load1      gen2, load2
+
+    Loads (deterministic, same in every scenario):
+      load1: 60 + (h % 24) MW, load2: 40 + ((h + 6) % 24) MW.
+
+    Candidates (all at their lower bounds in the optimum below):
+      gen1: p_nom_extendable, p_nom_min=140, c_marg=45, c_cap=1000, p_max_pu=0.9
+      gen2: p_nom_extendable, p_nom_min=100, c_marg=55, c_cap=900,  p_max_pu=0.9
+      line12: s_nom_extendable, s_nom_min=200, c_cap=100
+
+    Scenarios only differ by probability (scenario_weights must sum to 1). Time
+    series are identical across scenarios, so the optimum does not depend on the
+    weight vector — equal or unequal weights yield the same capacities and objective.
+
+    Expected optimum (CBC / Xpansion, objective = CAPEX + expected OPEX, including
+    PyPSA's objective_constant = Σ capital_cost · *_nom_min = 250_000):
+      gen1.p_nom = 140, gen2.p_nom = 100, line12.s_nom = 200
+      total objective ≈ 1_183_940
+    """
     if abs(sum(scenario_weights.values()) - 1.0) > 1e-9:
         raise ValueError(f"scenario_weights must sum to 1, got {sum(scenario_weights.values())}")
 

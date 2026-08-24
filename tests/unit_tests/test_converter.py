@@ -58,7 +58,7 @@ def test_converter_deterministic_study() -> None:
     PyPSAStudyConverter(network, Path("tmp") / "test_one", "csv").to_gems_study()
     logger.info("Converted deterministic study to test_one")
 
-    # test if optimi-config isn't generated
+    # Operational study: no optim-config.yml (Benders / Xpansion only for extendable capacity).
     assert not (Path("tmp") / "test_one" / "systems" / "input" / "optim-config.yml").exists()
 
     network.set_scenarios({"low": 0.5, "high": 0.5})
@@ -69,6 +69,37 @@ def test_converter_deterministic_study() -> None:
     # Hybrid Antares study is skipped when the horizon is not a multiple of 168 hours.
     assert not (Path("tmp") / "test_two" / "systems" / "input" / "optim-config.yml").exists()
     assert not (Path("tmp") / "test_two" / "Simple_Network").is_dir()
+
+
+def test_converter_investment_study_prepares_xpansion_launcher() -> None:
+    """Extendable capacity alone triggers Xpansion outputs — even with a single scenario."""
+    network = Network(name="Simple_Network", snapshots=range(10))
+    network.add("Carrier", "carrier", co2_emissions=0)
+    network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
+    network.add("Load", "static_load", bus="bus 1", p_set=100, q_set=10)
+    network.add(
+        "Generator",
+        "gen1",
+        bus="bus 1",
+        p_nom_extendable=True,
+        p_nom_min=100,
+        marginal_cost=50,
+        p_nom=100,
+        p_max_pu=0.9,
+        capital_cost=1000,
+    )
+
+    study_dir = Path("tmp") / "test_investment_xpansion_one_scenario"
+    PyPSAStudyConverter(network, study_dir, "csv", solver_name="coin").to_gems_study()
+
+    assert (study_dir / "systems" / "input" / "optim-config.yml").exists()
+    settings_ini = study_dir / "systems" / "user" / "expansion" / "settings.ini"
+    assert settings_ini.exists()
+    assert "yearly-weights" in settings_ini.read_text(encoding="utf-8")
+    weights_file = study_dir / "systems" / "user" / "expansion" / "weights" / "weights.txt"
+    weights = [float(x) for x in weights_file.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert len(weights) == 1
+    assert weights == pytest.approx([1.0])
 
 
 def test_converter_multiscenario_investment_study_prepares_xpansion_launcher() -> None:
@@ -105,7 +136,7 @@ def test_converter_multiscenario_investment_study_prepares_xpansion_launcher() -
     assert sum(weights) == pytest.approx(1.0)
 
 
-def test_converter_multiscenario_investment_study_rejects_unsupported_solver() -> None:
+def test_converter_investment_study_rejects_unsupported_solver() -> None:
     network = Network(name="Simple_Network", snapshots=range(10))
     network.add("Carrier", "carrier", co2_emissions=0)
     network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
@@ -121,7 +152,6 @@ def test_converter_multiscenario_investment_study_rejects_unsupported_solver() -
         p_max_pu=0.9,
         capital_cost=1000,
     )
-    network.set_scenarios({"low": 0.5, "high": 0.5})
 
     with pytest.raises(ValueError, match="coin'.*xpress"):
         PyPSAStudyConverter(network, Path("tmp") / "test_investment_invalid_solver", "csv", solver_name="highs")

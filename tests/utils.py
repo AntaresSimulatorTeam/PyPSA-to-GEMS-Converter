@@ -588,9 +588,9 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
         print(
             f"    (master {int(_n(row.get('number_of_constraints_xpansion_master'))):,} / "
             f"{int(_n(row.get('number_of_variables_xpansion_master'))):,}; "
-            f"{int(_n(row.get('number_of_xpansion_subproblems')))} subproblems "
-            f"{int(_n(row.get('number_of_constraints_xpansion_subproblems'))):,} / "
-            f"{int(_n(row.get('number_of_variables_xpansion_subproblems'))):,})"
+            f"{int(_n(row.get('number_of_xpansion_subproblems')))} × one subproblem "
+            f"{int(_n(row.get('number_of_constraints_xpansion_subproblem'))):,} / "
+            f"{int(_n(row.get('number_of_variables_xpansion_subproblem'))):,})"
         )
     else:
         print("  Xpansion constraints / variables: N/A (re-run benchmark to capture MPS sizes)")
