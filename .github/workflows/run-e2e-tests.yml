@@ -74,10 +74,7 @@ jobs:
       - name: Download Antares Xpansion release
         id: xpansion
         run: |
-          VERSION="${{ inputs.antares_xpansion_version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(jq -r '.antares_xpansion_version' dependencies.json)
-          fi
+          VERSION=$(jq -r '.antares_xpansion_version' dependencies.json)
           ARCHIVE="antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Downloading Antares Xpansion v${VERSION}..."
