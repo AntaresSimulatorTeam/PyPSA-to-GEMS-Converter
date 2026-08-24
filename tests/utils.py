@@ -594,6 +594,8 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
         )
     else:
         print("  Xpansion constraints / variables: N/A (re-run benchmark to capture MPS sizes)")
+    print("\nSOLVER INFORMATION:")
+    print(f"  Solver: {row.get('pypsa_solver_name', 'N/A')} (LP)")
     print("\n" + "=" * 80)
 
     categories = ["PyPSA", "Antares-Xpansion"]
