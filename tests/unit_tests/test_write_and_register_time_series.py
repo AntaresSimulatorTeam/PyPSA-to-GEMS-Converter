@@ -91,11 +91,7 @@ def scenario_network(base_network: Network) -> Network:
 
 def test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides(scenario_network: Network) -> None:
     logger.info("Running test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides")
-    for key, value in scenario_network.components.generators.static.p_max_pu.items():
-        if key == ("low", "gen3"):
-            scenario_network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore
-
-    print(scenario_network.components.generators.static.p_max_pu)
+    scenario_network.generators.loc[("low", "gen3"), "p_max_pu"] *= 0.2
 
     PyPSAStudyConverter(
         scenario_network,
