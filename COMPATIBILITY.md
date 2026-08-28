@@ -93,7 +93,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `ramp_limit_shut_down` | Unit commitment parameter — not implemented (requires `committable=True` support) |
 | `ramp_limit_up` | Inter-temporal ramp constraint — not implemented |
 | `ramp_limit_down` | Inter-temporal ramp constraint — not implemented |
-| `active` | Only active generators are built — inactive ones are dropped by the converter |
+| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any generator has `active=0` (not dropped) |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
@@ -112,7 +112,7 @@ Parameters not relevant for DC LOPF (silently ignored):
 |---|---|
 | `type` | Not used in GEMS model |
 | `carrier` | Not used in GEMS model |
-| `active` | Only active loads are built — inactive ones are dropped by the converter |
+| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any load has `active=0` (not dropped) |
 
 #### Link
 
@@ -140,7 +140,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `ramp_limit_up` | Inter-temporal ramp constraint — not implemented |
 | `ramp_limit_down` | Inter-temporal ramp constraint — not implemented |
 | `bus2`, `bus3`, … / `efficiency2`, `efficiency3`, … | Multi-port sector coupling — only bus0 → bus1 supported |
-| `active` | Only active links are built — inactive ones are dropped by the converter |
+| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any link has `active=0` (not dropped) |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
@@ -162,7 +162,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `overnight_cost` | Available from PyPSA 1.1.0, not implemented |
 | `discount_rate` | Available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Available from PyPSA 1.1.0, not implemented |
-| `active` | Only active lines are built — inactive ones are dropped by the converter |
+| `active` | Not handled — the `active` flag is ignored; inactive lines are converted as if active (not enforced, not dropped) |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
 
@@ -192,7 +192,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `overnight_cost` | Available from PyPSA 1.1.0, not implemented |
 | `discount_rate` | Available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Available from PyPSA 1.1.0, not implemented |
-| `active` | Only active transformers are built — inactive ones are dropped by the converter |
+| `active` | Not handled — the `active` flag is ignored; inactive transformers are converted as if active (not enforced, not dropped) |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
 
@@ -234,7 +234,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `cyclic_state_of_charge` | Only `True` supported — enforced |
 | `state_of_charge_initial` | Initial state of charge — not implemented |
 | `state_of_charge_set` | State of charge set points for optimisation snapshots — not implemented |
-| `active` | Only active storage units are built — inactive ones are dropped by the converter |
+| `active` | Not handled — the `active` flag is ignored; inactive storage units are converted as if active (not enforced, not dropped) |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
@@ -265,7 +265,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
 | `sign` | Only `sign = 1` supported — enforced |
 | `e_cyclic` | Only `True` supported — enforced |
-| `active` | Only active stores are built — inactive ones are dropped by the converter |
+| `active` | Not handled — the `active` flag is ignored; inactive stores are converted as if active (not enforced, not dropped) |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
