@@ -90,6 +90,8 @@ class PyPSAStudyConverter:
         Because of GEMSPy behavior, 1/N where N is the number of scenarios.
         """
         weights = list(self.scenario_weightings.values())
+        if len(weights) <= 1:
+            return
         reference = weights[0]
         if not all(math.isclose(w, reference, rel_tol=1e-9, abs_tol=1e-12) for w in weights):
             raise ValueError(
