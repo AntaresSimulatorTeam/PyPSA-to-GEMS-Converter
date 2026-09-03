@@ -936,3 +936,435 @@ def test_transformer_extendable_modular() -> None:
         get_gems_study_objective("transformer_extendable_modular"),
         rel_tol=1e-6,
     )
+
+
+@pytest.mark.parametrize(
+    "hours_per_time_step, study_name",
+    [
+        (0.5, "granularity_gen_case_1"),
+        (3.0, "granularity_gen_case_2"),
+        (24.0, "granularity_gen_case_3"),
+    ],
+)
+def test_load_gen_granularity(hours_per_time_step: float, study_name: str) -> None:
+    # Testing marginal costs for Generator component at a non-hourly time granularity
+    network = Network(name="Demo", snapshots=[i for i in range(10)])
+    network.snapshot_weightings.loc[:, :] = hours_per_time_step
+    network.add("Bus", "pypsatown", v_nom=1)
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0)
+    network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator2",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=40,  # €/MWh
+        p_nom=50,  # MW
+    )
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        study_dir=current_dir / "tmp" / study_name,
+        series_file_format=".tsv",
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(study_name),
+        rel_tol=1e-6,
+    )
+
+
+@pytest.mark.parametrize(
+    "hours_per_time_step, study_name",
+    [
+        (0.5, "granularity_sum_case_1"),
+        (3.0, "granularity_sum_case_2"),
+        (24.0, "granularity_sum_case_3"),
+    ],
+)
+def test_load_gen_sum_granularity(hours_per_time_step: float, study_name: str) -> None:
+    # Testing e_sum parameters for Generator component at a non-hourly time granularity:
+    # e_sum_max is an energy, so it constrains fewer time steps as the time step gets longer.
+    network = Network(name="Demo", snapshots=[i for i in range(10)])
+    network.snapshot_weightings.loc[:, :] = hours_per_time_step
+    network.add("Bus", "pypsatown", v_nom=1)
+
+    network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator2",
+        bus="pypsatown",
+        e_sum_max=200 * hours_per_time_step,  # MWh
+        p_nom_extendable=False,
+        marginal_cost=10,  # €/MWh
+        p_nom=50,  # MW
+    )
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        study_dir=current_dir / "tmp" / study_name,
+        series_file_format=".tsv",
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(study_name),
+        rel_tol=1e-6,
+    )
+
+
+@pytest.mark.parametrize(
+    "hours_per_time_step, study_name",
+    [
+        (0.5, "granularity_emissions_case_1"),
+        (3.0, "granularity_emissions_case_2"),
+        (24.0, "granularity_emissions_case_3"),
+    ],
+)
+def test_load_gen_emissions_granularity(hours_per_time_step: float, study_name: str) -> None:
+    # Testing the CO2 GlobalConstraint at a non-hourly time granularity: the quota is an emitted
+    # quantity, so it scales with the duration of a time step.
+    ratio, sense = 0.5, "<="
+    min_emissions, max_emissions = 10, 20
+    network = Network(name="Demo", snapshots=[i for i in range(10)])
+    network.snapshot_weightings.loc[:, :] = hours_per_time_step
+    network.add("Carrier", "fictive_fuel_one", co2_emissions=min_emissions)
+    network.add("Carrier", "fictive_fuel_two", co2_emissions=max_emissions)
+    network.add("Bus", "pypsatown", v_nom=1)
+    load1 = [i * 10 for i in range(10)]
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=load1, q_set=0)
+    load2 = [100 for i in range(10)]
+    network.add("Load", "pypsaload2", bus="pypsatown", p_set=load2, q_set=0)
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        carrier="fictive_fuel_one",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator2",
+        bus="pypsatown",
+        carrier="fictive_fuel_two",
+        p_nom_extendable=False,
+        marginal_cost=40,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator3_emissions_free",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=10,  # MW
+    )
+    quota = (ratio * min_emissions + (1 - ratio) * max_emissions) * (sum(load1) + sum(load2)) * hours_per_time_step
+    network.add("GlobalConstraint", name="co2_budget", sense=sense, constant=quota)
+
+    PyPSAStudyConverter(
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
+    )
+
+
+@pytest.mark.parametrize(
+    "hours_per_time_step, study_name",
+    [
+        (0.5, "granularity_link_case_1"),
+        (3.0, "granularity_link_case_2"),
+        (24.0, "granularity_link_case_3"),
+    ],
+)
+def test_load_gen_link_granularity(hours_per_time_step: float, study_name: str) -> None:
+    # Testing the Link marginal cost at a non-hourly time granularity
+    network = Network(name="Demo2", snapshots=[i for i in range(10)])
+    network.snapshot_weightings.loc[:, :] = hours_per_time_step
+    network.add("Bus", "pypsatown", v_nom=1)
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=[i * 10 for i in range(10)], q_set=0)
+    network.add("Load", "pypsaload2", bus="pypsatown", p_set=100, q_set=0)
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator2",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=40,  # €/MWh
+        p_nom=50,  # MW
+    )
+    network.add("Bus", "paris", v_nom=1)
+    network.add("Load", "parisload", bus="paris", p_set=200, q_set=0)
+    network.add(
+        "Generator",
+        "pypsagenerator3",
+        bus="paris",
+        p_nom_extendable=False,
+        marginal_cost=200,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Link",
+        "link-paris-pypsatown",
+        bus0="pypsatown",
+        bus1="paris",
+        efficiency=0.9,
+        marginal_cost=0.5,
+        p_nom=50,
+        p_min_pu=-1,
+        p_max_pu=1,
+    )
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        study_dir=current_dir / "tmp" / study_name,
+        series_file_format=".tsv",
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective(study_name),
+        rel_tol=1e-6,
+    )
+
+
+@pytest.mark.parametrize(
+    "hours_per_time_step, study_name",
+    [
+        (0.5, "granularity_storage_unit_case_1"),
+        (2.0, "granularity_storage_unit_case_2"),
+        (3.0, "granularity_storage_unit_case_3"),
+    ],
+)
+def test_storage_unit_granularity(hours_per_time_step: float, study_name: str) -> None:
+    # Testing the StorageUnit state of charge balance at a non-hourly time granularity: the standing
+    # loss compounds over the duration of a time step, and charge/discharge/inflow/spill are energies.
+    # max_hours is scaled with the time step so that the storage can still cover a peak load time step,
+    # which keeps the problem feasible (and the storage in use) at every granularity.
+    network = Network(name="Demo3", snapshots=[i for i in range(20)])
+    network.snapshot_weightings.loc[:, :] = hours_per_time_step
+    network.add("Bus", "pypsatown", v_nom=1)
+    network.add(
+        "Load",
+        "pypsaload",
+        bus="pypsatown",
+        p_set=[
+            100,
+            160,
+            100,
+            70,
+            90,
+            30,
+            0,
+            150,
+            200,
+            10,
+            0,
+            0,
+            200,
+            240,
+            0,
+            0,
+            20,
+            50,
+            60,
+            50,
+        ],
+        q_set=0,
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=150.0,  # MW
+    )
+    network.add(
+        "StorageUnit",
+        "pypsastorage",
+        bus="pypsatown",
+        p_nom=100,  # MW
+        max_hours=4 * hours_per_time_step,  # Hours of storage at full output
+        efficiency_store=0.9,
+        efficiency_dispatch=0.85,
+        standing_loss=0.05,
+        state_of_charge_initial=0.0,
+        marginal_cost=10.0,  # €/MWh
+        marginal_cost_storage=1.5,  # €/MWh
+        spill_cost=100.0,  # €/MWh
+        p_min_pu=-1,
+        p_max_pu=1,
+        inflow=[i for i in range(20)],
+        cyclic_state_of_charge=True,
+        cyclic_state_of_charge_per_period=True,
+    )
+
+    PyPSAStudyConverter(
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
+    )
+
+
+@pytest.mark.parametrize(
+    "hours_per_time_step, study_name",
+    [
+        (0.5, "granularity_store_case_1"),
+        (2.0, "granularity_store_case_2"),
+        (3.0, "granularity_store_case_3"),
+    ],
+)
+def test_store_granularity(hours_per_time_step: float, study_name: str) -> None:
+    # Testing the Store energy balance at a non-hourly time granularity: the standing loss compounds
+    # over the duration of a time step. e_nom is scaled with the time step so that the store can still
+    # cover a peak load time step, which keeps the problem feasible (and the store in use) at every
+    # granularity.
+    network = Network(name="StoreDemo", snapshots=[i for i in range(20)])
+    network.snapshot_weightings.loc[:, :] = hours_per_time_step
+    network.add("Bus", "pypsatown", v_nom=1)
+    network.add(
+        "Load",
+        "pypsaload",
+        bus="pypsatown",
+        p_set=[
+            100,
+            160,
+            100,
+            70,
+            90,
+            30,
+            0,
+            150,
+            200,
+            10,
+            0,
+            0,
+            200,
+            240,
+            0,
+            0,
+            20,
+            50,
+            60,
+            50,
+        ],
+        q_set=0,
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=150.0,  # MW
+    )
+    network.add(
+        "Store",
+        "pypsastore",
+        bus="pypsatown",
+        e_nom=200 * hours_per_time_step,  # MWh
+        e_initial=0.0,
+        standing_loss=0.05,  # 5% loss per hour
+        marginal_cost=10.0,  # €/MWh
+        marginal_cost_storage=1.5,  # €/MWh
+        e_cyclic=True,
+    )
+    PyPSAStudyConverter(
+        pypsa_network=network, study_dir=current_dir / "tmp" / study_name, series_file_format=".tsv"
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
+    )
+
+
+def test_objective_weighting_decoupled() -> None:
+    # PyPSA allows the objective weighting to differ from the physical duration of a time step, e.g. a
+    # representative week at a 3-hourly resolution whose operational costs are annualised. The CO2 quota
+    # is an emitted quantity, so it follows the physical duration while the costs follow the annualised
+    # weighting: swapping the two parameters changes either the dispatch or the objective.
+    ratio, sense = 0.5, "<="
+    min_emissions, max_emissions = 10, 20
+    hours_per_time_step, objective_weighting = 3.0, 156.0  # 3 h x 52 weeks
+    network = Network(name="Demo", snapshots=[i for i in range(10)])
+    network.snapshot_weightings["stores"] = hours_per_time_step
+    network.snapshot_weightings["generators"] = hours_per_time_step
+    network.snapshot_weightings["objective"] = objective_weighting
+    network.add("Carrier", "fictive_fuel_one", co2_emissions=min_emissions)
+    network.add("Carrier", "fictive_fuel_two", co2_emissions=max_emissions)
+    network.add("Bus", "pypsatown", v_nom=1)
+    load1 = [i * 10 for i in range(10)]
+    network.add("Load", "pypsaload", bus="pypsatown", p_set=load1, q_set=0)
+    load2 = [100 for i in range(10)]
+    network.add("Load", "pypsaload2", bus="pypsatown", p_set=load2, q_set=0)
+    network.add(
+        "Generator",
+        "pypsagenerator",
+        bus="pypsatown",
+        carrier="fictive_fuel_one",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator2",
+        bus="pypsatown",
+        carrier="fictive_fuel_two",
+        p_nom_extendable=False,
+        marginal_cost=40,  # €/MWh
+        p_nom=200,  # MW
+    )
+    network.add(
+        "Generator",
+        "pypsagenerator3_emissions_free",
+        bus="pypsatown",
+        p_nom_extendable=False,
+        marginal_cost=50,  # €/MWh
+        p_nom=10,  # MW
+    )
+    quota = (ratio * min_emissions + (1 - ratio) * max_emissions) * (sum(load1) + sum(load2)) * hours_per_time_step
+    network.add("GlobalConstraint", name="co2_budget", sense=sense, constant=quota)
+
+    PyPSAStudyConverter(
+        pypsa_network=network,
+        study_dir=current_dir / "tmp" / "granularity_decoupled_objective",
+        series_file_format=".tsv",
+    ).to_gems_study()
+    network.optimize()
+    assert math.isclose(
+        network.objective + network.objective_constant,
+        get_gems_study_objective("granularity_decoupled_objective"),
+        rel_tol=1e-6,
+    )

@@ -42,6 +42,8 @@ class PyPSARegister:
                 "sign": "sign",
                 "efficiency": "efficiency",
                 "co2_emissions": "emission_factor",
+                "hours_per_time_step": "hours_per_time_step",
+                "objective_weighting": "objective_weighting",
             },
             {"bus": ("p_balance_port", "p_balance_port")},
         )
@@ -90,6 +92,7 @@ class PyPSARegister:
                 "p_max_pu": "p_max_pu",
                 "marginal_cost": "marginal_cost",
                 "capital_cost": "capital_cost",
+                "objective_weighting": "objective_weighting",
             },
             {
                 "bus0": ("p0_port", "p_balance_port"),
@@ -118,6 +121,8 @@ class PyPSARegister:
                 "spill_cost": "spill_cost",
                 "inflow": "inflow",
                 "co2_emissions": "emission_factor",
+                "hours_per_time_step": "hours_per_time_step",
+                "objective_weighting": "objective_weighting",
             },
             {"bus": ("p_balance_port", "p_balance_port")},
         )
@@ -138,6 +143,8 @@ class PyPSARegister:
                 "capital_cost": "capital_cost",
                 "marginal_cost_storage": "marginal_cost_storage",
                 "co2_emissions": "emission_factor",
+                "hours_per_time_step": "hours_per_time_step",
+                "objective_weighting": "objective_weighting",
             },
             {"bus": ("p_balance_port", "p_balance_port")},
         )
