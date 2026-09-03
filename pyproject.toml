@@ -15,7 +15,7 @@ authors = [
     { name = "Thomas Bittar @tbittar" },
     { name = "Antoine Oustry @aoustry"}
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "pandas>=2.2.3",
     "polars>=0.20.0",
@@ -55,6 +55,17 @@ dev = [
     "types-PyYAML>=6.0.0",
     "gemspy==0.1.3",
     "ipykernel>=7.3.0",
+]
+
+[tool.uv]
+# antares-craft 0.15.1 (and 0.17) still declare pandas<3; PyPSA 1.3.0 requires pandas>=3.
+# This override is required for uv to resolve both pins. Restrict resolution to
+# platforms we actually run (CI is Ubuntu; skip Windows ARM64 / emscripten forks).
+override-dependencies = ["pandas>=3.0"]
+environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'darwin'",
+    "sys_platform == 'win32' and platform_machine != 'ARM64'",
 ]
 
 [tool.setuptools.packages.find]
