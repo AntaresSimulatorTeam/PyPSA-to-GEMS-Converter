@@ -37,10 +37,10 @@ This writer builds a "hybrid" study to get the best of both, validated end-to-en
 3. Set nb_years (Monte-Carlo years) in generaldata.ini, via antares-craft, to the
    number of scenarios declared by the GEMS/PyPSA study, so Antares' own MC-year loop
    lines up with the GEMS scenario axis.
-4. Add resolution-mode: benders-decomposition to optim-config.yml. This is required
-   by antares-solver's hybrid loader for ANY model with an investment-style variable --
-   even non-extendable (p_nom_extendable=False) generators declare p_nom as a
-   "master-and-subproblems" decomposition variable in pypsa_models.yml (see
+4. Copy optim-config.yml as-is. Its ``resolution-mode: benders-decomposition`` is
+   required by antares-solver's hybrid loader for ANY model with an investment-style
+   variable -- even non-extendable (p_nom_extendable=False) generators declare p_nom
+   as a "master-and-subproblems" decomposition variable in pypsa_models.yml (see
    resources/optim-config.yml) -- so this applies even though this writer is only
    ever invoked for non-investment studies (see PyPSAStudyConverter._has_extendable_capacity).
    Without it, the solver refuses to load with "Scenario-independent variables are not
@@ -112,6 +112,8 @@ class AntaresHybridStudyWriter:
         study.create_area(
             "virtual_area",
             properties=antares_craft.AreaProperties(
+                energy_cost_unsupplied=0.0,
+                energy_cost_spilled=0.0,
                 non_dispatch_power=False,
                 dispatch_hydro_power=False,
                 other_dispatch_power=False,
@@ -160,7 +162,7 @@ class AntaresHybridStudyWriter:
         # Tag every component with the same scenario-group and add an identity
         # modeler-scenariobuilder.dat (MC year i -> data-series column i+1), so
         # antares-solver picks a distinct data-series column per MC year instead of
-        # silently reusing column 0 for every year (see module docstring, step 5).
+        # silently reusing column 1 for every year (see module docstring, step 5).
         system_yml_path = antares_input / "system.yml"
         with system_yml_path.open() as f:
             system_data: dict[str, Any] = yaml.safe_load(f)

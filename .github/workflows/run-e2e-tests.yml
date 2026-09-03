@@ -7,6 +7,11 @@ on:
         description: 'Antares Simulator version to test against'
         required: true
         type: string
+      antares_xpansion_version:
+        description: 'Antares Xpansion version to test against (leave empty to use dependencies.json)'
+        required: false
+        type: string
+        default: ''
       pypsa_version:
         description: 'PyPSA version to override the pinned version (leave empty to use pinned)'
         required: false
@@ -19,7 +24,7 @@ on:
         default: 'e2e-test-failures'
     outputs:
       test_outcome:
-        description: 'Outcome of the E2E test run (success or failure)'
+        description: 'Outcome of the E2E test run'
         value: ${{ jobs.e2e.outputs.test_outcome }}
 
 jobs:
@@ -37,6 +42,8 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           python-version: '3.11'
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
 
       - name: Install dependencies
         run: uv sync --frozen --group dev
@@ -45,10 +52,10 @@ jobs:
         if: inputs.pypsa_version != ''
         run: uv pip install "pypsa==${{ inputs.pypsa_version }}"
 
-      - name: Install Open MPI
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y openmpi-bin libopenmpi-dev
+          sudo apt-get install -y openmpi-bin libopenmpi-dev coinor-cbc
 
       - name: Download Antares release
         run: |
@@ -80,13 +87,24 @@ jobs:
           VERSION="${{ steps.xpansion.outputs.version }}"
           tar -xzf "antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
 
-      - name: Run end-to-end tests
+      - name: Run end-to-end tests (Antares Modeler v${{ inputs.antares_version }})
         id: run_tests
-        run: uv run pytest tests/e2e/ -v -s --log-cli-level=INFO --tb=short -rA
+        run: >
+          uv run pytest
+          tests/e2e/
+          -v -s --log-cli-level=INFO --tb=short -rA
+        continue-on-error: true
+
+      - name: Run end-to-end tests (Antares Xpansion v${{ inputs.antares_xpansion_version }})
+        id: run_tests_xpansion
+        run: >
+          uv run pytest
+          tests/e2e/
+          -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
 
       - name: Upload test artifacts on failure
-        if: steps.run_tests.outcome == 'failure'
+        if: steps.run_tests.outcome == 'failure' || steps.run_tests_xpansion.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
@@ -106,5 +124,5 @@ jobs:
           rm -rf "antaresXpansion-${XPANSION_VERSION}-ubuntu-22.04"
 
       - name: Fail job if tests failed
-        if: steps.run_tests.outcome == 'failure'
+        if: steps.run_tests.outcome == 'failure' || steps.run_tests_xpansion.outcome == 'failure'
         run: exit 1

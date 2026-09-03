@@ -12,6 +12,7 @@
 import copy
 import logging
 import math
+import shutil
 from pathlib import Path
 
 from pypsa import Network
@@ -32,7 +33,7 @@ _EXTENDABLE_CAPACITY_FLAGS: dict[str, str] = {
     "links": "p_nom_extendable",
     "storage_units": "p_nom_extendable",
     "stores": "e_nom_extendable",
-    # Currently not processed
+    # For consideration, currently not processed
     # "lines": "s_nom_extendable",
     # "transformers": "s_nom_extendable",
 }
@@ -51,7 +52,7 @@ class PyPSAStudyConverter:
         object is never mutated. Note: do not pass a network that has been optimized
         (network.optimize()), as it contains non-copyable solver state (e.g. HiGHS).
 
-        Logging uses the logger named `pypsa_to_gems_converter. To see INFO/DEBUG
+        Logging uses the logger named ``pypsa_to_gems_converter``. To see INFO/DEBUG
         messages, configure the standard library (e.g. ``logging.basicConfig``) or attach
         handlers to that logger or the root logger.
         """
@@ -62,17 +63,30 @@ class PyPSAStudyConverter:
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
         self.pypsa_network, self.scenario_weightings = determine_pypsa_study_type(self.pypsa_network)
-        self._validate_scenario_weightings()
         self.solver_name = solver_name
+        self.is_investment_study = self._has_extendable_capacity()
+
+        if self.is_investment_study:
+            # Benders / Xpansion path: extendable capacity, regardless of scenario count.
+            self._validate_xpansion_solver()
+        elif len(self.scenario_weightings) > 1:
+            # Operational multi-scenario path: GemsPy expec() is still unweighted 1/N.
+            self._validate_scenario_weightings()
 
         # Preprocess the network
         self.pypsa_network = PyPSAPreprocessor(self.pypsa_network).network_preprocessing()
         # Register the PyPSA components and global constraints
         self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(self.pypsa_network).register()
 
+    def _validate_xpansion_solver(self) -> None:
+        """Investment studies are solved end-to-end via the antares-xpansion-launcher
+        GEMS workflow, which only supports the 'coin' and 'xpress' solvers."""
+        if self.solver_name.lower() not in {"coin", "xpress"}:
+            raise ValueError("Investment studies support only 'coin' and 'xpress' solvers.")
+
     def _validate_scenario_weightings(self) -> None:
         """
-        Multi-scenario studies currently require every scenario to carry the SAME weight.
+        Multi-scenario, non-investment studies currently require every scenario to carry the SAME weight.
         Because of GEMSPy behavior, 1/N where N is the number of scenarios.
         """
         weights = list(self.scenario_weightings.values())
@@ -81,7 +95,7 @@ class PyPSAStudyConverter:
         reference = weights[0]
         if not all(math.isclose(w, reference, rel_tol=1e-9, abs_tol=1e-12) for w in weights):
             raise ValueError(
-                "Multi-scenario studies currently require every scenario to have the same "
+                "Multi-scenario, non-investment studies currently require every scenario to have the same "
                 f"weight, but got unequal weights: {self.scenario_weightings!r}. GemsPy's "
                 "expec() operator computes an unweighted average across scenarios, so "
                 "unequal weights would silently produce GemsPy/antares-modeler results that "
@@ -95,8 +109,8 @@ class PyPSAStudyConverter:
         Whether the network has at least one component with a free (extendable) capacity variable.
 
         This is what actually makes a study an investment problem, independently of scenario count:
-        p_nom/e_nom is a decision variable only when *_extendable=True.
-        Non-extendable components have their bounds fixed to the same value by the preprocessor
+        p_nom/e_nom is a decision variable only when *_extendable=True. Non-extendable components
+        have their bounds fixed to the same value by the preprocessor
         (see PyPSAPreprocessor._fix_capacity_non_extendable_attribute), so they never introduce a
         master variable.
         """
@@ -106,26 +120,60 @@ class PyPSAStudyConverter:
                 return True
         return False
 
-    def _write_multi_scenario_outputs(self, gems_study_writer: GemsStudyWriter) -> None:
+    def _write_execution_outputs(self, gems_study_writer: GemsStudyWriter) -> None:
         """
-        Extra outputs required when the study has more than one scenario.
+        Extra outputs that make the converted study runnable end-to-end.
 
-        - Investment (extendable capacity): write optim-config.yml for Benders / modeler.
-        - Operational (no extendable capacity): write a companion Antares hybrid study so
-          antares-solver can run every Monte-Carlo year. Only when the horizon is a
-          multiple of 168 hours (full weeks); otherwise skip the hybrid study (GEMS
-          systems/ is still written). Antares Economy truncates incomplete weeks
-          (see Antares StudyRuntimeInfos::initializeRangeLimits).
+        Branching is on *extendable capacity*, not on scenario count:
+
+        - Investment (any number of scenarios): write optim-config.yml and Xpansion
+          launcher inputs (settings.ini / yearly-weights). Also write a companion hybrid
+          Antares study when the horizon is a multiple of 168 hours so
+          antares-problem-generator can emit Benders master/slave MPS (one subproblem per
+          scenario / MC year).
+        - Operational + multi-scenario: write the same hybrid study so antares-solver can
+          run every Monte-Carlo year. Same 168-hour restriction (Antares Economy truncates
+          incomplete weeks; see StudyRuntimeInfos::initializeRangeLimits).
+        - Operational + single scenario: nothing extra; antares-modeler on systems/ is enough.
         """
+        if self.is_investment_study:
+            # optim-config.yml's model-decomposition is what lets the
+            # antares-xpansion-launcher GEMS workflow (antares-problem-generator + benders)
+            # run the master/subproblem Benders split end-to-end — including the 1-scenario case.
+            gems_study_writer.write_optim_config_yml()
+            gems_study_writer.prepare_xpansion_runnable_study(
+                solver_name=self.solver_name, scenario_weights=self.scenario_weightings
+            )
+            antares_hybrid_dir = self._write_antares_hybrid_study()
+            if antares_hybrid_dir is None:
+                return
+            expansion_src = self.study_dir / "systems" / "user" / "expansion"
+            if expansion_src.exists():
+                shutil.copytree(expansion_src, antares_hybrid_dir / "user" / "expansion", dirs_exist_ok=True)
+            self.logger.info(
+                "Xpansion-runnable hybrid study written to %s (run: antares-xpansion-launcher -i %s)",
+                antares_hybrid_dir,
+                antares_hybrid_dir,
+            )
+            return
+
         if len(self.scenario_weightings) <= 1:
             return
 
-        if self._has_extendable_capacity():
-            # Investment study: optim-config.yml's model-decomposition is what lets
-            # antares-xpansion/GemsPy run the master/subproblem Benders split.
-            gems_study_writer.write_optim_config_yml()
+        antares_hybrid_dir = self._write_antares_hybrid_study()
+        if antares_hybrid_dir is None:
             return
+        self.logger.info(
+            "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
+            antares_hybrid_dir,
+            antares_hybrid_dir,
+        )
 
+    def _write_antares_hybrid_study(self) -> Path | None:
+        """Write the companion classic Antares study used for Benders / MC years.
+
+        Returns None when the horizon is not a whole number of Antares weeks.
+        """
         n_timesteps = len(self.pypsa_network.snapshots)
         if n_timesteps % 168 != 0:
             self.logger.warning(
@@ -134,20 +182,12 @@ class PyPSAStudyConverter:
                 "GEMS systems/ is still written.",
                 n_timesteps,
             )
-            return
-        # Multi-scenario operational study: antares-modeler invoked directly has no notion
-        # of Monte-Carlo years, so it silently only ever solves scenario 0. Emit a companion
-        # classic Antares study (trick validated in tests/e2e/test_hybrid_study_comparison.py)
-        # so `antares-solver -i <path>` solves every declared scenario.
-        antares_hybrid_dir = AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
+            return None
+
+        return AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
             gems_systems_dir=self.study_dir / "systems",
             n_timesteps=n_timesteps,
             n_scenarios=len(self.scenario_weightings),
-        )
-        self.logger.info(
-            "Antares-runnable hybrid study written to %s (run: antares-solver -i %s)",
-            antares_hybrid_dir,
-            antares_hybrid_dir,
         )
 
     def to_gems_study(self) -> None:
@@ -192,6 +232,5 @@ class PyPSAStudyConverter:
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
         gems_study_writer.write_antares_modeler_parameters_yml(len(self.pypsa_network.snapshots) - 1, self.solver_name)
 
-        # One scenario -> deterministic study, runnable by antares-modeler directly.
-        self._write_multi_scenario_outputs(gems_study_writer)
+        self._write_execution_outputs(gems_study_writer)
         self.logger.info("Study conversion completed!")

@@ -503,6 +503,163 @@ def get_results_path() -> Path:
     return Path("tmp") / "benchmark_results" / "all_studies_results.csv"
 
 
+def get_xpansion_results_path() -> Path:
+    """Get the path to the Xpansion-vs-PyPSA benchmark results CSV file."""
+    current_dir = Path().resolve()
+    for parent in [current_dir, *current_dir.parents]:
+        candidate = parent / "tmp" / "xpansion_benchmark_results" / "xpansion_scenario_results.csv"
+        if candidate.exists():
+            return candidate
+
+    return Path("tmp") / "xpansion_benchmark_results" / "xpansion_scenario_results.csv"
+
+
+def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None = None) -> pd.DataFrame:
+    """
+    Analyze and plot one Xpansion-vs-PyPSA benchmark row (same bar-chart style as
+    analyze_benchmark_study).
+    """
+    if results_file is None:
+        results_file = get_xpansion_results_path()
+    if not results_file.exists():
+        raise FileNotFoundError(f"Results file not found: {results_file}")
+
+    df_all = pd.read_csv(results_file)
+    if row_number < 0 or row_number >= len(df_all):
+        raise ValueError(f"Row number must be between 0 and {len(df_all) - 1}. Total rows: {len(df_all)}")
+
+    df = df_all.iloc[[row_number]].copy()
+    row = df.iloc[0]
+
+    def _n(val: Any, default: float = 0.0) -> float:
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return default
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
+    study_name = row.get("study_name", "N/A")
+    n_buses = int(_n(row.get("n_buses")))
+    n_scenarios = int(_n(row.get("n_scenarios")))
+    n_timesteps = int(_n(row.get("number_of_time_steps")))
+    status = row.get("xpansion_status", "N/A")
+    xpansion_time = _n(row.get("xpansion_total_time"))
+    pypsa_build = _n(row.get("pypsa_build_time"))
+    pypsa_solve = _n(row.get("pypsa_solve_time"))
+    pypsa_total = _n(row.get("pypsa_total_time"), pypsa_build + pypsa_solve)
+    xpansion_obj = _n(row.get("xpansion_objective_value"))
+    pypsa_obj = _n(row.get("pypsa_objective"))
+    n_cons_pypsa = int(_n(row.get("number_of_constraints_pypsa")))
+    n_vars_pypsa = int(_n(row.get("number_of_variables_pypsa")))
+    n_cons_xpansion = int(_n(row.get("number_of_constraints_xpansion")))
+    n_vars_xpansion = int(_n(row.get("number_of_variables_xpansion")))
+    has_xpansion_size = n_cons_xpansion > 0 or n_vars_xpansion > 0
+    speedup = (pypsa_total / xpansion_time) if xpansion_time > 0 else float("nan")
+
+    print("=" * 80)
+    print(f"XPANSION BENCHMARK ANALYSIS - ROW {row_number}")
+    print("=" * 80)
+    print("\nNETWORK INFORMATION:")
+    print(f"  Study: {study_name}")
+    print(f"  Buses: {n_buses}")
+    print(f"  Time steps: {n_timesteps}")
+    print(f"  Scenarios: {n_scenarios}")
+    print(f"  Antares Xpansion: {row.get('antares_xpansion_version', 'N/A')}")
+    print(f"  GemsPy: {row.get('gemspy_version', 'N/A')}")
+    print("\nTIMING:")
+    print(f"  Xpansion status: {status}")
+    print(f"  Xpansion total: {xpansion_time:.4f} s")
+    print(f"  PyPSA build: {pypsa_build:.4f} s")
+    print(f"  PyPSA solve: {pypsa_solve:.4f} s")
+    print(f"  PyPSA total: {pypsa_total:.4f} s")
+    if speedup == speedup:  # not NaN
+        faster = "Xpansion" if speedup > 1 else "PyPSA"
+        print(f"  Speedup (PyPSA / Xpansion): {speedup:.2f}x ({faster} faster)")
+    print("\nOBJECTIVE:")
+    print(f"  Xpansion: {xpansion_obj:.6e}")
+    print(f"  PyPSA:    {pypsa_obj:.6e}")
+    if pypsa_obj != 0:
+        print(f"  Rel. gap: {abs(xpansion_obj - pypsa_obj) / abs(pypsa_obj) * 100:.2f} %")
+    print("\nMODEL SIZE:")
+    print(f"  PyPSA constraints / variables:    {n_cons_pypsa:,} / {n_vars_pypsa:,}")
+    if has_xpansion_size:
+        print(f"  Xpansion constraints / variables: {n_cons_xpansion:,} / {n_vars_xpansion:,}")
+        print(
+            f"    (master {int(_n(row.get('number_of_constraints_xpansion_master'))):,} / "
+            f"{int(_n(row.get('number_of_variables_xpansion_master'))):,}; "
+            f"{int(_n(row.get('number_of_xpansion_subproblems')))} × one subproblem "
+            f"{int(_n(row.get('number_of_constraints_xpansion_subproblem'))):,} / "
+            f"{int(_n(row.get('number_of_variables_xpansion_subproblem'))):,})"
+        )
+    else:
+        print("  Xpansion constraints / variables: N/A (re-run benchmark to capture MPS sizes)")
+    print("\nSOLVER INFORMATION:")
+    print(f"  Solver: {row.get('pypsa_solver_name', 'N/A')} (LP)")
+    print("\n" + "=" * 80)
+
+    categories = ["PyPSA", "Antares-Xpansion"]
+    colors = ["steelblue", "coral"]
+
+    fig, axes = plt.subplots(1, 4, figsize=(18, 5))
+
+    # 1. Objective
+    ax = axes[0]
+    objs = [pypsa_obj, xpansion_obj]
+    bars = ax.bar(categories, objs, color=colors, alpha=0.7, edgecolor="black")
+    ax.set_ylabel("Objective Value", fontsize=11)
+    ax.set_title("Objective Value Comparison", fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(bars, objs):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:.2e}", ha="center", va="bottom", fontsize=9
+        )
+
+    # 2. Time (stacked build+solve for PyPSA)
+    ax = axes[1]
+    ax.bar(["PyPSA"], [pypsa_build], color="#2e86ab", alpha=0.8, edgecolor="black", label="Build")
+    ax.bar(
+        ["PyPSA"], [pypsa_solve], bottom=[pypsa_build], color="steelblue", alpha=0.8, edgecolor="black", label="Solve"
+    )
+    ax.bar(["Antares-Xpansion"], [xpansion_time], color="coral", alpha=0.7, edgecolor="black", label="Total")
+    ax.set_ylabel("Time (seconds)", fontsize=11)
+    ax.set_title("Time Comparison", fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.text(0, pypsa_total, f"{pypsa_total:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax.text(1, xpansion_time, f"{xpansion_time:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax.legend(fontsize=9)
+
+    # 3. Constraints
+    ax = axes[2]
+    cons_vals = [n_cons_pypsa, n_cons_xpansion]
+    bars = ax.bar(categories, cons_vals, color=colors, alpha=0.7, edgecolor="black")
+    ax.set_ylabel("Number of Constraints", fontsize=11)
+    ax.set_title("Constraints Comparison", fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(bars, cons_vals):
+        ax.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:,}", ha="center", va="bottom", fontsize=9)
+
+    # 4. Variables
+    ax = axes[3]
+    vars_vals = [n_vars_pypsa, n_vars_xpansion]
+    bars = ax.bar(categories, vars_vals, color=colors, alpha=0.7, edgecolor="black")
+    ax.set_ylabel("Number of Variables", fontsize=11)
+    ax.set_title("Variables Comparison", fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, alpha=0.3, axis="y")
+    for bar, val in zip(bars, vars_vals):
+        ax.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height(), f"{val:,}", ha="center", va="bottom", fontsize=9)
+
+    fig.suptitle(
+        f"{study_name} — {n_scenarios} scenarios, {n_buses} buses × {n_timesteps} timesteps",
+        fontsize=13,
+        fontweight="bold",
+    )
+    fig.tight_layout()
+    plt.show()
+
+    return df
+
+
 def get_objective_value(file_name: Path) -> float:
     match file_name.suffix:
         case ".csv":
