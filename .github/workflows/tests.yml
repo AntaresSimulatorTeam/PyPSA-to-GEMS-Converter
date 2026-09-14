@@ -12,7 +12,8 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-22.04
     outputs:
-      antares_version: ${{ steps.read_version.outputs.version }}
+      antares_version: ${{ steps.read_versions.outputs.antares_version }}
+      antares_xpansion_version: ${{ steps.read_versions.outputs.antares_xpansion_version }}
 
     steps:
       - name: Checkout repository
@@ -31,11 +32,13 @@ jobs:
         run: |
           uv run pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO --tb=short -rA
 
-      - name: Resolve Antares version for downstream E2E job
-        id: read_version
+      - name: Resolve Antares versions for downstream E2E job
+        id: read_versions
         run: |
-          VERSION=$(jq -r '.antares_version' dependencies.json)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          ANTARES_VERSION=$(jq -r '.antares_version' dependencies.json)
+          XPANSION_VERSION=$(jq -r '.antares_xpansion_version' dependencies.json)
+          echo "antares_version=$ANTARES_VERSION" >> "$GITHUB_OUTPUT"
+          echo "antares_xpansion_version=$XPANSION_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Upload test artifacts on failure
         if: failure()
@@ -52,4 +55,5 @@ jobs:
     uses: ./.github/workflows/run-e2e-tests.yml
     with:
       antares_version: ${{ needs.unit-tests.outputs.antares_version }}
+      antares_xpansion_version: ${{ needs.unit-tests.outputs.antares_xpansion_version }}
       artifact_name: e2e-test-failures

@@ -21,11 +21,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-from gems.optim_config.parsing import OptimConfig, validate_optim_config
-from gems.simulation.optimization import build_problem
-from gems.simulation.simulation_table import SimulationTableBuilder
-from gems.simulation.time_block import TimeBlock
-from gems.study.folder import load_study
+from gems_craft.optim_config.parsing import OptimConfig, validate_optim_config
+from gems_craft.study.folder import load_study
+from gems_runner.simulation.optimization import build_problem
+from gems_runner.simulation.simulation_table import SimulationTableBuilder
+from gems_runner.simulation.time_block import TimeBlock
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin, get_antares_version
 from src.pypsa_converter import PyPSAStudyConverter

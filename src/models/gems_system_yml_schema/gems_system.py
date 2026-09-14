@@ -57,7 +57,7 @@ class GemsSystem(ModifiedBaseModel):
 
     def to_dict(self, by_alias: bool = True, exclude_unset: bool = True) -> dict[str, Any]:
         """Convert GemsSystem object to dictionary, handling PrivateAttr fields and nested Pydantic models."""
-        return {
+        data: dict[str, Any] = {
             "id": self._id,
             "model_libraries": self._model_libraries,
             "components": [
@@ -70,10 +70,16 @@ class GemsSystem(ModifiedBaseModel):
             ]
             if self._connections
             else None,
-            "area_connections": [
-                area_conn.model_dump(by_alias=by_alias, exclude_unset=exclude_unset)
-                for area_conn in (self._area_connections or [])
-            ]
-            if self._area_connections
-            else None,
         }
+        # area_connections is a hybrid-study-only field (see gems_craft_hybrid.study.parsing
+        # / HybridSystemSchema).
+        # The plain (non-hybrid) SystemSchema used by gemspy>=0.1.3
+        # forbids unknown/extra keys, so it must be omitted entirely here rather than written
+        # as area_connections: null -- only the antares-solver hybrid-study trick (see
+        # tests/e2e/test_hybrid_study_comparison.py) actually populates this field.
+        if self._area_connections:
+            data["area_connections"] = [
+                area_conn.model_dump(by_alias=by_alias, exclude_unset=exclude_unset)
+                for area_conn in self._area_connections
+            ]
+        return data

@@ -71,10 +71,13 @@ def base_network() -> Network:
 
 @pytest.fixture()
 def scenario_network(base_network: Network) -> Network:
+    # Equal weights: PyPSAStudyConverter requires every scenario to carry the same
+    # weight (see PyPSAStudyConverter._validate_scenario_weightings) -- this test only
+    # exercises data-series writing/registration, not weight-dependent results.
     scenarios = {
-        "low": 0.3,
-        "medium": 0.5,
-        "high": 0.2,
+        "low": 1 / 3,
+        "medium": 1 / 3,
+        "high": 1 / 3,
     }
 
     if hasattr(base_network, "has_scenarios"):
@@ -91,11 +94,7 @@ def scenario_network(base_network: Network) -> Network:
 
 def test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides(scenario_network: Network) -> None:
     logger.info("Running test_write_and_register_time_series_two_stage_stochastic_with_scenario_overrides")
-    for key, value in scenario_network.components.generators.static.p_max_pu.items():
-        if key == ("low", "gen3"):
-            scenario_network.components.generators.static.p_max_pu.loc[key] = value * 0.2  # type: ignore
-
-    print(scenario_network.components.generators.static.p_max_pu)
+    scenario_network.generators.loc[("low", "gen3"), "p_max_pu"] *= 0.2
 
     PyPSAStudyConverter(
         scenario_network,
