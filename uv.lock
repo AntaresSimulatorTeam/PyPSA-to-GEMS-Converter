@@ -1490,6 +1490,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "types-pyyaml" },
+    { name = "xpress" },
 ]
 
 [package.metadata]
@@ -1515,6 +1516,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.9.6" },
     { name = "types-pyyaml", specifier = ">=6.0.0" },
+    { name = "xpress", specifier = ">=9.9.1" },
 ]
 
 [[package]]
@@ -1971,6 +1973,36 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/4e/0b/bbb76e05c8e2099baf90e259c29cafe6a525524b1d1da8bfbc39577c043e/xarray-2025.9.0.tar.gz", hash = "sha256:7dd6816fe0062c49c5e9370dd483843bc13e5ed80a47a9ff10baff2b51e070fb", size = 3040318, upload-time = "2025-09-04T04:20:26.296Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8d/f0/73c24457c941b8b08f7d090853e40f4b2cdde88b5da721f3f28e98df77c9/xarray-2025.9.0-py3-none-any.whl", hash = "sha256:79f0e25fb39571f612526ee998ee5404d8725a1db3951aabffdb287388885df0", size = 1349595, upload-time = "2025-09-04T04:20:24.36Z" },
+]
+
+[[package]]
+name = "xpress"
+version = "9.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "xpresslibs" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/fd/67d251dab0220f32c0f8a7b8ab0a8ec137a1468950ca0e8756347ddaa4a0/xpress-9.9.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:fbe7a3abe2d7f621e9bcaa0832ae6d447d6a79df4ac458bf0437f0283a1609ec", size = 1575862, upload-time = "2026-07-03T16:04:11.685Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/c0/bb05bc13684f7ff41bd7669d4b79743123b7c6b3da22da585e5d69132db4/xpress-9.9.1-cp311-cp311-manylinux1_x86_64.whl", hash = "sha256:bf0b7e1aa3a0aea961003a3a78520ac9d7b3133c5daac6324711b5ef9f8dbdcd", size = 1663175, upload-time = "2026-07-03T16:03:52.184Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/2b/b05f4341c9293d9b1c7cb32b16080fe3257670abb4ba5b6b3324cc9d5f27/xpress-9.9.1-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:07aa62f8c97799b021cfaa0ae8bd2e8bf0bff2a0a2a6d14cec236ea60e96b267", size = 1603720, upload-time = "2026-07-03T16:03:32.05Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/f3/369ea8b0c5beecfc1014704b88701ea33b227ef0171ca2c1a296c9d03aaf/xpress-9.9.1-cp311-cp311-win_amd64.whl", hash = "sha256:95d48103a6592edc86677611883a46b765b0f2d6828f9f06efba65644b0d04e0", size = 1445393, upload-time = "2026-07-03T16:04:32.116Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/cc/f9a23ab298d09919949a57933b803db7acea76d58c30822373341fb86ca4/xpress-9.9.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:f01135ad1343382f0db23ec927fffc2b6d26a04b57b990706b569d979281b854", size = 1576199, upload-time = "2026-07-03T16:04:15.257Z" },
+    { url = "https://files.pythonhosted.org/packages/10/34/b9489b2e84d6adfb34275190982942ad28b226aed1edf88ef3f22d03ec2c/xpress-9.9.1-cp312-cp312-manylinux1_x86_64.whl", hash = "sha256:22a813f50e28b83cd52ea0d6f9e8e5a95a4d4b161010e0621e8b989caefd29c2", size = 1665219, upload-time = "2026-07-03T16:03:55.512Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/51/85a91ff5c76101f7a0d21dfd55921ac41b9667aef02bc28ab07915d0f41e/xpress-9.9.1-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:36b11afaddd7d72b196d967c4eb84a33d9532c72f5e0942e6a2881a207918c00", size = 1596294, upload-time = "2026-07-03T16:03:35.179Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/1d/cf256ff54fbeb2d8a11bf729330ffd704985b5e8504641cacb8fa4186e60/xpress-9.9.1-cp312-cp312-win_amd64.whl", hash = "sha256:74e029f6384e5c9155a45dcc729cdd6d1e6d88e81127efcb731bce94b94f529f", size = 1452114, upload-time = "2026-07-03T16:04:35.431Z" },
+]
+
+[[package]]
+name = "xpresslibs"
+version = "9.9.1"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/33/b07aa8819df4790fbb4bda88a39b220697dc672a4907573207183e9302c6/xpresslibs-9.9.1-py3-none-macosx_14_0_arm64.whl", hash = "sha256:474fa4089ebc318fcdf87ade969a93a9e045bbac6f156edd50e7e3b248a8170d", size = 16077785, upload-time = "2026-07-03T09:26:02.997Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/97/59563a1af85840c8bea7b7675793fb16d54f7d01107138228e80fe4792ab/xpresslibs-9.9.1-py3-none-manylinux1_x86_64.whl", hash = "sha256:b72de9e5e9ce50fc0a80eb40cd6a1103d2f49c64e9b1ca98622fc093b774a111", size = 50580757, upload-time = "2026-07-03T09:28:36.234Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/2a/27c3d209eb8155a79ca8aa6fb0b6fc186669299c443757687fa1908eb495/xpresslibs-9.9.1-py3-none-manylinux2014_aarch64.whl", hash = "sha256:04ee3738e071cac81638eeec84781af465cf24fdf4e9495c4351131da5c0292b", size = 20787592, upload-time = "2026-07-03T09:27:19.516Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/9d/b4c3aaebc6fea5af13d9fe7612f5fbe5a23ae4550cbf0b1e60a9e8122512/xpresslibs-9.9.1-py3-none-win_amd64.whl", hash = "sha256:e7ee1a0fd1d03ec85a1eaa5c945fa5db808e5f7604c765d353b70d5f5f6c2129", size = 49081235, upload-time = "2026-07-03T09:30:00.165Z" },
 ]
 
 [[package]]
