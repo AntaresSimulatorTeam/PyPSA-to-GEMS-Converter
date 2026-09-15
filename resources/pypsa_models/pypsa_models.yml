@@ -309,7 +309,6 @@ library:
         - id: max_production
           expression: sum(p) <= e_sum_max
         - id: status_transition
-          #Relies on the same cyclic [t-1] wraparound already used by storage_unit/store state-of-charge dynamics.
           expression: status = status[t-1] + start_up - shut_down
       objective-contributions:
         - id: capital_objective
@@ -687,7 +686,6 @@ library:
         - id: p0_upper_cap
           expression: p0 <= p_max_pu * p_nom
         - id: status_transition
-          #Relies on the same cyclic [t-1] wraparound already used by storage_unit/store state-of-charge dynamics.
           expression: status = status[t-1] + start_up - shut_down
       objective-contributions:
         - id: capital_objective
