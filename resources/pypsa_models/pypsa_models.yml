@@ -151,16 +151,9 @@ library:
         - id: efficiency
           time-dependent: true
           scenario-dependent: true
-        - id: committable
-          #Unit commitment switch: 0 = LP dispatch (status forced on), 1 = MILP on/off with start-up/shut-down cost.
-          time-dependent: false
-          scenario-dependent: false
-        - id: start_up_cost
-          time-dependent: false
-          scenario-dependent: false
-        - id: shut_down_cost
-          time-dependent: false
-          scenario-dependent: false
+        #- id: committable # Parameter not instantiated for now: see generator_committable model
+        #- id: start_up_cost # Parameter not instantiated for now: see generator_committable model
+        #- id: shut_down_cost # Parameter not instantiated for now: see generator_committable model
         #- id: stand_by_cost # Parameter not instantiated for now
         #- id: min_up_time # Parameter not instantiated for now
         #- id: min_down_time # Parameter not instantiated for now
@@ -184,21 +177,6 @@ library:
           scenario-dependent: false
         - id: p
         #- id: q
-        - id: status
-          #Unit on/off state. Forced to 1 (always on) when committable=0, so non-committable generators are unaffected.
-          lower-bound: 1 - committable
-          upper-bound: 1
-          variable-type: binary
-        - id: start_up
-          #Forced to 0 when committable=0.
-          lower-bound: 0
-          upper-bound: committable
-          variable-type: binary
-        - id: shut_down
-          #Forced to 0 when committable=0.
-          lower-bound: 0
-          upper-bound: committable
-          variable-type: binary
       ports:
         - id: p_balance_port
           type: flow
@@ -216,6 +194,107 @@ library:
         #- port: q_balance_port
         #  field: flow
         #  definition: q*sign
+      constraints:
+        - id: min_dispatch
+          expression: p >=p_nom * p_min_pu
+        - id: max_dispatch
+          expression: p <=p_nom * p_max_pu
+        - id: min_production
+          expression: sum(p) >= e_sum_min
+        - id: max_production
+          expression: sum(p) <= e_sum_max
+      objective-contributions:
+        - id: capital_objective
+          expression: p_nom * capital_cost
+        - id: operational_objective
+          expression: sum(marginal_cost * p)
+
+    - id: generator_committable
+      #Unit commitment variant of generator (Phase 1: on/off state + start-up/shut-down cost only).
+      #See generator for the base LP model this extends; kept as a separate model (rather than a
+      #committable switch inside generator) so plain LP generators carry no UC variables/constraints
+      #and are numerically and structurally identical to before this feature existed.
+      parameters:
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: e_sum_min
+          time-dependent: false
+          scenario-dependent: true
+        - id: e_sum_max
+          time-dependent: false
+          scenario-dependent: true
+        - id: sign # default value = 1
+          time-dependent: false
+          scenario-dependent: false
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: start_up_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: shut_down_cost
+          time-dependent: false
+          scenario-dependent: false
+        #- id: stand_by_cost # Parameter not instantiated for now
+        #- id: min_up_time # Parameter not instantiated for now
+        #- id: min_down_time # Parameter not instantiated for now
+        #- id: up_time_before # Parameter not instantiated for now
+        #- id: down_time_before # Parameter not instantiated for now
+        #- id: ramp_limit_start_up # Parameter not instantiated for now
+        #- id: ramp_limit_shut_down # Parameter not instantiated for now
+        # Additional parameters that are not stored in the PyPSA object, but in a Carrier object
+        - id: emission_factor
+          time-dependent: false
+          scenario-dependent: true
+
+      variables:
+        - id: p_nom
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p
+        - id: status
+          #Unit on/off state.
+          lower-bound: 0
+          upper-bound: 1
+          variable-type: boolean
+        - id: start_up
+          lower-bound: 0
+          upper-bound: 1
+          variable-type: boolean
+        - id: shut_down
+          lower-bound: 0
+          upper-bound: 1
+          variable-type: boolean
+      ports:
+        - id: p_balance_port
+          type: flow
+        - id: emission_port
+          type: emission
+      port-field-definitions:
+        - port: p_balance_port
+          field: power
+          definition: p*sign
+        - port: emission_port
+          field: emission
+          definition: p*emission_factor/efficiency
       constraints:
         - id: min_dispatch
           #Big-M linearization: p_nom and status are both decision variables, so "p_nom * status"
@@ -477,16 +556,9 @@ library:
         #- id: stand_by_cost # Parameter not instantiated for now
         #- id: length # Parameter not instantiated for now
         #- id: terrain_factor # Parameter not instantiated for now
-        - id: committable
-          #Unit commitment switch: 0 = LP dispatch (status forced on), 1 = MILP on/off with start-up/shut-down cost.
-          time-dependent: false
-          scenario-dependent: false
-        - id: start_up_cost
-          time-dependent: false
-          scenario-dependent: false
-        - id: shut_down_cost
-          time-dependent: false
-          scenario-dependent: false
+        #- id: committable # Parameter not instantiated for now: see link_committable model
+        #- id: start_up_cost # Parameter not instantiated for now: see link_committable model
+        #- id: shut_down_cost # Parameter not instantiated for now: see link_committable model
         #- id: min_up_time # Parameter not instantiated for now
         #- id: min_down_time # Parameter not instantiated for now
         #- id: up_time_before # Parameter not instantiated for now
@@ -503,21 +575,6 @@ library:
           upper-bound: p_nom_max
         - id: p0
         #- id: p_nom_opt
-        - id: status
-          #Unit on/off state. Forced to 1 (always on) when committable=0, so non-committable links are unaffected.
-          lower-bound: 1 - committable
-          upper-bound: 1
-          variable-type: binary
-        - id: start_up
-          #Forced to 0 when committable=0.
-          lower-bound: 0
-          upper-bound: committable
-          variable-type: binary
-        - id: shut_down
-          #Forced to 0 when committable=0.
-          lower-bound: 0
-          upper-bound: committable
-          variable-type: binary
       ports:
         - id: p0_port
           type: flow
@@ -537,6 +594,89 @@ library:
         #- port: q_balance_port
         #  field: flow
         #  definition: q
+      constraints:
+        - id: p0_upper
+          expression: p0 <= p_max_pu * p_nom
+        - id: p0_lower
+          expression: p0 >= p_min_pu * p_nom
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * p_nom
+        - id: operational_objective
+          expression: sum(marginal_cost * p0)
+
+    - id: link_committable
+      #Unit commitment variant of link (Phase 1: on/off state + start-up/shut-down cost only).
+      #See link for the base LP model this extends; kept as a separate model (rather than a
+      #committable switch inside link) so plain LP links carry no UC variables/constraints and
+      #are numerically and structurally identical to before this feature existed.
+      parameters:
+        - id: efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: start_up_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: shut_down_cost
+          time-dependent: false
+          scenario-dependent: false
+        #- id: stand_by_cost # Parameter not instantiated for now
+        #- id: min_up_time # Parameter not instantiated for now
+        #- id: min_down_time # Parameter not instantiated for now
+        #- id: up_time_before # Parameter not instantiated for now
+        #- id: down_time_before # Parameter not instantiated for now
+        #- id: ramp_limit_start_up # Parameter not instantiated for now
+        #- id: ramp_limit_shut_down # Parameter not instantiated for now
+      variables:
+        - id: p_nom
+          time-dependent: false
+          scenario-dependent: false
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+        - id: p0
+        - id: status
+          #Unit on/off state.
+          lower-bound: 0
+          upper-bound: 1
+          variable-type: boolean
+        - id: start_up
+          lower-bound: 0
+          upper-bound: 1
+          variable-type: boolean
+        - id: shut_down
+          lower-bound: 0
+          upper-bound: 1
+          variable-type: boolean
+      ports:
+        - id: p0_port
+          type: flow
+        - id: p1_port
+          type: flow
+      port-field-definitions:
+        - port: p0_port
+          field: power
+          definition: -p0
+        - port: p1_port
+          field: power
+          definition: efficiency * p0
       constraints:
         - id: p0_lower
           #Big-M linearization: p_nom and status are both decision variables, so "p_nom * status"
