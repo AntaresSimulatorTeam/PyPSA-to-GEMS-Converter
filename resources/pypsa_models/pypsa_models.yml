@@ -17,7 +17,7 @@
 
 library:
   id: pypsa_models
-  version: "2.0.1"
+  version: "2.1.0"
   description: PyPSA model library 
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
@@ -151,9 +151,16 @@ library:
         - id: efficiency
           time-dependent: true
           scenario-dependent: true
-        #- id: committable # Parameter not instantiated for now
-        #- id: start_up_cost # Parameter not instantiated for now
-        #- id: shut_down_cost # Parameter not instantiated for now
+        - id: committable
+          #Unit commitment switch: 0 = LP dispatch (status forced on), 1 = MILP on/off with start-up/shut-down cost.
+          time-dependent: false
+          scenario-dependent: false
+        - id: start_up_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: shut_down_cost
+          time-dependent: false
+          scenario-dependent: false
         #- id: stand_by_cost # Parameter not instantiated for now
         #- id: min_up_time # Parameter not instantiated for now
         #- id: min_down_time # Parameter not instantiated for now
@@ -177,6 +184,21 @@ library:
           scenario-dependent: false
         - id: p
         #- id: q
+        - id: status
+          #Unit on/off state. Forced to 1 (always on) when committable=0, so non-committable generators are unaffected.
+          lower-bound: 1 - committable
+          upper-bound: 1
+          variable-type: binary
+        - id: start_up
+          #Forced to 0 when committable=0.
+          lower-bound: 0
+          upper-bound: committable
+          variable-type: binary
+        - id: shut_down
+          #Forced to 0 when committable=0.
+          lower-bound: 0
+          upper-bound: committable
+          variable-type: binary
       ports:
         - id: p_balance_port
           type: flow
@@ -196,18 +218,27 @@ library:
         #  definition: q*sign
       constraints:
         - id: min_dispatch
-          expression: p >=p_nom * p_min_pu
-        - id: max_dispatch
-          expression: p <=p_nom * p_max_pu
+          #Big-M linearization: p_nom and status are both decision variables, so "p_nom * status"
+          #would be a nonlinear (variable * variable) term, which GEMS disallows. M = p_nom_max.
+          expression: p >= p_nom * p_min_pu - p_nom_max * (1 - status)
+        - id: max_dispatch_bigm
+          expression: p <= p_nom_max * status
+        - id: max_dispatch_cap
+          expression: p <= p_nom * p_max_pu
         - id: min_production
           expression: sum(p) >= e_sum_min
         - id: max_production
           expression: sum(p) <= e_sum_max
+        - id: status_transition
+          #Relies on the same cyclic [t-1] wraparound already used by storage_unit/store state-of-charge dynamics.
+          expression: status = status[t-1] + start_up - shut_down
       objective-contributions:
         - id: capital_objective
           expression: p_nom * capital_cost
         - id: operational_objective
           expression: sum(marginal_cost * p)
+        - id: unit_commitment_objective
+          expression: sum(start_up_cost * start_up + shut_down_cost * shut_down)
 
     - id: line
       #Model for PyPSA line in DC LOPF.
@@ -448,9 +479,16 @@ library:
         #- id: stand_by_cost # Parameter not instantiated for now
         #- id: length # Parameter not instantiated for now
         #- id: terrain_factor # Parameter not instantiated for now
-        #- id: committable # Parameter not instantiated for now
-        #- id: start_up_cost # Parameter not instantiated for now
-        #- id: shut_down_cost # Parameter not instantiated for now
+        - id: committable
+          #Unit commitment switch: 0 = LP dispatch (status forced on), 1 = MILP on/off with start-up/shut-down cost.
+          time-dependent: false
+          scenario-dependent: false
+        - id: start_up_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: shut_down_cost
+          time-dependent: false
+          scenario-dependent: false
         #- id: min_up_time # Parameter not instantiated for now
         #- id: min_down_time # Parameter not instantiated for now
         #- id: up_time_before # Parameter not instantiated for now
@@ -467,9 +505,21 @@ library:
           upper-bound: p_nom_max
         - id: p0
         #- id: p_nom_opt
-        #- id: status
-        #- id: start_up
-        #- id: shut_down
+        - id: status
+          #Unit on/off state. Forced to 1 (always on) when committable=0, so non-committable links are unaffected.
+          lower-bound: 1 - committable
+          upper-bound: 1
+          variable-type: binary
+        - id: start_up
+          #Forced to 0 when committable=0.
+          lower-bound: 0
+          upper-bound: committable
+          variable-type: binary
+        - id: shut_down
+          #Forced to 0 when committable=0.
+          lower-bound: 0
+          upper-bound: committable
+          variable-type: binary
       ports:
         - id: p0_port
           type: flow
@@ -490,15 +540,24 @@ library:
         #  field: flow
         #  definition: q
       constraints:
-        - id: p0_upper
-          expression: p0 <= p_max_pu * p_nom
         - id: p0_lower
-          expression: p0 >= p_min_pu * p_nom
+          #Big-M linearization: p_nom and status are both decision variables, so "p_nom * status"
+          #would be a nonlinear (variable * variable) term, which GEMS disallows. M = p_nom_max.
+          expression: p0 >= p_min_pu * p_nom - p_nom_max * (1 - status)
+        - id: p0_upper_bigm
+          expression: p0 <= p_nom_max * status
+        - id: p0_upper_cap
+          expression: p0 <= p_max_pu * p_nom
+        - id: status_transition
+          #Relies on the same cyclic [t-1] wraparound already used by storage_unit/store state-of-charge dynamics.
+          expression: status = status[t-1] + start_up - shut_down
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
           expression: sum(marginal_cost * p0)
+        - id: unit_commitment_objective
+          expression: sum(start_up_cost * start_up + shut_down_cost * shut_down)
 
     - id: storage_unit
       #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
