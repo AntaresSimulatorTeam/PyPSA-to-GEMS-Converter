@@ -17,7 +17,7 @@
 
 library:
   id: pypsa_models
-  version: "2.0.1"
+  version: "2.1.0"
   description: PyPSA model library 
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
@@ -169,6 +169,20 @@ library:
           time-dependent: false
           scenario-dependent: true
 
+        # Time granularity parameters. Both are constant over time steps in the current converter,
+        # but declared time-dependent so that time-varying weightings can be supported later.
+        - id: hours_per_time_step
+          # Number of hours represented by one time step.
+          # Source: PyPSA n.snapshot_weightings.stores / .generators (the converter requires them to be equal).
+          time-dependent: true
+          scenario-dependent: false
+        - id: objective_weighting
+          # Number of hours a time step represents in the objective function; may differ from
+          # hours_per_time_step when operational costs are annualised over representative periods.
+          # Source: PyPSA n.snapshot_weightings.objective
+          time-dependent: true
+          scenario-dependent: false
+
       variables:
         - id: p_nom
           lower-bound: p_nom_min
@@ -190,7 +204,7 @@ library:
           definition: p*sign
         - port: emission_port
           field: emission
-          definition: p*emission_factor/efficiency
+          definition: p*emission_factor*hours_per_time_step/efficiency
         #- port: q_balance_port
         #  field: flow
         #  definition: q*sign
@@ -200,14 +214,14 @@ library:
         - id: max_dispatch
           expression: p <=p_nom * p_max_pu
         - id: min_production
-          expression: sum(p) >= e_sum_min
+          expression: sum(p * hours_per_time_step) >= e_sum_min
         - id: max_production
-          expression: sum(p) <= e_sum_max
+          expression: sum(p * hours_per_time_step) <= e_sum_max
       objective-contributions:
         - id: capital_objective
           expression: p_nom * capital_cost
         - id: operational_objective
-          expression: sum(marginal_cost * p)
+          expression: sum(objective_weighting * marginal_cost * p)
 
     - id: line
       #Model for PyPSA line in DC LOPF.
@@ -459,6 +473,13 @@ library:
         #- id: ramp_limit_down # Parameter not instantiated for now
         #- id: ramp_limit_start_up # Parameter not instantiated for now
         #- id: ramp_limit_shut_down # Parameter not instantiated for now
+        # Time granularity parameter. Constant over time steps in the current converter, but declared
+        # time-dependent so that time-varying weightings can be supported later.
+        - id: objective_weighting
+          # Number of hours a time step represents in the objective function.
+          # Source: PyPSA n.snapshot_weightings.objective
+          time-dependent: true
+          scenario-dependent: false
       variables:
         - id: p_nom
           time-dependent: false
@@ -498,7 +519,7 @@ library:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p0)
+          expression: sum(objective_weighting * marginal_cost * p0)
 
     - id: storage_unit
       #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
@@ -565,6 +586,19 @@ library:
         - id: emission_factor
           time-dependent: false
           scenario-dependent: true
+        # Time granularity parameters. Both are constant over time steps in the current converter,
+        # but declared time-dependent so that time-varying weightings can be supported later.
+        - id: hours_per_time_step
+          # Number of hours represented by one time step.
+          # Source: PyPSA n.snapshot_weightings.stores / .generators (the converter requires them to be equal).
+          time-dependent: true
+          scenario-dependent: false
+        - id: objective_weighting
+          # Number of hours a time step represents in the objective function; may differ from
+          # hours_per_time_step when operational costs are annualised over representative periods.
+          # Source: PyPSA n.snapshot_weightings.objective
+          time-dependent: true
+          scenario-dependent: false
       variables:
         - id: p_nom
           time-dependent: false
@@ -603,12 +637,12 @@ library:
         - id: state_of_charge_upper
           expression: state_of_charge <= max_hours * p_nom
         - id: state_of_charge_balance
-          expression: state_of_charge = (1- standing_loss) * state_of_charge[t-1] + efficiency_store * p_store - p_dispatch / efficiency_dispatch  + inflow - spill
+          expression: state_of_charge = ((1 - standing_loss)^hours_per_time_step) * state_of_charge[t-1] + efficiency_store * hours_per_time_step * p_store - hours_per_time_step * p_dispatch / efficiency_dispatch + hours_per_time_step * inflow - hours_per_time_step * spill
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p_dispatch + spill_cost*spill + marginal_cost_storage * state_of_charge)
+          expression: sum(objective_weighting * (marginal_cost * p_dispatch + spill_cost*spill + marginal_cost_storage * state_of_charge))
 
     - id: store
       #Model for PyPSA store: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#store
@@ -658,6 +692,19 @@ library:
         - id: emission_factor
           time-dependent: false
           scenario-dependent: true
+        # Time granularity parameters. Both are constant over time steps in the current converter,
+        # but declared time-dependent so that time-varying weightings can be supported later.
+        - id: hours_per_time_step
+          # Number of hours represented by one time step.
+          # Source: PyPSA n.snapshot_weightings.stores / .generators (the converter requires them to be equal).
+          time-dependent: true
+          scenario-dependent: false
+        - id: objective_weighting
+          # Number of hours a time step represents in the objective function; may differ from
+          # hours_per_time_step when operational costs are annualised over representative periods.
+          # Source: PyPSA n.snapshot_weightings.objective
+          time-dependent: true
+          scenario-dependent: false
       variables:
         - id: e_nom
           time-dependent: false
@@ -684,12 +731,12 @@ library:
         - id: e_lower
           expression: e >= e_min_pu * e_nom
         - id: energy_balance
-          expression: e = (1 - standing_loss) * e[t-1] - p
+          expression: e = ((1 - standing_loss)^hours_per_time_step) * e[t-1] - hours_per_time_step * p
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * e_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p + marginal_cost_storage * e)
+          expression: sum(objective_weighting * (marginal_cost * p + marginal_cost_storage * e))
 
     #### Models for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint ###
 

@@ -108,7 +108,9 @@ def test_start_benchmark(file_name: str, load_scaling: float, study_name: str) -
     benchmark_data_frame.loc[0, "number_of_shunt_impedances"] = len(network.shunt_impedances)
 
     benchmark_data_frame.loc[0, "pypsa_version"] = network.pypsa_version
-    # Converter requires unity snapshot weightings
+    # Benchmark every network at the same hourly granularity, so that run times stay comparable.
+    # NOTE: the GemsPy path below cannot parse the `^` operator used by the store / storage_unit
+    # energy balances of pypsa_models.yml >= 2.1.0 (GemsPy <= 0.1.3); only the Antares modeler can.
     network.snapshot_weightings.loc[:] = 1.0
 
     # ==================================================================================
