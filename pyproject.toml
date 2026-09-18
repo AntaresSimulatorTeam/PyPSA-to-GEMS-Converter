@@ -59,7 +59,11 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src", "src.*"]
+include = ["src", "src.*", "resources"]
+namespaces = true
+
+[tool.setuptools.package-data]
+resources = ["optim-config.yml", "pypsa_models/*"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["*.ipynb"]
