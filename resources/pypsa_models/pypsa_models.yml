@@ -252,8 +252,17 @@ library:
           time-dependent: false
           scenario-dependent: false
         #- id: stand_by_cost # Parameter not instantiated for now
-        #- id: min_up_time # Parameter not instantiated for now
-        #- id: min_down_time # Parameter not instantiated for now
+        - id: min_up_time
+          #Minimum number of snapshots status must stay 1 after a start-up. Boundary is cyclic,
+          #same as status_transition -- up_time_before/down_time_before (a genuine non-cyclic
+          #initial condition) are not yet supported, see _check_committable_limitations.
+          time-dependent: false
+          scenario-dependent: false
+        - id: min_down_time
+          #Minimum number of snapshots status must stay 0 after a shut-down. Cyclic boundary,
+          #same caveat as min_up_time.
+          time-dependent: false
+          scenario-dependent: false
         #- id: up_time_before # Parameter not instantiated for now
         #- id: down_time_before # Parameter not instantiated for now
         #- id: ramp_limit_start_up # Parameter not instantiated for now
@@ -270,6 +279,10 @@ library:
           time-dependent: false
           scenario-dependent: false
         - id: p
+          #Generation is one-directional: without this, the big-M relaxation on min_dispatch
+          #(p_nom * p_min_pu - p_nom_max * (1 - status)) would only cap p from above when
+          #status=0, letting p go negative and artificially reduce marginal_cost * p.
+          lower-bound: 0
         - id: status
           #Unit on/off state.
           lower-bound: 0
@@ -309,7 +322,13 @@ library:
         - id: max_production
           expression: sum(p) <= e_sum_max
         - id: status_transition
+          #Relies on the same cyclic [t-1] wraparound already used by storage_unit/store state-of-charge dynamics.
           expression: status = status[t-1] + start_up - shut_down
+        - id: min_up_duration
+          #Cyclic boundary, same as status_transition: the window wraps around the horizon.
+          expression: sum(t - min_up_time + 1 .. t, start_up) <= status
+        - id: min_down_duration
+          expression: sum(t - min_down_time + 1 .. t, shut_down) <= 1 - status
       objective-contributions:
         - id: capital_objective
           expression: p_nom * capital_cost
@@ -638,8 +657,17 @@ library:
           time-dependent: false
           scenario-dependent: false
         #- id: stand_by_cost # Parameter not instantiated for now
-        #- id: min_up_time # Parameter not instantiated for now
-        #- id: min_down_time # Parameter not instantiated for now
+        - id: min_up_time
+          #Minimum number of snapshots status must stay 1 after a start-up. Boundary is cyclic,
+          #same as status_transition -- up_time_before/down_time_before (a genuine non-cyclic
+          #initial condition) are not yet supported, see _check_committable_limitations.
+          time-dependent: false
+          scenario-dependent: false
+        - id: min_down_time
+          #Minimum number of snapshots status must stay 0 after a shut-down. Cyclic boundary,
+          #same caveat as min_up_time.
+          time-dependent: false
+          scenario-dependent: false
         #- id: up_time_before # Parameter not instantiated for now
         #- id: down_time_before # Parameter not instantiated for now
         #- id: ramp_limit_start_up # Parameter not instantiated for now
@@ -681,12 +709,24 @@ library:
           #Big-M linearization: p_nom and status are both decision variables, so "p_nom * status"
           #would be a nonlinear (variable * variable) term, which GEMS disallows. M = p_nom_max.
           expression: p0 >= p_min_pu * p_nom - p_nom_max * (1 - status)
+        - id: p0_lower_bigm
+          #p0 (unlike generator p) can be legitimately negative when on (bidirectional flow), so
+          #it can't just get a fixed lower-bound: 0 on the variable. This symmetric big-M pins it
+          #to exactly 0 when off, instead of only capping it from above (p0_upper_bigm) and leaving
+          #it free to go negative down to p0_lower's relaxed (negative) floor.
+          expression: p0 >= -p_nom_max * status
         - id: p0_upper_bigm
           expression: p0 <= p_nom_max * status
         - id: p0_upper_cap
           expression: p0 <= p_max_pu * p_nom
         - id: status_transition
+          #Relies on the same cyclic [t-1] wraparound already used by storage_unit/store state-of-charge dynamics.
           expression: status = status[t-1] + start_up - shut_down
+        - id: min_up_duration
+          #Cyclic boundary, same as status_transition: the window wraps around the horizon.
+          expression: sum(t - min_up_time + 1 .. t, start_up) <= status
+        - id: min_down_duration
+          expression: sum(t - min_down_time + 1 .. t, shut_down) <= 1 - status
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * p_nom
