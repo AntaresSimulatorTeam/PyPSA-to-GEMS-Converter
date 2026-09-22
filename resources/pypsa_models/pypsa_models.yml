@@ -17,7 +17,7 @@
 
 library:
   id: pypsa_models
-  version: "2.1.0"
+  version: "2.2.0"
   description: PyPSA model library 
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
@@ -251,7 +251,11 @@ library:
         - id: shut_down_cost
           time-dependent: false
           scenario-dependent: false
-        #- id: stand_by_cost # Parameter not instantiated for now
+        - id: stand_by_cost
+          #Incurred every snapshot status=1, regardless of dispatch (even p=0). PyPSA allows
+          #this to be time-varying, unlike start_up_cost/shut_down_cost.
+          time-dependent: true
+          scenario-dependent: true
         - id: min_up_time
           #Minimum number of snapshots status must stay 1 after a start-up. Boundary is cyclic,
           #same as status_transition -- up_time_before/down_time_before (a genuine non-cyclic
@@ -333,7 +337,7 @@ library:
         - id: capital_objective
           expression: p_nom * capital_cost
         - id: operational_objective
-          expression: sum(marginal_cost * p + start_up_cost * start_up + shut_down_cost * shut_down)
+          expression: sum(marginal_cost * p + start_up_cost * start_up + shut_down_cost * shut_down + stand_by_cost * status)
 
     - id: line
       #Model for PyPSA line in DC LOPF.
@@ -656,7 +660,11 @@ library:
         - id: shut_down_cost
           time-dependent: false
           scenario-dependent: false
-        #- id: stand_by_cost # Parameter not instantiated for now
+        - id: stand_by_cost
+          #Incurred every snapshot status=1, regardless of dispatch (even p=0). PyPSA allows
+          #this to be time-varying, unlike start_up_cost/shut_down_cost.
+          time-dependent: true
+          scenario-dependent: true
         - id: min_up_time
           #Minimum number of snapshots status must stay 1 after a start-up. Boundary is cyclic,
           #same as status_transition -- up_time_before/down_time_before (a genuine non-cyclic
@@ -731,7 +739,7 @@ library:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
-          expression: sum(marginal_cost * p0 + start_up_cost * start_up + shut_down_cost * shut_down)
+          expression: sum(marginal_cost * p0 + start_up_cost * start_up + shut_down_cost * shut_down + stand_by_cost * status)
 
     - id: storage_unit
       #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
