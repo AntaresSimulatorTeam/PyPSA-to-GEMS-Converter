@@ -17,7 +17,7 @@
 
 library:
   id: pypsa_models
-  version: "2.0.1"
+  version: "3.0.0"
   description: PyPSA model library 
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
@@ -26,11 +26,18 @@ library:
       description: A port which transfers power flow
       fields:
         - id: power
-        - id: angle
     - id: emission
       description: A port which accounts for CO2 emissions
       fields:
         - id: emission
+    - id: kvl_signal
+      #Reactance-weighted, signed branch-flow contribution to one Kirchhoff Voltage Law
+      #loop constraint (cycle-flow formulation -- see kvl_cycle model). A branch shared by
+      #several loops connects one of its two ports (pos_cycle_port/neg_cycle_port, whichever
+      #sign that specific loop needs) to each loop's kvl_cycle instance; the same port can
+      #fan out to more than one kvl_cycle if several loops need the same sign from it.
+      fields:
+        - id: value
 
   models:
     - id: bus
@@ -58,21 +65,13 @@ library:
         - id: v_mag_pu_max
           time-dependent: false
           scenario-dependent: false
-        - id: theta_min
-        - id: theta_max
-      variables:
-        - id: theta
-          lower-bound: theta_min
-          upper-bound: theta_max
+        #- id: theta_min # Voltage angle no longer modeled: KVL uses the cycle-flow
+        #- id: theta_max # formulation (kvl_cycle model), not bus angles. See CHANGELOG.
       ports:
         - id: p_balance_port
           type: flow
         - id: q_balance_port
           type: flow
-      port-field-definitions:
-        - port: p_balance_port
-          field: angle
-          definition: theta
       binding-constraints:
         - id: p_balance
           expression: sum_connections(p_balance_port.power) = 0
@@ -286,6 +285,16 @@ library:
           type: flow
         - id: bus1_p_port
           type: flow
+        - id: pos_cycle_port
+          #Connect to a kvl_cycle instance that needs +x*p0 as this branch's contribution
+          #to that loop (traversal direction matches this line's own bus0->bus1 direction).
+          #Can fan out to several kvl_cycle instances if more than one loop needs +x*p0 from
+          #this line -- see CHANGELOG for why 2 fixed, signed ports replace an unbounded
+          #per-instance port count.
+          type: kvl_signal
+        - id: neg_cycle_port
+          #Same as pos_cycle_port but for loops traversing this line bus1->bus0 (-x*p0).
+          type: kvl_signal
       port-field-definitions:
         - port: bus0_p_port
           field: power
@@ -293,6 +302,12 @@ library:
         - port: bus1_p_port
           field: power
           definition: p0
+        - port: pos_cycle_port
+          field: value
+          definition: x * p0
+        - port: neg_cycle_port
+          field: value
+          definition: -x * p0
       constraints:
         - id: capacity_min
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
@@ -302,9 +317,6 @@ library:
           expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
         - id: lower_flow
           expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
-      binding-constraints:
-        - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
@@ -389,6 +401,11 @@ library:
           type: flow
         - id: bus1_p_port
           type: flow
+        - id: pos_cycle_port
+          #See line.pos_cycle_port -- same cycle-flow KVL mechanism, weighted by x_pu_eff.
+          type: kvl_signal
+        - id: neg_cycle_port
+          type: kvl_signal
       port-field-definitions:
         - port: bus0_p_port
           field: power
@@ -396,6 +413,12 @@ library:
         - port: bus1_p_port
           field: power
           definition: p0
+        - port: pos_cycle_port
+          field: value
+          definition: x_pu_eff * p0
+        - port: neg_cycle_port
+          field: value
+          definition: -x_pu_eff * p0
       constraints:
         - id: capacity_min
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
@@ -405,12 +428,24 @@ library:
           expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
         - id: lower_flow
           expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
-      binding-constraints:
-        - id: dc_flow
-          expression: p0 = (sum_connections(bus0_p_port.angle) - sum_connections(bus1_p_port.angle)) / x_pu_eff
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
+
+    - id: kvl_cycle
+      #Kirchhoff Voltage Law, cycle-flow formulation: one instance per independent cycle in
+      #the network graph formed by Line/Transformer branches (converter computes this from
+      #PyPSA's own n.cycle_matrix(), the same method PyPSA's own optimizer uses internally).
+      #Each participating branch connects one of its two signed ports (pos_cycle_port for
+      #+x*p0, neg_cycle_port for -x*p0, matching its orientation around this specific loop)
+      #to this component's single port. No parameters, no variables: this is purely a
+      #sum-to-zero binding constraint over however many branches happen to be in the loop.
+      ports:
+        - id: branch_port
+          type: kvl_signal
+      binding-constraints:
+        - id: loop_balance
+          expression: sum_connections(branch_port.value) = 0
 
     - id: link
       #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link

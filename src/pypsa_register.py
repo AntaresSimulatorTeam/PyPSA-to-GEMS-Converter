@@ -71,8 +71,6 @@ class PyPSARegister:
                 "v_mag_pu_set": "v_mag_pu_set",
                 "v_mag_pu_min": "v_mag_pu_min",
                 "v_mag_pu_max": "v_mag_pu_max",
-                "theta_min": "theta_min",
-                "theta_max": "theta_max",
             },
             {},
         )
