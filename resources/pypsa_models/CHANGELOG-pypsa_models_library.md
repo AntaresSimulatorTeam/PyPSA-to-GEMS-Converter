@@ -10,6 +10,15 @@ Versioning follows the rules defined in `COMPATIBILITY.md`:
 
 ---
 
+## [3.1.0] — 2026-09-22
+
+- **Changed** `line_extendable`/`transformer_extendable` now cover only the continuous-LP capacity expansion case (a single `s_nom_opt` variable bounded `[s_nom_min, s_nom_max]`) — no integer variable is declared at all. Previously these models always carried an `n_mod` integer variable (bounded to `[0, 0]` via a `modular=0` switch when unused), which could force the whole study into MIP branch-and-bound solve mode even for the common case where no line/transformer ever uses discrete-block capacity.
+- **Added** `line_extendable_modular`/`transformer_extendable_modular`: the discrete-block (modular) MIP case, split out into its own model — `n_mod` (integer, number of installed modules) and `s_nom_mod` (module size), capacity = `n_mod * s_nom_mod`. Functionally identical to the previous unified model's `modular=1` behaviour, just no longer sharing a model (and an always-present integer variable) with the non-modular case.
+- **Converter**: `PyPSARegister.register()` now splits the extendable subset of lines/transformers a second time, by the preprocessor's computed `modular` flag, routing each row to `line`/`transformer` (fixed), `line_extendable`/`transformer_extendable` (continuous LP), or `line_extendable_modular`/`transformer_extendable_modular` (discrete MIP).
+- Validated: all existing `line`/`transformer` E2E tests (fixed, LP-extendable, MILP-modular capacity) pass unchanged with matching PyPSA objectives; the generated `system.yml` for a plain LP-extendable network now instantiates `line_extendable`/`transformer_extendable` with no `n_mod`/`s_nom_mod`/`modular` parameters at all.
+
+---
+
 ## [3.0.0] — 2026-09-22
 
 - **Changed** Kirchhoff's Voltage Law from an angle-based to a cycle-flow formulation for `line`/`transformer`, matching how PyPSA's own optimizer implements KVL internally (`pypsa/optimization/constraints.py::define_kirchhoff_voltage_constraints` -- confirmed PyPSA never creates a bus-angle decision variable; it uses the identical cycle-flow method, chosen for sparsity per Hörsch et al. 2018). Motivation: the angle-based approach needed one `theta` variable per bus and one `dc_flow` constraint per branch, every study, whether or not the network had any loops at all -- for a purely radial network (no loops) that's pure overhead, since flows there are already fully pinned down by nodal power balance alone.

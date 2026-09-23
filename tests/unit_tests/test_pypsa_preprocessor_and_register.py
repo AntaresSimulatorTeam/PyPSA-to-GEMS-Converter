@@ -137,19 +137,15 @@ def test_line_register(line_network: Network) -> None:
     PyPSAPreprocessor(line_network).network_preprocessing()
     components, _ = PyPSARegister(line_network).register()
 
-    assert "lines_lp" in components
-    line_data = components["lines_lp"]
-    assert line_data.gems_model_id == "line_lp"
+    assert "lines" in components
+    line_data = components["lines"]
+    assert line_data.gems_model_id == "line"
     assert "x_pu" in line_data.pypsa_params_to_gems_params
     assert line_data.pypsa_params_to_gems_params["x_pu"] == "x"
     assert "bus0" in line_data.pypsa_params_to_gems_connections
     assert "bus1" in line_data.pypsa_params_to_gems_connections
     assert line_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")
     assert line_data.pypsa_params_to_gems_connections["bus1"] == ("bus1_p_port", "p_balance_port")
-
-    assert "lines_milp" in components
-    assert components["lines_milp"].gems_model_id == "line_milp"
-    assert len(components["lines_milp"].constant_data) == 0
 
 
 @pytest.fixture()
@@ -188,14 +184,10 @@ def test_transformer_register(transformer_network: Network) -> None:
     PyPSAPreprocessor(transformer_network).network_preprocessing()
     components, _ = PyPSARegister(transformer_network).register()
 
-    assert "transformers_lp" in components
-    trafo_data = components["transformers_lp"]
-    assert trafo_data.gems_model_id == "transformer_lp"
+    assert "transformers" in components
+    trafo_data = components["transformers"]
+    assert trafo_data.gems_model_id == "transformer"
     assert "x_pu_eff" in trafo_data.pypsa_params_to_gems_params
     assert trafo_data.pypsa_params_to_gems_params["x_pu_eff"] == "x_pu_eff"
     assert trafo_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")
     assert trafo_data.pypsa_params_to_gems_connections["bus1"] == ("bus1_p_port", "p_balance_port")
-
-    assert "transformers_milp" in components
-    assert components["transformers_milp"].gems_model_id == "transformer_milp"
-    assert len(components["transformers_milp"].constant_data) == 0
