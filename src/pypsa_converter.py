@@ -14,15 +14,21 @@ import logging
 import math
 import shutil
 from pathlib import Path
+from typing import cast
 
 from pypsa import Network
 
 from src.antares_hybrid_writer import AntaresHybridStudyWriter
 from src.gems_model_builder import GemsModelBuilder
 from src.gems_study_writer import GemsStudyWriter
+from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
 from src.utils import check_time_series_format, determine_pypsa_study_type
+
+# PyPSA component types that carry a Kirchhoff Voltage Law obligation (n.cycle_matrix()'s
+# "type" index level uses these exact names). Matches PyPSA's own passive_branch_components.
+_KVL_BRANCH_TYPES: frozenset[str] = frozenset({"Line", "Transformer"})
 
 CONVERTER_LOGGER_NAME = "pypsa_to_gems_converter"
 _CONVERTER_LOG = logging.getLogger(CONVERTER_LOGGER_NAME)
@@ -190,6 +196,47 @@ class PyPSAStudyConverter:
             n_scenarios=len(self.scenario_weightings),
         )
 
+    def _build_kvl_cycle_components(self) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
+        """Kirchhoff Voltage Law, cycle-flow formulation: one kvl_cycle component per
+        independent loop in the Line/Transformer graph.
+
+        Uses PyPSA's own n.cycle_matrix() to find the loops -- the same method PyPSA's own
+        optimizer calls internally (see define_kirchhoff_voltage_constraints in
+        pypsa/optimization/constraints.py) -- rather than reimplementing graph cycle
+        detection. Each participating branch connects one of its two signed ports
+        (pos_cycle_port for +x*p0, neg_cycle_port for -x*p0) to that cycle's component,
+        matching the sign cycle_matrix() reports for that branch in that specific loop.
+
+        Called after preprocessing, so branch names here already match the renamed
+        "line_<name>"/"transformer_<name>" ids used elsewhere in the converted study.
+        """
+        components: list[GemsComponent] = []
+        connections: list[GemsPortConnection] = []
+
+        cycles = self.pypsa_network.cycle_matrix(apply_weights=False)
+        if cycles.empty:
+            return components, connections
+
+        for cycle_idx in cycles.columns:
+            cycle_id = f"kvl_cycle_{cycle_idx}"
+            components.append(GemsComponent(id=cycle_id, model=f"{self.pypsalib_id}.kvl_cycle"))
+
+            for branch_key, sign in cycles[cycle_idx].items():
+                branch_type, branch_name = cast("tuple[str, str]", branch_key)
+                if sign == 0 or branch_type not in _KVL_BRANCH_TYPES:
+                    continue
+                port = "pos_cycle_port" if sign > 0 else "neg_cycle_port"
+                connections.append(
+                    GemsPortConnection(
+                        component1=str(branch_name),
+                        port1=port,
+                        component2=cycle_id,
+                        port2="branch_port",
+                    )
+                )
+
+        return components, connections
+
     def to_gems_study(self) -> None:
         """Main function, to export PyPSA as Gems study"""
 
@@ -227,6 +274,10 @@ class PyPSAStudyConverter:
             ) = gems_model_builder._convert_pypsa_globalconstraint(pypsa_global_constraint_data)
             list_components.extend(components)
             list_connections.extend(connections)
+
+        kvl_components, kvl_connections = self._build_kvl_cycle_components()
+        list_components.extend(kvl_components)
+        list_connections.extend(kvl_connections)
 
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
