@@ -17,7 +17,7 @@
 
 library:
   id: pypsa_models
-  version: "3.0.0"
+  version: "3.1.0"
   description: PyPSA model library 
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
@@ -209,10 +209,60 @@ library:
           expression: sum(marginal_cost * p)
 
     - id: line
-      #Model for PyPSA line in DC LOPF.
-      #Covers fixed capacity, continuous extendable (LP), and modular integer extendable (MIP).
-      #modular=0: s_nom_opt is a continuous variable bounded [s_nom_min, s_nom_max]. Set s_nom_min=s_nom_max for fixed capacity.
-      #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP). s_nom_opt is bounded to [0,0].
+      #Model for PyPSA line in DC LOPF, s_nom_extendable=False (fixed capacity) only.
+      #See line_extendable for continuous (LP) or modular integer (MIP) capacity expansion.
+      #Split out so a fixed line carries none of the capacity-decision variables/constraints
+      #(n_mod, s_nom_opt, capacity_min/max) that PyPSA itself never creates when capacity
+      #isn't a decision -- see CHANGELOG.
+      #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
+      parameters:
+        - id: x
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom
+          #Fixed installed capacity [MVA].
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_max_pu
+          time-dependent: true
+          scenario-dependent: true
+      variables:
+        - id: p0
+          #s_nom/s_max_pu are both plain parameters here (capacity isn't a decision), so the
+          #flow limit is a genuine variable bound, not a separate constraint -- unlike
+          #line_extendable, where capacity is itself a variable and p0's limit becomes a
+          #variable*variable product that has to be linearized as a constraint instead.
+          lower-bound: -s_nom * s_max_pu
+          upper-bound: s_nom * s_max_pu
+      ports:
+        - id: bus0_p_port
+          type: flow
+        - id: bus1_p_port
+          type: flow
+        - id: pos_cycle_port
+          #See line_extendable.pos_cycle_port for the full explanation of this mechanism.
+          type: kvl_signal
+        - id: neg_cycle_port
+          type: kvl_signal
+      port-field-definitions:
+        - port: bus0_p_port
+          field: power
+          definition: -p0
+        - port: bus1_p_port
+          field: power
+          definition: p0
+        - port: pos_cycle_port
+          field: value
+          definition: x * p0
+        - port: neg_cycle_port
+          field: value
+          definition: -x * p0
+
+    - id: line_extendable
+      #Model for PyPSA line in DC LOPF, s_nom_extendable=True and NOT modular (the common
+      #case). Continuous (LP) capacity expansion only -- no integer variable at all, so a
+      #study using only this model stays a pure LP (real dual values, no branch-and-bound).
+      #See line_extendable_modular for discrete-block (MIP) capacity expansion.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
       parameters:
         - id: x
@@ -227,10 +277,6 @@ library:
           #Maximum installed capacity [MVA].
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom_mod
-          #Module size [MVA]. Used when modular=1. Set to any positive value when modular=0.
-          time-dependent: false
-          scenario-dependent: false
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity. Can be < 1 for N-1 contingency or time-varying for dynamic line rating.
           time-dependent: true
@@ -242,16 +288,13 @@ library:
           #uses periodized_cost = capital_cost + fom_cost.
           time-dependent: false
           scenario-dependent: false
-        - id: modular
-          #Expansion mode: 0 = continuous (LP), 1 = modular integer (MIP).
-          time-dependent: false
-          scenario-dependent: false
         #- id: type # Preprocessing: triggers lookup in line_types table — overrides r, x, b. Converter must call calculate_dependent_values() first.
         #- id: r # Not used in DC LOPF.
         #- id: g # Not used in DC LOPF.
         #- id: b # Not used in DC LOPF.
+        #- id: s_nom_mod # Modular capacity: see line_extendable_modular.
         #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max.
-        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_extendable # Handled by converter: routes the component to "line" (False), "line_extendable" (True, not modular), or "line_extendable_modular" (True, modular).
         #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
         #- id: overnight_cost # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
         #- id: discount_rate # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
@@ -266,17 +309,9 @@ library:
         #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
         #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
-        - id: n_mod
-          #Integer modules. Active when modular=1; bounded to [0,0] when modular=0.
-          lower-bound: 0
-          upper-bound: modular * s_nom_max
-          variable-type: integer
-          time-dependent: false
-          scenario-dependent: false
         - id: s_nom_opt
-          #Continuous capacity. Active when modular=0; bounded to [0,0] when modular=1.
-          lower-bound: (1 - modular) * s_nom_min
-          upper-bound: (1 - modular) * s_nom_max
+          lower-bound: s_nom_min
+          upper-bound: s_nom_max
           time-dependent: false
           scenario-dependent: false
         - id: p0
@@ -309,23 +344,136 @@ library:
           field: value
           definition: -x * p0
       constraints:
-        - id: capacity_min
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
-        - id: capacity_max
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt <= s_nom_max
         - id: upper_flow
-          expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
+          expression: p0 <= s_nom_opt * s_max_pu
         - id: lower_flow
-          expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
+          expression: p0 >= -s_nom_opt * s_max_pu
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
+          expression: capital_cost * s_nom_opt
+
+    - id: line_extendable_modular
+      #Model for PyPSA line in DC LOPF, s_nom_extendable=True AND modular (discrete-block
+      #capacity, e.g. equipment only available in fixed-size units). n_mod is an integer
+      #variable; capacity = n_mod * s_nom_mod (MIP). Rare in practice -- see line_extendable
+      #for the common continuous-LP case, kept as a pure LP with no integer variable at all.
+      #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#line
+      parameters:
+        - id: x
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_min
+          #Minimum installed capacity [MVA].
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_max
+          #Maximum installed capacity [MVA].
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_mod
+          #Module size [MVA]. Installed capacity is constrained to be an integer multiple of this.
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+      variables:
+        - id: n_mod
+          #Integer number of installed modules.
+          lower-bound: 0
+          upper-bound: s_nom_max
+          variable-type: integer
+          time-dependent: false
+          scenario-dependent: false
+        - id: p0
+      ports:
+        - id: bus0_p_port
+          type: flow
+        - id: bus1_p_port
+          type: flow
+        - id: pos_cycle_port
+          #See line_extendable.pos_cycle_port.
+          type: kvl_signal
+        - id: neg_cycle_port
+          type: kvl_signal
+      port-field-definitions:
+        - port: bus0_p_port
+          field: power
+          definition: -p0
+        - port: bus1_p_port
+          field: power
+          definition: p0
+        - port: pos_cycle_port
+          field: value
+          definition: x * p0
+        - port: neg_cycle_port
+          field: value
+          definition: -x * p0
+      constraints:
+        - id: capacity_min
+          expression: n_mod * s_nom_mod >= s_nom_min
+        - id: capacity_max
+          expression: n_mod * s_nom_mod <= s_nom_max
+        - id: upper_flow
+          expression: p0 <= n_mod * s_nom_mod * s_max_pu
+        - id: lower_flow
+          expression: p0 >= -n_mod * s_nom_mod * s_max_pu
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * n_mod * s_nom_mod
 
     - id: transformer
-      #Model for PyPSA transformer in DC LOPF.
-      #Covers fixed capacity, continuous extendable (LP), and modular integer extendable (MIP).
-      #modular=0: s_nom_opt is a continuous variable bounded [s_nom_min, s_nom_max]. Set s_nom_min=s_nom_max for fixed capacity.
-      #modular=1: n_mod is an integer variable; capacity = n_mod * s_nom_mod (MIP). s_nom_opt is bounded to [0,0].
+      #Model for PyPSA transformer in DC LOPF, s_nom_extendable=False (fixed capacity) only.
+      #See transformer_extendable for continuous (LP) or modular integer (MIP) capacity expansion.
+      #x_pu_eff is the effective per-unit reactance pre-computed from x and tap_ratio by the converter.
+      #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
+      parameters:
+        - id: x_pu_eff
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom
+          #Fixed installed capacity [MVA].
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_max_pu
+          time-dependent: true
+          scenario-dependent: true
+      variables:
+        - id: p0
+          #See line.p0 -- s_nom/s_max_pu are plain parameters here, so this is a genuine
+          #variable bound, not a separate constraint.
+          lower-bound: -s_nom * s_max_pu
+          upper-bound: s_nom * s_max_pu
+      ports:
+        - id: bus0_p_port
+          type: flow
+        - id: bus1_p_port
+          type: flow
+        - id: pos_cycle_port
+          type: kvl_signal
+        - id: neg_cycle_port
+          type: kvl_signal
+      port-field-definitions:
+        - port: bus0_p_port
+          field: power
+          definition: -p0
+        - port: bus1_p_port
+          field: power
+          definition: p0
+        - port: pos_cycle_port
+          field: value
+          definition: x_pu_eff * p0
+        - port: neg_cycle_port
+          field: value
+          definition: -x_pu_eff * p0
+
+    - id: transformer_extendable
+      #Model for PyPSA transformer in DC LOPF, s_nom_extendable=True and NOT modular (the
+      #common case). Continuous (LP) capacity expansion only -- see line_extendable for
+      #why no integer variable is present here.
       #x_pu_eff is the effective per-unit reactance pre-computed from x and tap_ratio by the converter.
       #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
       parameters:
@@ -341,10 +489,6 @@ library:
           #Maximum installed capacity [MVA].
           time-dependent: false
           scenario-dependent: false
-        - id: s_nom_mod
-          #Module size [MVA]. Used when modular=1. Set to any positive value when modular=0.
-          time-dependent: false
-          scenario-dependent: false
         - id: s_max_pu
           #Maximum allowed flow per unit of installed capacity.
           time-dependent: true
@@ -356,10 +500,6 @@ library:
           #uses periodized_cost = capital_cost + fom_cost.
           time-dependent: false
           scenario-dependent: false
-        - id: modular
-          #Expansion mode: 0 = continuous (LP), 1 = modular integer (MIP).
-          time-dependent: false
-          scenario-dependent: false
         #- id: type # Preprocessing: triggers lookup in transformer_types table — overrides r, x, g, b, s_nom, tap_ratio, tap_side, phase_shift. Converter must call calculate_dependent_values() first.
         #- id: model # Cannot be implemented: admittance model (t or pi) only affects AC power flow equations; not used in DC LOPF.
         #- id: r # Not used in DC LOPF.
@@ -369,8 +509,9 @@ library:
         #- id: tap_side # Not used in DC LOPF (AC power flow only). Overridden by transformer_types table when type is set.
         #- id: tap_position # Only used when type is set — To be investigated how it is used within type.
         #- id: phase_shift # Not used in DC LOPF optimization. Overridden by transformer_types table when type is set.
+        #- id: s_nom_mod # Modular capacity: see transformer_extendable_modular.
         #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max bounds on s_nom_opt.
-        #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
+        #- id: s_nom_extendable # Handled by converter: routes the component to "transformer" (False), "transformer_extendable" (True, not modular), or "transformer_extendable_modular" (True, modular).
         #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
         #- id: overnight_cost # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
         #- id: discount_rate # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
@@ -382,17 +523,9 @@ library:
         #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
         #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
       variables:
-        - id: n_mod
-          #Integer modules. Active when modular=1; bounded to [0,0] when modular=0.
-          lower-bound: 0
-          upper-bound: modular * s_nom_max
-          variable-type: integer
-          time-dependent: false
-          scenario-dependent: false
         - id: s_nom_opt
-          #Continuous capacity. Active when modular=0; bounded to [0,0] when modular=1.
-          lower-bound: (1 - modular) * s_nom_min
-          upper-bound: (1 - modular) * s_nom_max
+          lower-bound: s_nom_min
+          upper-bound: s_nom_max
           time-dependent: false
           scenario-dependent: false
         - id: p0
@@ -420,17 +553,83 @@ library:
           field: value
           definition: -x_pu_eff * p0
       constraints:
-        - id: capacity_min
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
-        - id: capacity_max
-          expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt <= s_nom_max
         - id: upper_flow
-          expression: p0 <= (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
+          expression: p0 <= s_nom_opt * s_max_pu
         - id: lower_flow
-          expression: p0 >= -(modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt) * s_max_pu
+          expression: p0 >= -s_nom_opt * s_max_pu
       objective-contributions:
         - id: capital_objective
-          expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
+          expression: capital_cost * s_nom_opt
+
+    - id: transformer_extendable_modular
+      #Model for PyPSA transformer in DC LOPF, s_nom_extendable=True AND modular. See
+      #line_extendable_modular -- same mechanism, weighted by x_pu_eff.
+      #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#transformer
+      parameters:
+        - id: x_pu_eff
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_min
+          #Minimum installed capacity [MVA].
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_max
+          #Maximum installed capacity [MVA].
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_nom_mod
+          #Module size [MVA]. Installed capacity is constrained to be an integer multiple of this.
+          time-dependent: false
+          scenario-dependent: false
+        - id: s_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+      variables:
+        - id: n_mod
+          #Integer number of installed modules.
+          lower-bound: 0
+          upper-bound: s_nom_max
+          variable-type: integer
+          time-dependent: false
+          scenario-dependent: false
+        - id: p0
+      ports:
+        - id: bus0_p_port
+          type: flow
+        - id: bus1_p_port
+          type: flow
+        - id: pos_cycle_port
+          type: kvl_signal
+        - id: neg_cycle_port
+          type: kvl_signal
+      port-field-definitions:
+        - port: bus0_p_port
+          field: power
+          definition: -p0
+        - port: bus1_p_port
+          field: power
+          definition: p0
+        - port: pos_cycle_port
+          field: value
+          definition: x_pu_eff * p0
+        - port: neg_cycle_port
+          field: value
+          definition: -x_pu_eff * p0
+      constraints:
+        - id: capacity_min
+          expression: n_mod * s_nom_mod >= s_nom_min
+        - id: capacity_max
+          expression: n_mod * s_nom_mod <= s_nom_max
+        - id: upper_flow
+          expression: p0 <= n_mod * s_nom_mod * s_max_pu
+        - id: lower_flow
+          expression: p0 >= -n_mod * s_nom_mod * s_max_pu
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * n_mod * s_nom_mod
 
     - id: kvl_cycle
       #Kirchhoff Voltage Law, cycle-flow formulation: one instance per independent cycle in
