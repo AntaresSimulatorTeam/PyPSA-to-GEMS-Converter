@@ -141,11 +141,30 @@ class PyPSARegister:
         )
 
         ### PyPSA components : Lines
+        lines = self.pypsa_network.components.lines
+        lines_milp = is_modular(lines.static)
         self._register_pypsa_component(
-            "lines",
-            self.pypsa_network.components.lines.static,
-            self.pypsa_network.components.lines.dynamic,
-            "line",
+            "lines_lp",
+            lines.static[~lines_milp],
+            lines.dynamic,
+            "line_lp",
+            {
+                "x_pu": "x",
+                "s_nom_min": "s_nom_min",
+                "s_nom_max": "s_nom_max",
+                "s_max_pu": "s_max_pu",
+                "capital_cost": "capital_cost",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        self._register_pypsa_component(
+            "lines_milp",
+            lines.static[lines_milp],
+            lines.dynamic,
+            "line_milp",
             {
                 "x_pu": "x",
                 "s_nom_min": "s_nom_min",
@@ -153,7 +172,6 @@ class PyPSARegister:
                 "s_nom_mod": "s_nom_mod",
                 "s_max_pu": "s_max_pu",
                 "capital_cost": "capital_cost",
-                "modular": "modular",
             },
             {
                 "bus0": ("bus0_p_port", "p_balance_port"),
@@ -161,11 +179,30 @@ class PyPSARegister:
             },
         )
         ### PyPSA components : Transformers
+        transformers = self.pypsa_network.components.transformers
+        transformers_milp = is_modular(transformers.static)
         self._register_pypsa_component(
-            "transformers",
-            self.pypsa_network.components.transformers.static,
-            self.pypsa_network.components.transformers.dynamic,
-            "transformer",
+            "transformers_lp",
+            transformers.static[~transformers_milp],
+            transformers.dynamic,
+            "transformer_lp",
+            {
+                "x_pu_eff": "x_pu_eff",
+                "s_nom_min": "s_nom_min",
+                "s_nom_max": "s_nom_max",
+                "s_max_pu": "s_max_pu",
+                "capital_cost": "capital_cost",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        self._register_pypsa_component(
+            "transformers_milp",
+            transformers.static[transformers_milp],
+            transformers.dynamic,
+            "transformer_milp",
             {
                 "x_pu_eff": "x_pu_eff",
                 "s_nom_min": "s_nom_min",
@@ -173,7 +210,6 @@ class PyPSARegister:
                 "s_nom_mod": "s_nom_mod",
                 "s_max_pu": "s_max_pu",
                 "capital_cost": "capital_cost",
-                "modular": "modular",
             },
             {
                 "bus0": ("bus0_p_port", "p_balance_port"),
@@ -184,6 +220,8 @@ class PyPSARegister:
         self._register_pypsa_globalconstraints()
 
         return self.pypsa_components_data, self.pypsa_globalconstraints_data
+
+
 
     def _register_pypsa_component(
         self,
@@ -253,3 +291,13 @@ class PyPSARegister:
                 )
             else:
                 raise ValueError("Type of GlobalConstraint not supported.")
+
+
+def is_modular(static: pd.DataFrame) -> pd.Series:
+    """
+    True for Line/Transformer rows needing modular integer expansion (routed to line_milp/transformer_milp)
+    False for fixed capacity or continuous extendable (routed to line_lp/transformer_lp). 
+    """
+    if "modular" not in static.columns:
+        return pd.Series(False, index=static.index)
+    return static["modular"] == 1
