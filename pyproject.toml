@@ -53,9 +53,17 @@ dev = [
     "pre-commit>=4.1.0",
     "pandas-stubs>=2.0.0",
     "types-PyYAML>=6.0.0",
-    "gemspy==0.1.3",
+    "gemspy",
     "ipykernel>=7.3.0",
 ]
+
+[tool.uv.sources]
+# Pinned to a commit (not the mutable branch name) on GemsPy PR #298
+# ("Generate per-(scenario, week-block) Benders subproblems"), which the full-GEMS path
+# (PyPSAStudyConverter(full_gems=True) / tests/local_benchmark/xpansion_benchmark.py) needs:
+# the PyPI release (gemspy==0.1.3) predates it and doesn't split Benders subproblems per
+# week-block. Bump this rev (and re-run `uv sync --group dev`) once the PR moves or merges.
+gemspy = { git = "https://github.com/AntaresSimulatorTeam/GemsPy.git", rev = "76c13f8922382cbaa181bfa3c91404925ad85974" }
 
 [tool.setuptools.packages.find]
 where = ["."]

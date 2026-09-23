@@ -12,8 +12,10 @@
 import math
 import shutil
 from pathlib import Path
+from typing import Any
 
 import polars as pl
+import yaml
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection, GemsSystem
 from src.models.modeler_parameter_yml_schema import AntaresModelerParameters
@@ -188,14 +190,57 @@ class GemsStudyWriter:
             separator=separator,
         )
 
-    def write_optim_config_yml(self) -> None:
+    def write_optim_config_yml(
+        self,
+        full_gems: bool = False,
+        n_scenarios: int = 1,
+        last_time_step: int = 0,
+        solver_name: str = "highs",
+        model_ids_present: set[str] | None = None,
+    ) -> None:
+        """Write optim-config.yml.
+
+        - ``full_gems=False`` (default): copy the legacy flat-schema template as-is. It is
+          consumed by the antares-solver hybrid study loader (see AntaresHybridStudyWriter),
+          which requires its own separate static copy and does not read this file.
+        - ``full_gems=True``: write GemsPy's native OptimConfig schema (nested `resolution`
+          block, `scenario-scope`/`time-scope`/`solver-options`), consumed directly by
+          ``gems_runner.study.runner.run_study()`` -- no companion hybrid study needed.
+          ``block-length: 168`` (one Antares week) splits each Monte-Carlo year into
+          per-week Benders subproblems; ``scenario-scope`` selects the MC years.
+          ``model_ids_present`` filters the static template's ``models`` list down to the
+          decomposition entries actually used by this study -- GemsPy's
+          ``validate_optim_config()`` (called by ``run_study()``) raises if ``models``
+          references a model id absent from the converted system. ``None`` keeps every
+          entry in the template (used by direct/unit-level callers of this method).
+        """
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
         destination_file = Path(self.study_dir / "systems" / "input" / "optim-config.yml")
-        destination_file.touch()
 
         project_root = Path(__file__).parent.parent
-        source_file = project_root / "resources" / "optim-config.yml"
-        shutil.copy(source_file, destination_file)
+        if not full_gems:
+            destination_file.touch()
+            shutil.copy(project_root / "resources" / "optim-config.yml", destination_file)
+            return
+
+        with (project_root / "resources" / "optim-config-full-gems.yml").open(encoding="utf-8") as f:
+            static_config: dict[str, Any] = yaml.safe_load(f)
+
+        if model_ids_present is not None:
+            static_config["models"] = [
+                model for model in static_config["models"] if model["id"] in model_ids_present
+            ]
+
+        scenario_scope_include: list[int | str] = [0] if n_scenarios <= 1 else [f"0-{n_scenarios - 1}"]
+        config: dict[str, Any] = {
+            "time-scope": {"first-time-step": 0, "last-time-step": last_time_step},
+            "scenario-scope": {"include": scenario_scope_include},
+            "solver-options": {"name": solver_name.lower()},
+            **static_config,
+        }
+
+        with destination_file.open("w", encoding="utf-8") as f:
+            yaml.dump(config, f, allow_unicode=True, sort_keys=False)
 
     def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
         """

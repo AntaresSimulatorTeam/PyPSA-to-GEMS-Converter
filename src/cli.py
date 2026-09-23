@@ -49,6 +49,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="highs",
         help="Solver name written to GEMS Antares Modeler parameters (default: highs).",
     )
+    parser.add_argument(
+        "--full-gems",
+        action="store_true",
+        help=(
+            "For investment studies, write a pure GEMS study runnable directly via GemsPy's "
+            "gems_runner.study.runner.run_study() -- no legacy virtual-area hybrid Antares "
+            "study or Xpansion-launcher inputs. Requires --solver highs, xpress, gurobi, or "
+            "coin. No effect on non-investment studies."
+        ),
+    )
     return parser
 
 
@@ -83,6 +93,7 @@ def run(argv: list[str] | None = None) -> int:
             study_dir=study_dir,
             series_file_format=args.series_format,
             solver_name=args.solver,
+            full_gems=args.full_gems,
         ).to_gems_study()
     except Exception:
         log.exception("Conversion failed")
