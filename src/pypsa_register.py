@@ -18,28 +18,6 @@ from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstra
 from src.utils import dynamic_dict_pypsa_to_polars, static_pypsa_to_polars
 
 
-def _split_by_extendable(
-    static: pd.DataFrame, dynamic: dict[str, pd.DataFrame], extendable_col: str
-) -> tuple[tuple[pd.DataFrame, dict[str, pd.DataFrame]], tuple[pd.DataFrame, dict[str, pd.DataFrame]]]:
-    """Partition a component's static/dynamic data into (fixed, extendable) subsets by its
-    own *_extendable boolean column, so each half can be registered under a different GEMS
-    model (e.g. "line" for fixed capacity vs "line_extendable" for LP/MILP expansion)."""
-    if len(static) == 0:
-        return (static, dynamic), (static, dynamic)
-
-    is_extendable = static[extendable_col].astype(bool)
-    fixed_static = static[~is_extendable]
-    extendable_static = static[is_extendable]
-
-    fixed_names = set(fixed_static.index.get_level_values(-1))
-    extendable_names = set(extendable_static.index.get_level_values(-1))
-    fixed_dynamic = {attr: df.loc[:, df.columns.get_level_values(-1).isin(fixed_names)] for attr, df in dynamic.items()}
-    extendable_dynamic = {
-        attr: df.loc[:, df.columns.get_level_values(-1).isin(extendable_names)] for attr, df in dynamic.items()
-    }
-    return (fixed_static, fixed_dynamic), (extendable_static, extendable_dynamic)
-
-
 class PyPSARegister:
     def __init__(self, pypsa_network: Network):
         self.pypsa_network = pypsa_network
@@ -163,25 +141,15 @@ class PyPSARegister:
         )
 
         ### PyPSA components : Lines
-        # First split by s_nom_extendable: a fixed line carries none of the capacity-decision
-        # variables/constraints a truly extendable one needs. Then split the extendable subset
-        # again by modular: the common continuous-LP case gets no integer variable at all,
-        # while the rare discrete-block (modular) case is registered separately as its own
-        # always-MIP model (see CHANGELOG for why).
-        (lines_fixed_static, lines_fixed_dynamic), (lines_ext_static, lines_ext_dynamic) = _split_by_extendable(
-            self.pypsa_network.components.lines.static,
-            self.pypsa_network.components.lines.dynamic,
-            "s_nom_extendable",
-        )
-        (lines_lp_static, lines_lp_dynamic), (lines_mod_static, lines_mod_dynamic) = _split_by_extendable(
-            lines_ext_static,
-            lines_ext_dynamic,
-            "modular",
-        )
+        # Fixed lines carry no capacity decision. Extendable lines are split again by the
+        # preprocessor's modular flag: continuous LP vs discrete-block MIP (see CHANGELOG).
+        lines = self.pypsa_network.components.lines
+        lines_modular = _is_flagged(lines.static, "modular")
+        lines_extendable = _is_flagged(lines.static, "s_nom_extendable") & ~lines_modular
         self._register_pypsa_component(
             "lines",
-            lines_fixed_static,
-            lines_fixed_dynamic,
+            lines.static[~(lines_extendable | lines_modular)],
+            lines.dynamic,
             "line",
             {
                 "x_pu": "x",
@@ -195,8 +163,8 @@ class PyPSARegister:
         )
         self._register_pypsa_component(
             "lines_extendable",
-            lines_lp_static,
-            lines_lp_dynamic,
+            lines.static[lines_extendable],
+            lines.dynamic,
             "line_extendable",
             {
                 "x_pu": "x",
@@ -212,8 +180,8 @@ class PyPSARegister:
         )
         self._register_pypsa_component(
             "lines_extendable_modular",
-            lines_mod_static,
-            lines_mod_dynamic,
+            lines.static[lines_modular],
+            lines.dynamic,
             "line_extendable_modular",
             {
                 "x_pu": "x",
@@ -229,29 +197,13 @@ class PyPSARegister:
             },
         )
         ### PyPSA components : Transformers
-        (
-            (transformers_fixed_static, transformers_fixed_dynamic),
-            (
-                transformers_ext_static,
-                transformers_ext_dynamic,
-            ),
-        ) = _split_by_extendable(
-            self.pypsa_network.components.transformers.static,
-            self.pypsa_network.components.transformers.dynamic,
-            "s_nom_extendable",
-        )
-        (
-            (transformers_lp_static, transformers_lp_dynamic),
-            (transformers_mod_static, transformers_mod_dynamic),
-        ) = _split_by_extendable(
-            transformers_ext_static,
-            transformers_ext_dynamic,
-            "modular",
-        )
+        transformers = self.pypsa_network.components.transformers
+        transformers_modular = _is_flagged(transformers.static, "modular")
+        transformers_extendable = _is_flagged(transformers.static, "s_nom_extendable") & ~transformers_modular
         self._register_pypsa_component(
             "transformers",
-            transformers_fixed_static,
-            transformers_fixed_dynamic,
+            transformers.static[~(transformers_extendable | transformers_modular)],
+            transformers.dynamic,
             "transformer",
             {
                 "x_pu_eff": "x_pu_eff",
@@ -265,8 +217,8 @@ class PyPSARegister:
         )
         self._register_pypsa_component(
             "transformers_extendable",
-            transformers_lp_static,
-            transformers_lp_dynamic,
+            transformers.static[transformers_extendable],
+            transformers.dynamic,
             "transformer_extendable",
             {
                 "x_pu_eff": "x_pu_eff",
@@ -282,8 +234,8 @@ class PyPSARegister:
         )
         self._register_pypsa_component(
             "transformers_extendable_modular",
-            transformers_mod_static,
-            transformers_mod_dynamic,
+            transformers.static[transformers_modular],
+            transformers.dynamic,
             "transformer_extendable_modular",
             {
                 "x_pu_eff": "x_pu_eff",
@@ -371,3 +323,13 @@ class PyPSARegister:
                 )
             else:
                 raise ValueError("Type of GlobalConstraint not supported.")
+
+
+def _is_flagged(static: pd.DataFrame, column: str) -> pd.Series:
+    """
+    True where a 0/1 flag column is set. 
+    Missing column (empty component, no modular flag) is all False.
+    """
+    if column not in static.columns:
+        return pd.Series(False, index=static.index)
+    return static[column].astype(bool)
