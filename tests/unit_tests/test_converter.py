@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 
 import pytest
+import yaml
 from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
@@ -134,6 +135,65 @@ def test_converter_multiscenario_investment_study_prepares_xpansion_launcher() -
     weights = [float(x) for x in weights_file.read_text(encoding="utf-8").splitlines() if x.strip()]
     assert len(weights) == 2
     assert sum(weights) == pytest.approx(1.0)
+
+
+def test_converter_full_gems_investment_study_skips_hybrid_and_writes_gemspy_config() -> None:
+    """full_gems=True: no legacy virtual-area hybrid study, no Xpansion-launcher inputs;
+    optim-config.yml follows GemsPy's native nested schema with block-length/scenario-scope."""
+    network = Network(name="Simple_Network", snapshots=range(10))
+    network.add("Carrier", "carrier", co2_emissions=0)
+    network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
+    network.add("Load", "static_load", bus="bus 1", p_set=100, q_set=10)
+    network.add(
+        "Generator",
+        "gen1",
+        bus="bus 1",
+        p_nom_extendable=True,
+        p_nom_min=100,
+        marginal_cost=50,
+        p_nom=100,
+        p_max_pu=0.9,
+        capital_cost=1000,
+    )
+    network.set_scenarios({"low": 0.5, "high": 0.5})
+
+    study_dir = Path("tmp") / "test_full_gems_investment"
+    PyPSAStudyConverter(network, study_dir, "csv", solver_name="highs", full_gems=True).to_gems_study()
+
+    optim_config_path = study_dir / "systems" / "input" / "optim-config.yml"
+    assert optim_config_path.exists()
+    config = yaml.safe_load(optim_config_path.read_text(encoding="utf-8"))
+    assert config["resolution"] == {"mode": "benders-decomposition", "block-length": 168}
+    assert config["scenario-scope"] == {"include": ["0-1"]}
+    assert config["time-scope"] == {"first-time-step": 0, "last-time-step": 9}
+    assert config["solver-options"] == {"name": "highs"}
+
+    # No legacy virtual-area hybrid study or Xpansion-launcher inputs.
+    assert not (study_dir / "Simple_Network").is_dir()
+    assert not (study_dir / "systems" / "user" / "expansion").exists()
+
+
+def test_converter_full_gems_rejects_unsupported_solver() -> None:
+    network = Network(name="Simple_Network", snapshots=range(10))
+    network.add("Carrier", "carrier", co2_emissions=0)
+    network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
+    network.add("Load", "static_load", bus="bus 1", p_set=100, q_set=10)
+    network.add(
+        "Generator",
+        "gen1",
+        bus="bus 1",
+        p_nom_extendable=True,
+        p_nom_min=100,
+        marginal_cost=50,
+        p_nom=100,
+        p_max_pu=0.9,
+        capital_cost=1000,
+    )
+
+    with pytest.raises(ValueError, match="highs'.*xpress'.*gurobi'.*coin"):
+        PyPSAStudyConverter(
+            network, Path("tmp") / "test_full_gems_invalid_solver", "csv", solver_name="cplex", full_gems=True
+        )
 
 
 def test_converter_investment_study_rejects_unsupported_solver() -> None:

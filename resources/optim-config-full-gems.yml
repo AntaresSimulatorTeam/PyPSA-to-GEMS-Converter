@@ -1,0 +1,65 @@
+# Copyright (c) 2026, RTE (https://www.rte-france.com)
+#
+# See AUTHORS.txt
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# SPDX-License-Identifier: MPL-2.0
+#
+# This file is part of the Antares project.
+#
+# GemsPy-native OptimConfig schema (gems_craft.optim_config.parsing.OptimConfig), consumed
+# directly by gems_runner.study.runner.run_study() -- NOT the legacy antares-solver hybrid
+# study pipeline, which reads resources/optim-config.yml (flat `resolution-mode` key) instead.
+# `time-scope`, `scenario-scope`, and `solver-options` are filled in dynamically by
+# GemsStudyWriter.write_optim_config_yml() from the converted network; only the static
+# `resolution`/`models` decomposition below lives in this file.
+resolution:
+  mode: benders-decomposition
+  block-length: 168
+models:
+  - id: pypsa_models.generator
+    model-decomposition:
+      variables:
+        - id: p_nom
+          location: master-and-subproblems
+      objective-contributions:
+        - id: capital_objective
+          location: master
+        - id: operational_objective
+          location: subproblems
+
+  - id: pypsa_models.link
+    model-decomposition:
+      variables:
+        - id: p_nom
+          location: master-and-subproblems
+      objective-contributions:
+        - id: capital_objective
+          location: master
+        - id: operational_objective
+          location: subproblems
+
+  - id: pypsa_models.storage_unit
+    model-decomposition:
+      variables:
+        - id: p_nom
+          location: master-and-subproblems
+      objective-contributions:
+        - id: capital_objective
+          location: master
+        - id: operational_objective
+          location: subproblems
+
+  - id: pypsa_models.store
+    model-decomposition:
+      variables:
+        - id: e_nom
+          location: master-and-subproblems
+      objective-contributions:
+        - id: capital_objective
+          location: master
+        - id: operational_objective
+          location: subproblems

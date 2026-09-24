@@ -31,7 +31,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import highspy
 import pytest
 from gems_craft.optim_config.parsing import OptimConfig, validate_optim_config
 from gems_craft.study.folder import load_study
@@ -63,26 +62,6 @@ def check_hybrid_prerequisites() -> None:
     benders = get_antares_xpansion_benders_bin(PROJECT_ROOT)
     if not problem_generator.is_file() or not benders.is_file():
         pytest.skip(f"Antares Xpansion binaries not found (expected {problem_generator} and {benders})")
-
-
-def _rewrite_mps_for_coin(src: Path, dst: Path) -> None:
-    """
-    Re-emit GEMS MPS through HiGHS so Coin/CLP sees slack-bus theta in COLUMNS.
-
-    This is not a copy and not a text patch. HiGHS parses src into an in-memory LP
-    (readModel) and serializes it to dst (writeModel). Its writer lists every variable
-    in COLUMNS, including unused/zero-coefficient theta that problem-generator put
-    only in BOUNDS. Coin requires those names to exist in COLUMNS.
-    """
-
-    highs = highspy.Highs()
-    highs.setOptionValue("output_flag", False)
-    read_status = highs.readModel(str(src))
-    if read_status not in (highspy.HighsStatus.kOk, highspy.HighsStatus.kWarning):
-        raise RuntimeError(f"HiGHS failed to read {src}: {read_status}")
-    write_status = highs.writeModel(str(dst))
-    if not dst.exists():
-        raise RuntimeError(f"HiGHS failed to write {dst}: {write_status}")
 
 
 def _latest_simulation_dir(antares_study_dir: Path) -> Path:
@@ -142,11 +121,8 @@ def _run_hybrid_xpansion(antares_study_dir: Path) -> float:
     """
     Step 6: antares-problem-generator (Xpansion 1.9.0) then benders.
 
-    MPS COLUMNS lists variables; MPS BOUNDS lists their limits (or FX = fixed). Coin/CLP
-    requires every BOUNDS name to already appear in COLUMNS. Slack-bus theta is unused
-    on a 1-bus network with no lines, so it is written only in BOUNDS. We do not patch
-    the MPS: HiGHS readModel/writeModel into lp/ is what adds those columns. overall_cost
-    is read from expansion/out.json.
+    The generator's MPS files are moved into lp/ unchanged. overall_cost is read from
+    expansion/out.json.
     """
     problem_generator = get_antares_problem_generator_bin(PROJECT_ROOT)
     benders = get_antares_xpansion_benders_bin(PROJECT_ROOT)
@@ -178,7 +154,7 @@ def _run_hybrid_xpansion(antares_study_dir: Path) -> float:
     if not mps_files:
         raise FileNotFoundError(f"No MPS files written under {simulation_dir}")
     for mps_path in mps_files:
-        _rewrite_mps_for_coin(mps_path, lp_dir / mps_path.name)
+        shutil.move(mps_path, lp_dir / mps_path.name)
     shutil.copy(simulation_dir / "structure.txt", lp_dir / "structure.txt")
     (lp_dir / "area.txt").touch()
 

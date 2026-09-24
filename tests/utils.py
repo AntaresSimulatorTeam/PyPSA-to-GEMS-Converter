@@ -543,19 +543,41 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     n_buses = int(_n(row.get("n_buses")))
     n_scenarios = int(_n(row.get("n_scenarios")))
     n_timesteps = int(_n(row.get("number_of_time_steps")))
-    status = row.get("xpansion_status", "N/A")
-    xpansion_time = _n(row.get("xpansion_total_time"))
+    # Full-GEMS rows have no virtual-area hybrid study, so their MPS is the smaller count.
+    # Older rows only have the launcher (xpansion_*) columns.
+    full_gems_constraints = row.get("number_of_constraints_full_gems")
+    use_full_gems = "number_of_constraints_full_gems" in row.index and pd.notna(full_gems_constraints)
+    gems_label = "Antares-Xpansion"
+    if use_full_gems:
+        status = row.get("full_gems_status", "N/A")
+        gems_time = _n(row.get("full_gems_total_time"))
+        gems_obj = _n(row.get("full_gems_objective_value"))
+        n_cons_gems = int(_n(row.get("number_of_constraints_full_gems")))
+        n_vars_gems = int(_n(row.get("number_of_variables_full_gems")))
+        n_cons_master = int(_n(row.get("number_of_constraints_full_gems_master")))
+        n_vars_master = int(_n(row.get("number_of_variables_full_gems_master")))
+        n_subproblems = int(_n(row.get("number_of_full_gems_subproblems")))
+        n_cons_sub = int(_n(row.get("number_of_constraints_full_gems_subproblem")))
+        n_vars_sub = int(_n(row.get("number_of_variables_full_gems_subproblem")))
+    else:
+        status = row.get("xpansion_status", "N/A")
+        gems_time = _n(row.get("xpansion_total_time"))
+        gems_obj = _n(row.get("xpansion_objective_value"))
+        n_cons_gems = int(_n(row.get("number_of_constraints_xpansion")))
+        n_vars_gems = int(_n(row.get("number_of_variables_xpansion")))
+        n_cons_master = int(_n(row.get("number_of_constraints_xpansion_master")))
+        n_vars_master = int(_n(row.get("number_of_variables_xpansion_master")))
+        n_subproblems = int(_n(row.get("number_of_xpansion_subproblems")))
+        n_cons_sub = int(_n(row.get("number_of_constraints_xpansion_subproblem")))
+        n_vars_sub = int(_n(row.get("number_of_variables_xpansion_subproblem")))
     pypsa_build = _n(row.get("pypsa_build_time"))
     pypsa_solve = _n(row.get("pypsa_solve_time"))
     pypsa_total = _n(row.get("pypsa_total_time"), pypsa_build + pypsa_solve)
-    xpansion_obj = _n(row.get("xpansion_objective_value"))
     pypsa_obj = _n(row.get("pypsa_objective"))
     n_cons_pypsa = int(_n(row.get("number_of_constraints_pypsa")))
     n_vars_pypsa = int(_n(row.get("number_of_variables_pypsa")))
-    n_cons_xpansion = int(_n(row.get("number_of_constraints_xpansion")))
-    n_vars_xpansion = int(_n(row.get("number_of_variables_xpansion")))
-    has_xpansion_size = n_cons_xpansion > 0 or n_vars_xpansion > 0
-    speedup = (pypsa_total / xpansion_time) if xpansion_time > 0 else float("nan")
+    has_gems_size = n_cons_gems > 0 or n_vars_gems > 0
+    speedup = (pypsa_total / gems_time) if gems_time > 0 else float("nan")
 
     print("=" * 80)
     print(f"XPANSION BENCHMARK ANALYSIS - ROW {row_number}")
@@ -568,44 +590,48 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     print(f"  Antares Xpansion: {row.get('antares_xpansion_version', 'N/A')}")
     print(f"  GemsPy: {row.get('gemspy_version', 'N/A')}")
     print("\nTIMING:")
-    print(f"  Xpansion status: {status}")
-    print(f"  Xpansion total: {xpansion_time:.4f} s")
+    print(f"  {gems_label} status: {status}")
+    print(f"  {gems_label} total: {gems_time:.4f} s")
     print(f"  PyPSA build: {pypsa_build:.4f} s")
     print(f"  PyPSA solve: {pypsa_solve:.4f} s")
     print(f"  PyPSA total: {pypsa_total:.4f} s")
     if speedup == speedup:  # not NaN
-        faster = "Xpansion" if speedup > 1 else "PyPSA"
-        print(f"  Speedup (PyPSA / Xpansion): {speedup:.2f}x ({faster} faster)")
+        faster = gems_label if speedup > 1 else "PyPSA"
+        print(f"  Speedup (PyPSA / {gems_label}): {speedup:.2f}x ({faster} faster)")
     print("\nOBJECTIVE:")
-    print(f"  Xpansion: {xpansion_obj:.6e}")
+    print(f"  {gems_label}: {gems_obj:.6e}")
     print(f"  PyPSA:    {pypsa_obj:.6e}")
     if pypsa_obj != 0:
-        print(f"  Rel. gap: {abs(xpansion_obj - pypsa_obj) / abs(pypsa_obj) * 100:.2f} %")
+        print(f"  Rel. gap: {abs(gems_obj - pypsa_obj) / abs(pypsa_obj) * 100:.2f} %")
     print("\nMODEL SIZE:")
     print(f"  PyPSA constraints / variables:    {n_cons_pypsa:,} / {n_vars_pypsa:,}")
-    if has_xpansion_size:
-        print(f"  Xpansion constraints / variables: {n_cons_xpansion:,} / {n_vars_xpansion:,}")
-        print(
-            f"    (master {int(_n(row.get('number_of_constraints_xpansion_master'))):,} / "
-            f"{int(_n(row.get('number_of_variables_xpansion_master'))):,}; "
-            f"{int(_n(row.get('number_of_xpansion_subproblems')))} × one subproblem "
-            f"{int(_n(row.get('number_of_constraints_xpansion_subproblem'))):,} / "
-            f"{int(_n(row.get('number_of_variables_xpansion_subproblem'))):,})"
+    if has_gems_size:
+        print(f"  {gems_label} constraints / variables: {n_cons_gems:,} / {n_vars_gems:,}")
+        var_master_key = (
+            "number_of_variables_full_gems_master" if use_full_gems else "number_of_variables_xpansion_master"
         )
+        if var_master_key in row.index and pd.notna(row.get(var_master_key)):
+            breakdown = (
+                f"master {n_cons_master:,} / {n_vars_master:,}; "
+                f"{n_subproblems} × one subproblem {n_cons_sub:,} / {n_vars_sub:,}"
+            )
+        else:
+            breakdown = f"master {n_cons_master:,}; {n_subproblems} × one subproblem {n_cons_sub:,}"
+        print(f"    ({breakdown})")
     else:
-        print("  Xpansion constraints / variables: N/A (re-run benchmark to capture MPS sizes)")
+        print(f"  {gems_label} constraints / variables: N/A (re-run benchmark to capture MPS sizes)")
     print("\nSOLVER INFORMATION:")
     print(f"  Solver: {row.get('pypsa_solver_name', 'N/A')} (LP)")
     print("\n" + "=" * 80)
 
-    categories = ["PyPSA", "Antares-Xpansion"]
+    categories = ["PyPSA", gems_label]
     colors = ["steelblue", "coral"]
 
     fig, axes = plt.subplots(1, 4, figsize=(18, 5))
 
     # 1. Objective
     ax = axes[0]
-    objs = [pypsa_obj, xpansion_obj]
+    objs = [pypsa_obj, gems_obj]
     bars = ax.bar(categories, objs, color=colors, alpha=0.7, edgecolor="black")
     ax.set_ylabel("Objective Value", fontsize=11)
     ax.set_title("Objective Value Comparison", fontsize=12, fontweight="bold", pad=10)
@@ -621,17 +647,17 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
     ax.bar(
         ["PyPSA"], [pypsa_solve], bottom=[pypsa_build], color="steelblue", alpha=0.8, edgecolor="black", label="Solve"
     )
-    ax.bar(["Antares-Xpansion"], [xpansion_time], color="coral", alpha=0.7, edgecolor="black", label="Total")
+    ax.bar([gems_label], [gems_time], color="coral", alpha=0.7, edgecolor="black", label="Total")
     ax.set_ylabel("Time (seconds)", fontsize=11)
     ax.set_title("Time Comparison", fontsize=12, fontweight="bold", pad=10)
     ax.grid(True, alpha=0.3, axis="y")
     ax.text(0, pypsa_total, f"{pypsa_total:.3f}s", ha="center", va="bottom", fontsize=9)
-    ax.text(1, xpansion_time, f"{xpansion_time:.3f}s", ha="center", va="bottom", fontsize=9)
+    ax.text(1, gems_time, f"{gems_time:.3f}s", ha="center", va="bottom", fontsize=9)
     ax.legend(fontsize=9)
 
     # 3. Constraints
     ax = axes[2]
-    cons_vals = [n_cons_pypsa, n_cons_xpansion]
+    cons_vals = [n_cons_pypsa, n_cons_gems]
     bars = ax.bar(categories, cons_vals, color=colors, alpha=0.7, edgecolor="black")
     ax.set_ylabel("Number of Constraints", fontsize=11)
     ax.set_title("Constraints Comparison", fontsize=12, fontweight="bold", pad=10)
@@ -641,7 +667,7 @@ def analyze_xpansion_benchmark_study(row_number: int, results_file: Path | None 
 
     # 4. Variables
     ax = axes[3]
-    vars_vals = [n_vars_pypsa, n_vars_xpansion]
+    vars_vals = [n_vars_pypsa, n_vars_gems]
     bars = ax.bar(categories, vars_vals, color=colors, alpha=0.7, edgecolor="black")
     ax.set_ylabel("Number of Variables", fontsize=11)
     ax.set_title("Variables Comparison", fontsize=12, fontweight="bold", pad=10)

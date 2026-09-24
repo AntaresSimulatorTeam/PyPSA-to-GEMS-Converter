@@ -228,12 +228,10 @@ library:
           scenario-dependent: true
       variables:
         - id: p0
-          #s_nom/s_max_pu are both plain parameters here (capacity isn't a decision), so the
-          #flow limit is a genuine variable bound, not a separate constraint -- unlike
-          #line_extendable, where capacity is itself a variable and p0's limit becomes a
-          #variable*variable product that has to be linearized as a constraint instead.
-          lower-bound: -s_nom * s_max_pu
-          upper-bound: s_nom * s_max_pu
+          #Demo: flow limits are constraints (upper_flow/lower_flow) so the row count matches
+          #PyPSA's Line-fix-s-lower/upper. Bounds are the cleaner form; restore them afterwards:
+          #lower-bound: -s_nom * s_max_pu
+          #upper-bound: s_nom * s_max_pu
       ports:
         - id: bus0_p_port
           type: flow
@@ -257,6 +255,11 @@ library:
         - port: neg_cycle_port
           field: value
           definition: -x * p0
+      constraints:
+        - id: upper_flow
+          expression: p0 <= s_nom * s_max_pu
+        - id: lower_flow
+          expression: p0 >= -s_nom * s_max_pu
 
     - id: line_extendable
       #Model for PyPSA line in DC LOPF, s_nom_extendable=True and NOT modular (the common

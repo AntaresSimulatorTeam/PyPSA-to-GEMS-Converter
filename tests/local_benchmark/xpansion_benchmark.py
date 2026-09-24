@@ -14,11 +14,14 @@
 Benchmarks Antares-Xpansion (Benders decomposition) against PyPSA's monolithic solve on
 synthetic investment studies, scaled across network size and number of scenarios.
 
+The GEMS study is PyPSAStudyConverter(full_gems=True): no legacy virtual-area hybrid study
+and no Xpansion-launcher inputs. Execution is still Antares-Xpansion: GemsPy's
+gems_runner.study.runner.run_study() writes the Benders subproblems (one per scenario and
+week-block) and shells out to the Xpansion 1.9.0 `bin/benders` binary. Both sides use Coin.
+
 Networks are built in code (no .nc fixtures): a connected AC ring with one extendable
 generator and one load per bus, then fanned out into equal-weight scenarios with
-independently perturbed loads. Extendable capacity puts the study on the
-antares-xpansion-launcher GEMS path; load noise gives Benders genuinely different
-operational subproblems versus PyPSA solving one big block.
+independently perturbed loads.
 
 Run with, e.g.: pytest tests/local_benchmark/xpansion_benchmark.py -s
 Results are appended to tmp/xpansion_benchmark_results/xpansion_scenario_results.csv.
@@ -26,30 +29,27 @@ Results are appended to tmp/xpansion_benchmark_results/xpansion_scenario_results
 
 import hashlib
 import logging
+import os
 import shutil
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+from gems_runner.study.runner import run_study
 from pypsa import Network
 
-from src.dependencies import (
-    get_antares_dir_name,
-    get_antares_version,
-    get_antares_xpansion_dir_name,
-    get_antares_xpansion_launcher_bin,
-    get_antares_xpansion_version,
-)
+from src.dependencies import get_antares_xpansion_dir, get_antares_xpansion_dir_name, get_antares_xpansion_version
 from src.pypsa_converter import PyPSAStudyConverter
-from src.utils import read_xpansion_mps_sizes, read_xpansion_out_json, run_xpansion_launcher
+from src.utils import read_mps_problem_size, read_xpansion_out_json
 from tests.utils import PROJECT_ROOT, get_gemspy_version
 
-# PyPSA is solved with the same underlying solver ('coin'/Cbc) that the GEMS side (Antares
-# Modeler / Antares-Xpansion) is configured with below, so the comparison measures the
-# Benders decomposition's speedup, not a difference in LP solver implementation.
+# PyPSA's Cbc and Xpansion's COIN are the same Coin LP solver. GemsPy writes
+# SOLVER_NAME=COIN in options.json.
 PYPSA_SOLVER_NAME = "cbc"
 GEMS_SOLVER_NAME = "coin"
+XPANSION_SOLVER_NAME = "COIN"
 
 logger = logging.getLogger("xpansion_benchmark")
 logger.setLevel(logging.INFO)
@@ -186,14 +186,41 @@ def build_synthetic_investment_network(n_buses: int, n_timesteps: int, *, name: 
     return network
 
 
+def _run_full_gems_benders(full_gems_study_dir: Path, xpansion_root: Path) -> tuple[str, float | None, float]:
+    """Convert-and-run a full-GEMS investment study via gems_runner.study.runner.run_study().
+
+    gems_runner.simulation.runner.BendersRunner shells out to a hardcoded 'bin/benders' path
+    resolved relative to the process's cwd at call time (see GemsPy's runner.py), so we chdir
+    into the Xpansion 1.9.0 install root — whose bin/ holds that binary — then restore cwd.
+
+    Returns (status, objective_value_or_None, elapsed_seconds). Never raises: a failure is
+    recorded as a "FAILED"/"NO_OUTPUT" row rather than aborting the whole benchmark.
+    """
+    gems_root = full_gems_study_dir / "systems"
+    previous_cwd = Path.cwd()
+    start = time.time()
+    try:
+        os.chdir(xpansion_root)
+        run_study(gems_root)
+    except Exception:
+        elapsed = time.time() - start
+        logger.exception("gems_runner.study.runner.run_study failed on %s", gems_root)
+        return "FAILED", None, elapsed
+    finally:
+        os.chdir(previous_cwd)
+    elapsed = time.time() - start
+
+    try:
+        solution = read_xpansion_out_json(gems_root)["solution"]
+        return str(solution["problem_status"]), float(solution["overall_cost"]), elapsed
+    except (FileNotFoundError, KeyError) as exc:
+        logger.warning("run_study() completed but no readable out.json under %s: %s", gems_root, exc)
+        return "NO_OUTPUT", None, elapsed
+
+
 @pytest.mark.parametrize("n_buses, n_timesteps, study_name", STUDIES)
 @pytest.mark.parametrize("n_scenarios", SCENARIO_COUNTS)
 def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, study_name: str, n_scenarios: int) -> None:
-    if not (PROJECT_ROOT / get_antares_dir_name()).is_dir():
-        pytest.skip(
-            f"Antares binaries not found. Please download version {get_antares_version()} from "
-            "https://github.com/AntaresSimulatorTeam/Antares_Simulator/releases"
-        )
     if not (PROJECT_ROOT / get_antares_xpansion_dir_name()).is_dir():
         pytest.skip(
             f"Antares Xpansion binaries not found. Please download version {get_antares_xpansion_version()} "
@@ -207,6 +234,7 @@ def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, stud
     benchmark_data_frame.loc[0, "n_buses"] = n_buses
     benchmark_data_frame.loc[0, "n_scenarios"] = n_scenarios
     benchmark_data_frame.loc[0, "antares_xpansion_version"] = f"v{get_antares_xpansion_version()}"
+    benchmark_data_frame.loc[0, "xpansion_solver_name"] = XPANSION_SOLVER_NAME
     benchmark_data_frame.loc[0, "gemspy_version"] = get_gemspy_version()
 
     # ==================================================================================
@@ -222,59 +250,54 @@ def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, stud
     benchmark_data_frame.loc[0, "network_build_time"] = build_elapsed
 
     # ==================================================================================
-    # Converter: PyPSA -> GEMS study (Xpansion path via extendable generators)
+    # Full-GEMS: no legacy virtual-area hybrid study. run_study() does the
+    # per-(scenario, week-block) Benders split.
     # ==================================================================================
-    study_dir = PROJECT_ROOT / "tmp" / run_name
-    start_time_conversion = time.time()
-    logger.info("Converting PyPSA network to GEMS study")
+    study_dir = PROJECT_ROOT / "tmp" / f"{run_name}_full_gems"
+    logger.info("Converting PyPSA network to a full-GEMS study (no legacy virtual area)")
+    start_full_gems_conversion = time.time()
     PyPSAStudyConverter(
-        pypsa_network=network, study_dir=study_dir, series_file_format=".tsv", solver_name=GEMS_SOLVER_NAME
+        pypsa_network=network,
+        study_dir=study_dir,
+        series_file_format=".tsv",
+        solver_name=GEMS_SOLVER_NAME,
+        full_gems=True,
     ).to_gems_study()
-    conversion_time = time.time() - start_time_conversion
-    benchmark_data_frame.loc[0, "pypsa_to_gems_conversion_time"] = conversion_time
+    benchmark_data_frame.loc[0, "full_gems_conversion_time"] = time.time() - start_full_gems_conversion
 
-    study_root = study_dir / study_name
-
-    # ==================================================================================
-    # Antares-Xpansion: run antares-xpansion-launcher (antares-problem-generator + benders)
-    # ==================================================================================
-    launcher_bin = get_antares_xpansion_launcher_bin(PROJECT_ROOT)
-    logger.info("Running Antares-Xpansion launcher on %s", study_root)
-    xpansion_start = time.time()
-    # --keepMps keeps master/slave MPS so we can read variable/constraint counts.
-    result = run_xpansion_launcher(study_root, launcher_bin, extra_args=["--keepMps"], logger=logger)
-    xpansion_elapsed = time.time() - xpansion_start
-    benchmark_data_frame.loc[0, "xpansion_total_time"] = xpansion_elapsed
-
-    if result.returncode != 0:
-        benchmark_data_frame.loc[0, "xpansion_status"] = "FAILED"
-        logger.error(
-            "antares-xpansion-launcher failed (returncode=%s):\n--- stdout (tail) ---\n%s\n--- stderr (tail) ---\n%s",
-            result.returncode,
-            result.stdout[-4000:],
-            result.stderr[-2000:],
-        )
-    else:
-        xpansion_solution = read_xpansion_out_json(study_root)["solution"]
-        benchmark_data_frame.loc[0, "xpansion_status"] = xpansion_solution["problem_status"]
-        benchmark_data_frame.loc[0, "xpansion_objective_value"] = xpansion_solution["overall_cost"]
-
+    logger.info("Running gems_runner.study.runner.run_study on %s", study_dir / "systems")
+    full_gems_status, full_gems_objective, full_gems_elapsed = _run_full_gems_benders(
+        study_dir, get_antares_xpansion_dir(PROJECT_ROOT)
+    )
+    benchmark_data_frame.loc[0, "full_gems_status"] = full_gems_status
+    benchmark_data_frame.loc[0, "full_gems_objective_value"] = full_gems_objective
+    benchmark_data_frame.loc[0, "full_gems_total_time"] = full_gems_elapsed
     try:
-        mps_sizes = read_xpansion_mps_sizes(study_root)
-        for key, value in mps_sizes.items():
-            benchmark_data_frame.loc[0, key] = value
-        logger.info(
-            "Xpansion MPS sizes: %s vars / %s cons (master %s/%s, %s× one-sub %s/%s)",
-            mps_sizes["number_of_variables_xpansion"],
-            mps_sizes["number_of_constraints_xpansion"],
-            mps_sizes["number_of_variables_xpansion_master"],
-            mps_sizes["number_of_constraints_xpansion_master"],
-            mps_sizes["number_of_xpansion_subproblems"],
-            mps_sizes["number_of_variables_xpansion_subproblem"],
-            mps_sizes["number_of_constraints_xpansion_subproblem"],
+        output_dirs = sorted((study_dir / "systems" / "output").iterdir())
+        mps_dir = output_dirs[-1]
+        master_vars, master_cons = read_mps_problem_size(mps_dir / "master.mps")
+        subproblems = sorted(mps_dir.glob("subproblem_*.mps"))
+        sub_vars, sub_cons = read_mps_problem_size(subproblems[0])
+        n_subproblems = len(subproblems)
+        benchmark_data_frame.loc[0, "number_of_full_gems_subproblems"] = n_subproblems
+        benchmark_data_frame.loc[0, "number_of_constraints_full_gems_master"] = master_cons
+        benchmark_data_frame.loc[0, "number_of_variables_full_gems_master"] = master_vars
+        benchmark_data_frame.loc[0, "number_of_constraints_full_gems_subproblem"] = sub_cons
+        benchmark_data_frame.loc[0, "number_of_variables_full_gems_subproblem"] = sub_vars
+        benchmark_data_frame.loc[0, "number_of_constraints_full_gems"] = master_cons + n_subproblems * sub_cons
+        benchmark_data_frame.loc[0, "number_of_variables_full_gems"] = master_vars + n_subproblems * (
+            sub_vars - master_vars
         )
-    except (FileNotFoundError, ValueError) as exc:
-        logger.warning("Could not read Xpansion MPS sizes: %s", exc)
+        logger.info(
+            "Full-GEMS MPS sizes: %s constraints (%s master + %s× %s), %s variables",
+            int(benchmark_data_frame.loc[0, "number_of_constraints_full_gems"]),
+            master_cons,
+            n_subproblems,
+            sub_cons,
+            int(benchmark_data_frame.loc[0, "number_of_variables_full_gems"]),
+        )
+    except (FileNotFoundError, IndexError, ValueError, StopIteration) as exc:
+        logger.warning("Could not read full-GEMS MPS sizes: %s", exc)
 
     # ==================================================================================
     # PyPSA: build and solve the same investment problem as one monolithic LP
@@ -306,8 +329,11 @@ def test_xpansion_vs_pypsa_scenario_scaling(n_buses: int, n_timesteps: int, stud
     results_dir.mkdir(parents=True, exist_ok=True)
     combined_results_file = results_dir / "xpansion_scenario_results.csv"
 
-    file_exists = combined_results_file.exists()
-    benchmark_data_frame.to_csv(combined_results_file, mode="a", header=not file_exists, index=False)
+    if combined_results_file.exists():
+        existing = pd.read_csv(combined_results_file)
+        pd.concat([existing, benchmark_data_frame], ignore_index=True).to_csv(combined_results_file, index=False)
+    else:
+        benchmark_data_frame.to_csv(combined_results_file, index=False)
     logger.info("Appended benchmark results to %s", combined_results_file)
 
     shutil.rmtree(study_dir, ignore_errors=True)
