@@ -95,7 +95,7 @@ PyPSA Network (deep-copied)
       system.yml
       model-libraries/
         pypsa_models.yml
-      optim-config.yml          # only for stochastic studies (>1 scenario)
+      optim-config.yml          # always: Benders template (investment) or sequential-subproblems (operational)
       data-series/
         {system}_{component}_{param}.csv
     parameters.yml
@@ -141,7 +141,7 @@ uv run pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO
 uv run pytest tests/unit_tests/tests_converter.py::test_converter_deterministic_study -v
 
 # E2E tests
-uv run pytest -n auto tests/e2e/end_2_end_tests.py -v -s --log-cli-level=INFO
+uv run pytest -n auto tests/e2e/ -v -s --log-cli-level=INFO
 
 # Stochastic E2E tests
 uv run pytest -n auto tests/e2e_2_stage_stochastic/ -v -s --log-cli-level=INFO

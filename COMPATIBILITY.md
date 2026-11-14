@@ -293,4 +293,4 @@ Parameters not relevant for DC LOPF (silently ignored):
 | Converter | 0.0.1 | `pyproject.toml` |
 | PyPSA Models Library | 2.0.1 | `resources/pypsa_models/pypsa_models.yml` |
 | PyPSA | 1.2.4 | `pyproject.toml` |
-| Antares-Simulator | 10.1.1 | `dependencies.json` |
+| Antares-Simulator | 10.2.0 | `dependencies.json` |

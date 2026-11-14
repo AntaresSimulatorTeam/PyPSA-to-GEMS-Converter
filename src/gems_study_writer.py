@@ -197,6 +197,17 @@ class GemsStudyWriter:
         source_file = project_root / "resources" / "optim-config.yml"
         shutil.copy(source_file, destination_file)
 
+    def write_operational_optim_config_yml(self) -> None:
+        """Write the optim-config.yml of an operational study (no Benders decomposition).
+
+        Antares-modeler >= 10.2 refuses to run a study whose input/ has a system.yml but no optim-config.yml.
+        """
+        self._write_text_file(
+            self.study_dir / "systems" / "input" / "optim-config.yml",
+            # antares-modeler 10.2 requires the "models" key in any non-empty optim-config.yml.
+            "resolution-mode: sequential-subproblems\nmodels: []\n",
+        )
+
     def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
         """
         Write the Antares-Xpansion inputs the launcher GEMS workflow needs on top of the GEMS study.
