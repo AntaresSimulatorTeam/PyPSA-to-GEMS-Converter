@@ -143,7 +143,7 @@ class PyPSAStudyConverter:
             # optim-config.yml's model-decomposition is what lets the
             # antares-xpansion-launcher GEMS workflow (antares-problem-generator + benders)
             # run the master/subproblem Benders split end-to-end — including the 1-scenario case.
-            gems_study_writer.write_optim_config_yml()
+            gems_study_writer.write_optim_config_yml(is_investment_study=True)
             gems_study_writer.prepare_xpansion_runnable_study(
                 solver_name=self.solver_name, scenario_weights=self.scenario_weightings
             )
@@ -160,7 +160,7 @@ class PyPSAStudyConverter:
             )
             return
 
-        gems_study_writer.write_operational_optim_config_yml()
+        gems_study_writer.write_optim_config_yml(is_investment_study=False)
 
         if len(self.scenario_weightings) <= 1:
             return

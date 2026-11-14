@@ -27,10 +27,9 @@ from tests.e2e.end_2_end_helpers import (
 )
 from tests.utils import load_pypsa_study, preprocess_network
 
-# Disabled for now: the converter requires the 'coin' or 'xpress' solver for investment studies and writes a
-# Benders optim-config.yml, which antares-modeler does not solve; these tests run antares-modeler with the default
-# solver.
-pytestmark = pytest.mark.skip(reason="Investment studies are not yet supported by these antares-modeler e2e tests")
+# Disabled for now: antares-modeler >= 10.2 can solve these single-scenario studies, but the converter routes every
+# study with extendable capacity to Antares-Xpansion (coin/xpress solver + Benders optim-config.yml).
+pytestmark = pytest.mark.skip(reason="Converter routes investment studies to Antares-Xpansion, not antares-modeler")
 
 
 @pytest.mark.parametrize(
