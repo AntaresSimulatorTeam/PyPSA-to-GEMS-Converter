@@ -46,7 +46,7 @@ from src.dependencies import (
 )
 from src.pypsa_converter import PyPSAStudyConverter
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 HOURS_PER_WEEK = 168
 

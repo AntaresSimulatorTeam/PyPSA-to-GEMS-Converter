@@ -135,12 +135,15 @@ class PyPSAStudyConverter:
           run every Monte-Carlo year. Same 168-hour restriction (Antares Economy truncates
           incomplete weeks; see StudyRuntimeInfos::initializeRangeLimits).
         - Operational + single scenario: nothing extra; antares-modeler on systems/ is enough.
+
+        Operational studies (any number of scenarios) get a sequential-subproblems optim-config.yml,
+        required by antares-modeler >= 10.2.
         """
         if self.is_investment_study:
             # optim-config.yml's model-decomposition is what lets the
             # antares-xpansion-launcher GEMS workflow (antares-problem-generator + benders)
             # run the master/subproblem Benders split end-to-end — including the 1-scenario case.
-            gems_study_writer.write_optim_config_yml()
+            gems_study_writer.write_optim_config_yml(is_investment_study=True)
             gems_study_writer.prepare_xpansion_runnable_study(
                 solver_name=self.solver_name, scenario_weights=self.scenario_weightings
             )
@@ -156,6 +159,8 @@ class PyPSAStudyConverter:
                 antares_hybrid_dir,
             )
             return
+
+        gems_study_writer.write_optim_config_yml(is_investment_study=False)
 
         if len(self.scenario_weightings) <= 1:
             return

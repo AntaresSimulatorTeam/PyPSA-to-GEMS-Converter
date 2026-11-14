@@ -188,14 +188,15 @@ class GemsStudyWriter:
             separator=separator,
         )
 
-    def write_optim_config_yml(self) -> None:
-        Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
-        destination_file = Path(self.study_dir / "systems" / "input" / "optim-config.yml")
-        destination_file.touch()
+    def write_optim_config_yml(self, is_investment_study: bool) -> None:
+        """Copy the Benders (investment) or sequential-subproblems (operational) optim-config.yml template.
 
-        project_root = Path(__file__).parent.parent
-        source_file = project_root / "resources" / "optim-config.yml"
-        shutil.copy(source_file, destination_file)
+        Antares-modeler >= 10.2 refuses to run a study whose input/ has a system.yml but no optim-config.yml.
+        """
+        Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
+        template = "optim-config.yml" if is_investment_study else "optim-config-operational.yml"
+        source_file = Path(__file__).parent.parent / "resources" / template
+        shutil.copy(source_file, self.study_dir / "systems" / "input" / "optim-config.yml")
 
     def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
         """

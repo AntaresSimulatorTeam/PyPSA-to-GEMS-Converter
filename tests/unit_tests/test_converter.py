@@ -58,16 +58,18 @@ def test_converter_deterministic_study() -> None:
     PyPSAStudyConverter(network, Path("tmp") / "test_one", "csv").to_gems_study()
     logger.info("Converted deterministic study to test_one")
 
-    # Operational study: no optim-config.yml (Benders / Xpansion only for extendable capacity).
-    assert not (Path("tmp") / "test_one" / "systems" / "input" / "optim-config.yml").exists()
+    # Operational study: sequential-subproblems optim-config.yml (Benders / Xpansion only for extendable capacity).
+    optim_config = Path("tmp") / "test_one" / "systems" / "input" / "optim-config.yml"
+    assert "resolution-mode: sequential-subproblems" in optim_config.read_text(encoding="utf-8")
 
     network.set_scenarios({"low": 0.5, "high": 0.5})
     PyPSAStudyConverter(network, Path("tmp") / "test_two", "csv").to_gems_study()
     logger.info("Converted scenario study to test_two")
 
-    # Multi-scenario but no extendable capacity -> non-investment study: no optim-config.yml.
+    # Multi-scenario but no extendable capacity -> non-investment study: sequential-subproblems optim-config.yml.
     # Hybrid Antares study is skipped when the horizon is not a multiple of 168 hours.
-    assert not (Path("tmp") / "test_two" / "systems" / "input" / "optim-config.yml").exists()
+    optim_config = Path("tmp") / "test_two" / "systems" / "input" / "optim-config.yml"
+    assert "resolution-mode: sequential-subproblems" in optim_config.read_text(encoding="utf-8")
     assert not (Path("tmp") / "test_two" / "Simple_Network").is_dir()
 
 
