@@ -5,7 +5,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 | Converter | PyPSA | Antares-Simulator | Notes |
 |-----------|-------|-------------------|-------|
 | 0.0.1     | 1.2.0 | 9.3.7             | Initial release |
-| 0.0.2     | 1.2.4 | 10.1.1            | Upcoming release |
+| 0.0.2     | 1.4.0 | 10.1.1            | Upcoming release |
 
 ## Versioning Policy
 
@@ -25,7 +25,7 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 
 ## Converter Limitations
 
-The tables below document all PyPSA features not yet supported by the converter. Where a limitation is **enforced**, `_check_converter_limitations()` in `src/pypsa_preprocessor.py` raises a `ValueError` at runtime. Where it is **not enforced**, the feature is silently ignored — the network is accepted but the unsupported data has no effect on the output.
+The tables below document all PyPSA features not yet supported by the converter. Where a limitation is **enforced**, the conversion stops with an error (`ValueError`, or `AssertionError` for the checks written as `assert` in `_check_converter_limitations()` in `src/pypsa_preprocessor.py`). Where it is **not enforced**, the feature is silently ignored — the network is accepted but the unsupported data has no effect on the output.
 
 When a new PyPSA version introduces features that the converter does not yet support, add a row to the relevant table. If the limitation is enforced, also add a corresponding assertion in `_check_converter_limitations()`.
 
@@ -42,17 +42,20 @@ When a new PyPSA version introduces features that the converter does not yet sup
 
 | Feature | Limitation | Enforced |
 |---|---|---|
-| Multi-investment periods | Not supported — `network.investment_periods` must be empty | Yes — `ValueError` since 0.0.1 |
-| Snapshot weightings ≠ 1 | All snapshot weightings must equal 1.0 | Yes — `ValueError` since 0.0.1 |
+| Multi-investment periods | Not supported — `network.investment_periods` must be empty | Yes — `AssertionError` since 0.0.1 |
+| Snapshot weightings ≠ 1 | All snapshot weightings must equal 1.0 | Yes — `AssertionError` since 0.0.1 |
 | Link multi-port (bus2, bus3, …) | Only 2-port links (bus0 → bus1) supported | No — silently ignored |
 | Sub-network AC/DC topology | Not used in DC LOPF | No — silently ignored |
+| Piecewise-linear curves | `marginal_cost` and `capital_cost` (Generator, StorageUnit, Store, Link, Process) and `efficiency` (Link) given as piecewise curves, available from PyPSA 1.3.0 — stored separately (`c.piecewise`) and not read by the converter | No — silently ignored |
+| Per-bus capacity limits by carrier | Bus columns `nom_min_<carrier>` / `nom_max_<carrier>` limiting the total capacity of a carrier at a bus — not implemented | No — silently ignored |
+| Risk preference (CVaR) | Risk-averse stochastic objective set with `n.set_risk_preference()` — not implemented. Not saved in `.nc` files, so it only applies to in-memory networks | No — silently ignored |
 
 ### GlobalConstraints
 
 | Feature | Limitation | Enforced |
 |---|---|---|
-| Constraint type | Only `primary_energy` type supported | Yes — `ValueError` since 0.0.1 |
-| Carrier attribute | Only `co2_emissions` supported | Yes — `ValueError` since 0.0.1 |
+| Constraint type | Only `primary_energy` type supported (`operational_limit`, `tech_capacity_expansion_limit`, `transmission_volume_expansion_limit`, `transmission_expansion_cost_limit` are not) | Yes — `AssertionError` since 0.0.1 |
+| Carrier attribute | Only `co2_emissions` supported | Yes — `AssertionError` since 0.0.1 |
 | Sense | Only `<=` and `==` supported | Yes — `ValueError` since 0.0.1 |
 
 ### Unsupported Parameters per Component
@@ -77,6 +80,8 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
 | `p_nom_mod` | Modular integer capacity expansion — not implemented |
 | `p_set` | Fixed active power output — not implemented |
+| `p_nom_set` | Fixes the capacity of an extendable generator — not implemented |
+| `maintainable`, `maintenance_pu`, `maintenance_duration`, `maintenance_events` | Maintenance scheduling — available from PyPSA 1.3.0, not implemented |
 | `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
@@ -123,6 +128,9 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
 | `p_nom_mod` | Modular integer capacity expansion — not implemented |
 | `p_set` | Fixed dispatch set point — not implemented |
+| `p_nom_set` | Fixes the capacity of an extendable link — not implemented |
+| `delay`, `cyclic_delay` | Delayed energy delivery to `bus1` — not implemented |
+| `maintainable`, `maintenance_pu`, `maintenance_duration`, `maintenance_events` | Maintenance scheduling — available from PyPSA 1.3.0, not implemented |
 | `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
@@ -163,6 +171,8 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `discount_rate` | Available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Available from PyPSA 1.1.0, not implemented |
 | `active` | Not handled — the `active` flag is ignored; inactive lines are converted as if active (not enforced, not dropped) |
+| `s_nom_set` | Fixes the capacity of an extendable line — not implemented |
+| `v_ang_max` | Voltage angle difference limit, enforced by PyPSA since 1.4.0 — not implemented |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
 
@@ -176,12 +186,10 @@ Parameters not relevant for DC LOPF (silently ignored):
 | `b` | AC susceptance — not used in DC LOPF |
 | `s_nom` | Handled by converter: non-extendable → `s_nom_min = s_nom_max = s_nom` |
 | `s_nom_extendable` | Handled by converter: `False` → fixed capacity; `True` → use `s_nom_min`/`s_nom_max` |
-| `s_nom_set` | Handled by converter: when set → `s_nom_min = s_nom_max = s_nom_set` |
 | `length` | Used for type-based reactance scaling — absorbed by `calculate_dependent_values()` |
 | `terrain_factor` | Metadata — must be pre-multiplied into `capital_cost` by the user |
 | `num_parallel` | Only used when `type` is set — absorbed by `calculate_dependent_values()` |
-| `v_ang_min` | Placeholder in PyPSA — not used in optimisation |
-| `v_ang_max` | Placeholder in PyPSA — not used in optimisation |
+| `v_ang_min` | Deprecated and ignored by PyPSA since 1.4.0 (`v_ang_max` applies symmetrically) |
 
 #### Transformer
 
@@ -193,6 +201,10 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `discount_rate` | Available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Available from PyPSA 1.1.0, not implemented |
 | `active` | Not handled — the `active` flag is ignored; inactive transformers are converted as if active (not enforced, not dropped) |
+| `s_nom_set` | Fixes the capacity of an extendable transformer — not implemented |
+| `phase_shift` | Phase angle shift, used in the KVL constraints since PyPSA 1.3.0 — not implemented |
+| `phase_shift_min`, `phase_shift_max` | Optimised phase shift (when `phase_shift_min < phase_shift_max`), available from PyPSA 1.3.0 — not implemented |
+| `v_ang_max` | Voltage angle difference limit, enforced by PyPSA since 1.4.0 — not implemented |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
 | `lifetime` | Only meaningful with multi-investment periods — already blocked |
 
@@ -208,13 +220,10 @@ Parameters not relevant for DC LOPF (silently ignored):
 | `tap_ratio` | Absorbed into `x_pu_eff` by `calculate_dependent_values()` |
 | `tap_side` | AC power flow only — not used in DC LOPF |
 | `tap_position` | Only used when `type` is set — absorbed by `calculate_dependent_values()` |
-| `phase_shift` | Not used in DC LOPF optimisation |
 | `s_nom` | Handled by converter: non-extendable → `s_nom_min = s_nom_max = s_nom` |
 | `s_nom_extendable` | Handled by converter: `False` → fixed capacity; `True` → use `s_nom_min`/`s_nom_max` |
-| `s_nom_set` | Handled by converter: when set → `s_nom_min = s_nom_max = s_nom_set` |
 | `num_parallel` | Only used when `type` is set — absorbed by `calculate_dependent_values()` |
-| `v_ang_min` | Placeholder in PyPSA — not used in optimisation |
-| `v_ang_max` | Placeholder in PyPSA — not used in optimisation |
+| `v_ang_min` | Deprecated and ignored by PyPSA since 1.4.0 (`v_ang_max` applies symmetrically) |
 
 #### StorageUnit
 
@@ -224,6 +233,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 |---|---|
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
 | `p_nom_mod` | Modular integer capacity expansion — not implemented |
+| `p_nom_set` | Fixes the capacity of an extendable storage unit — not implemented |
 | `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
@@ -258,6 +268,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 |---|---|
 | `e_nom_extendable` | Not validated — converter uses `e_nom_min`/`e_nom_max` directly |
 | `e_nom_mod` | Modular integer capacity expansion — not implemented |
+| `e_nom_set` | Fixes the capacity of an extendable store — not implemented |
 | `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
@@ -292,5 +303,5 @@ Parameters not relevant for DC LOPF (silently ignored):
 |-----------|----------------|--------------|
 | Converter | 0.0.1 | `pyproject.toml` |
 | PyPSA Models Library | 2.0.1 | `resources/pypsa_models/pypsa_models.yml` |
-| PyPSA | 1.2.4 | `pyproject.toml` |
+| PyPSA | 1.4.0 | `pyproject.toml` |
 | Antares-Simulator | 10.1.1 | `dependencies.json` |
