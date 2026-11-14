@@ -140,8 +140,9 @@ uv run pytest -n auto tests/unit_tests/ -v -s --log-cli-level=INFO
 # Single test
 uv run pytest tests/unit_tests/tests_converter.py::test_converter_deterministic_study -v
 
-# E2E tests
-uv run pytest -n auto tests/e2e/ -v -s --log-cli-level=INFO
+# E2E tests (operational: antares-modeler; investment: Antares-Xpansion, currently skipped)
+uv run pytest -n auto tests/e2e/operational/ -v -s --log-cli-level=INFO
+uv run pytest -n auto tests/e2e/investment/ -v -s --log-cli-level=INFO
 
 # Stochastic E2E tests
 uv run pytest -n auto tests/e2e_2_stage_stochastic/ -v -s --log-cli-level=INFO
@@ -158,7 +159,8 @@ uv run pre-commit run --all-files
 | Directory | What it tests | Antares needed? |
 |-----------|---------------|-----------------|
 | `tests/unit_tests/` | Conversion logic, data mapping, YAML output | No |
-| `tests/e2e/` | Convert → run modeler → compare objective values | Yes |
+| `tests/e2e/operational/` | Operational studies: convert → run modeler (and hybrid Antares study) → compare objective values | Yes |
+| `tests/e2e/investment/` | Investment studies (extendable generator/link/storage/store); currently skipped | Yes |
 | `tests/e2e_2_stage_stochastic/` | Stochastic conversion; runs `antares-modeler` (Benders/Xpansion solve is currently commented out) | Yes (modeler) |
 | `tests/local_benchmark/` | Performance profiling; Jupyter notebook for analysis | Yes |
 

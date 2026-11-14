@@ -87,19 +87,19 @@ jobs:
           VERSION="${{ steps.xpansion.outputs.version }}"
           tar -xzf "antaresXpansion-${VERSION}-ubuntu-22.04.tar.gz"
 
-      - name: Run end-to-end tests (Antares Modeler v${{ inputs.antares_version }})
+      - name: Run end-to-end tests - operational studies (Antares Modeler v${{ inputs.antares_version }})
         id: run_tests
         run: >
           uv run pytest
-          tests/e2e/
+          tests/e2e/operational/
           -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
 
-      - name: Run end-to-end tests (Antares Xpansion v${{ inputs.antares_xpansion_version }})
+      - name: Run end-to-end tests - investment studies (Antares Xpansion v${{ steps.xpansion.outputs.version }})
         id: run_tests_xpansion
         run: >
           uv run pytest
-          tests/e2e/
+          tests/e2e/investment/
           -v -s --log-cli-level=INFO --tb=short -rA
         continue-on-error: true
 
