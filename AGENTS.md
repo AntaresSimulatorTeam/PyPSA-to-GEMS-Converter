@@ -77,7 +77,7 @@ PyPSA Network (deep-copied)
 
 ### Key design decisions
 
-**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. Routing is on extendable capacity (`_has_extendable_capacity()`): investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs; operational studies get the sequential-subproblems `optim-config.yml`. Investment studies (any number of scenarios) and multi-scenario operational studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
+**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. What the converter writes depends on extendable capacity (`_has_extendable_capacity()`): investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs; operational studies get the sequential-subproblems `optim-config.yml`. Investment studies (any number of scenarios) and multi-scenario operational studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
