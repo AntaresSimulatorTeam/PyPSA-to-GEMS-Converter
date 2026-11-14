@@ -35,7 +35,7 @@ src/
 - Writes `system.yml`- GEMS components and port connections 
 - Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
 - Copies `pypsa-models.yml` - copies pre-built PyPSA GEMS model library
-- If study has >1 scenario copies `optim-config.yml` -  Benders decomposition used by `Antares Modeler`
+- Copies `optim-config.yml` (required by `antares-modeler` >= 10.2): Benders template for investment studies (extendable capacity), sequential-subproblems template for operational studies
 - Preproceses and writes time series data into `data-series` directory 
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
@@ -54,7 +54,9 @@ resources/
 tests/
   unit_tests/                 # Conversion logic tests (no Antares binary needed)
   e2e/                        # E2E tests: convert + run Antares + compare objectives
-  e2e_2_stage_stochastic/     # E2E tests for stochastic (Benders) studies
+    modeler/                  #   studies solved by antares-modeler
+    benders/                  #   studies solved by Antares-Xpansion Benders
+  e2e_2_stage_stochastic/     # E2E tests for two-stage stochastic investment studies (Antares-Xpansion)
   local_benchmark/            # Benchmark suite with Jupyter notebook for analysis
   utils.py                    # Shared test helpers
 ```
@@ -75,7 +77,7 @@ PyPSA Network (deep-copied)
 
 ### Key design decisions
 
-**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. The converter counts scenario weightings: >1 triggers `optim-config.yml` generation for Benders decomposition.
+**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. Routing is on extendable capacity (`_has_extendable_capacity()`): investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs; operational studies get the sequential-subproblems `optim-config.yml`. Investment studies (any number of scenarios) and multi-scenario operational studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
@@ -127,8 +129,8 @@ All listed components must have `active=1` (inactive ones are dropped). Lines an
 
 ### Prerequisites
 
-- **Antares Simulator binary** (the `antares-modeler`, version in `dependencies.json`). CI downloads it automatically. For local runs, extract the archive at the repo root — the path is resolved by `src/dependencies.py`. Both the standard and stochastic E2E tests currently invoke `antares-modeler` and skip if it is not installed.
-- **Antares Xpansion (benders):** helpers exist in `src/dependencies.py`, but the Xpansion/benders solve in the stochastic E2E test is currently commented out, so Xpansion is **not** exercised at present.
+- **Antares Simulator binary** (the `antares-modeler`, version in `dependencies.json`). CI downloads it automatically. For local runs, extract the archive at the repo root — the path is resolved by `src/dependencies.py`. The `tests/e2e/modeler/` tests invoke `antares-modeler` and skip if it is not installed.
+- **Antares Xpansion** (version in `dependencies.json`). CI downloads it automatically; for local runs, extract it at the repo root. `tests/e2e/benders/` runs `antares-problem-generator` + `benders`; `tests/e2e_2_stage_stochastic/` runs `antares-xpansion-launcher` (not on CI).
 
 ### Commands
 
@@ -162,10 +164,10 @@ uv run pre-commit run --all-files
 | `tests/unit_tests/` | Conversion logic, data mapping, YAML output | No |
 | `tests/e2e/modeler/` | Studies solved by `antares-modeler`: convert → run → compare objective values. Investment file currently skipped | Yes |
 | `tests/e2e/benders/` | Studies solved by Antares-Xpansion Benders (multi-scenario hybrid Antares study) | Yes (+ Xpansion) |
-| `tests/e2e_2_stage_stochastic/` | Stochastic conversion; runs `antares-modeler` (Benders/Xpansion solve is currently commented out) | Yes (modeler) |
+| `tests/e2e_2_stage_stochastic/` | Two-stage stochastic investment: convert → run `antares-xpansion-launcher` → compare cost and capacities with PyPSA (not on CI) | Yes (Xpansion) |
 | `tests/local_benchmark/` | Performance profiling; Jupyter notebook for analysis | Yes |
 
-E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConverter`, run `antares-modeler` via `subprocess`, and parse the objective value from the output CSV/TSV using `get_objective_value()` in `tests/utils.py`.
+E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConverter`, run `antares-modeler` via `subprocess`, and parse the objective value from the output CSV/TSV using `get_gems_study_objective()` in `tests/e2e/end_2_end_helpers.py`.
 
 ---
 
