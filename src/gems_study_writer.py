@@ -14,6 +14,7 @@ import shutil
 from pathlib import Path
 
 import polars as pl
+import yaml
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection, GemsSystem
 from src.models.modeler_parameter_yml_schema import AntaresModelerParameters
@@ -189,14 +190,19 @@ class GemsStudyWriter:
         )
 
     def write_optim_config_yml(self, is_investment_study: bool) -> None:
-        """Copy the Benders (investment) or sequential-subproblems (operational) optim-config.yml template.
+        """Write optim-config.yml: the Benders template (investment) or sequential-subproblems (operational).
 
         Antares-modeler >= 10.2 refuses to run a study whose input/ has a system.yml but no optim-config.yml.
         """
         Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
-        template = "optim-config.yml" if is_investment_study else "optim-config-operational.yml"
-        source_file = Path(__file__).parent.parent / "resources" / template
-        shutil.copy(source_file, self.study_dir / "systems" / "input" / "optim-config.yml")
+        destination_file = self.study_dir / "systems" / "input" / "optim-config.yml"
+        if is_investment_study:
+            shutil.copy(Path(__file__).parent.parent / "resources" / "optim-config.yml", destination_file)
+            return
+        # antares-modeler requires the "models" key in any non-empty optim-config.yml.
+        operational_config = {"resolution-mode": "sequential-subproblems", "models": []}
+        with destination_file.open("w", encoding="utf-8") as file:
+            yaml.safe_dump(operational_config, file, sort_keys=False)
 
     def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
         """

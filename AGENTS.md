@@ -35,7 +35,7 @@ src/
 - Writes `system.yml`- GEMS components and port connections 
 - Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
 - Copies `pypsa-models.yml` - copies pre-built PyPSA GEMS model library
-- Copies `optim-config.yml` (required by `antares-modeler` >= 10.2): Benders template for investment studies (extendable capacity), sequential-subproblems template for operational studies
+- Writes `optim-config.yml` (required by `antares-modeler` >= 10.2): copies the Benders template for investment studies (extendable capacity), writes `resolution-mode: sequential-subproblems` for operational studies
 - Preproceses and writes time series data into `data-series` directory 
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
@@ -50,7 +50,6 @@ resources/
     pypsa_models.yml          # GEMS model library used by all converted studies
   test_files/                 # PyPSA .nc network files for E2E tests
   optim-config.yml            # Benders decomposition config (investment studies)
-  optim-config-operational.yml  # sequential-subproblems config (operational studies)
 tests/
   unit_tests/                 # Conversion logic tests (no Antares binary needed)
   e2e/                        # E2E tests: convert + run Antares + compare objectives
@@ -98,7 +97,7 @@ PyPSA Network (deep-copied)
       system.yml
       model-libraries/
         pypsa_models.yml
-      optim-config.yml          # always: Benders template (investment) or sequential-subproblems (operational)
+      optim-config.yml          # always: Benders template (investment) or sequential-subproblems (operational, written by the converter)
       data-series/
         {system}_{component}_{param}.csv
     parameters.yml
