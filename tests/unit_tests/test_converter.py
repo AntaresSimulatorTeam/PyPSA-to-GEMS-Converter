@@ -11,12 +11,15 @@
 # This file is part of the Antares project.
 
 import logging
+import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
+from src.study_type import StudyType
 from src.utils import write_benders_lp_weights
 
 logger = logging.getLogger(__name__)
@@ -73,9 +76,9 @@ def test_converter_deterministic_study() -> None:
     assert not (Path("tmp") / "test_two" / "Simple_Network").is_dir()
 
 
-def test_converter_investment_study_prepares_xpansion_launcher() -> None:
-    """Extendable capacity alone triggers Xpansion outputs — even with a single scenario."""
-    network = Network(name="Simple_Network", snapshots=range(10))
+def test_converter_single_scenario_investment_study_is_solved_by_antares_modeler() -> None:
+    """One scenario: antares-modeler solves capacities and operation in one problem, with any solver."""
+    network = Network(name="Simple_Network", snapshots=range(168))
     network.add("Carrier", "carrier", co2_emissions=0)
     network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
     network.add("Load", "static_load", bus="bus 1", p_set=100, q_set=10)
@@ -91,17 +94,20 @@ def test_converter_investment_study_prepares_xpansion_launcher() -> None:
         capital_cost=1000,
     )
 
-    study_dir = Path("tmp") / "test_investment_xpansion_one_scenario"
-    PyPSAStudyConverter(network, study_dir, "csv", solver_name="coin").to_gems_study()
+    study_dir = Path("tmp") / "test_investment_one_scenario"
+    shutil.rmtree(study_dir, ignore_errors=True)
+    converter = PyPSAStudyConverter(network, study_dir, "csv")  # default solver: HiGHS
+    assert converter.study_type is StudyType.INVESTMENT_SINGLE_SCENARIO
+    converter.to_gems_study()
 
-    assert (study_dir / "systems" / "input" / "optim-config.yml").exists()
-    settings_ini = study_dir / "systems" / "user" / "expansion" / "settings.ini"
-    assert settings_ini.exists()
-    assert "yearly-weights" in settings_ini.read_text(encoding="utf-8")
-    weights_file = study_dir / "systems" / "user" / "expansion" / "weights" / "weights.txt"
-    weights = [float(x) for x in weights_file.read_text(encoding="utf-8").splitlines() if x.strip()]
-    assert len(weights) == 1
-    assert weights == pytest.approx([1.0])
+    optim_config = study_dir / "systems" / "input" / "optim-config.yml"
+    assert yaml.safe_load(optim_config.read_text(encoding="utf-8")) == {
+        "resolution-mode": "sequential-subproblems",
+        "models": [],
+    }
+    # 168 snapshots: before, a hybrid study and Antares-Xpansion inputs were written too.
+    assert [p.name for p in study_dir.iterdir()] == ["systems"]
+    assert not (study_dir / "systems" / "user").exists()
 
 
 def test_converter_multiscenario_investment_study_prepares_xpansion_launcher() -> None:
@@ -138,7 +144,7 @@ def test_converter_multiscenario_investment_study_prepares_xpansion_launcher() -
     assert sum(weights) == pytest.approx(1.0)
 
 
-def test_converter_investment_study_rejects_unsupported_solver() -> None:
+def test_converter_multiscenario_investment_study_rejects_unsupported_solver() -> None:
     network = Network(name="Simple_Network", snapshots=range(10))
     network.add("Carrier", "carrier", co2_emissions=0)
     network.add("Bus", "bus 1", v_nom=1, carrier="carrier")
@@ -154,6 +160,7 @@ def test_converter_investment_study_rejects_unsupported_solver() -> None:
         p_max_pu=0.9,
         capital_cost=1000,
     )
+    network.set_scenarios({"low": 0.5, "high": 0.5})
 
     with pytest.raises(ValueError, match="coin'.*xpress"):
         PyPSAStudyConverter(network, Path("tmp") / "test_investment_invalid_solver", "csv", solver_name="highs")

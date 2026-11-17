@@ -204,7 +204,7 @@ class GemsStudyWriter:
         - ``user/expansion/settings.ini`` configures the algorithm, including scenario/year weights.
 
         Each PyPSA scenario is mapped to one Monte-Carlo year by the Antares-Xpansion GEMS
-        workflow (including the single-scenario case). We export the PyPSA scenario
+        workflow (multi-scenario investment studies only). We export the PyPSA scenario
         probabilities as Xpansion ``yearly-weights``.
         """
         solver = solver_name.lower()

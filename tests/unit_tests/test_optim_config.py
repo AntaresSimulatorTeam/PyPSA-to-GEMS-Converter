@@ -146,18 +146,25 @@ def test_add_model_config_rejects_conflicting_settings() -> None:
 # --- builder ---
 
 
-@pytest.mark.parametrize("study_type", [StudyType.OPERATIONAL_SINGLE_SCENARIO, StudyType.OPERATIONAL_MULTI_SCENARIO])
-def test_builder_operational_is_sequential_subproblems(study_type: StudyType) -> None:
+@pytest.mark.parametrize(
+    "study_type",
+    [
+        StudyType.OPERATIONAL_SINGLE_SCENARIO,
+        StudyType.INVESTMENT_SINGLE_SCENARIO,
+        StudyType.OPERATIONAL_MULTI_SCENARIO,
+    ],
+)
+def test_builder_sequential_subproblems(study_type: StudyType) -> None:
     assert build_optim_config(study_type, LIBRARY_ID, USED_MODEL_IDS).to_dict() == {
         "resolution-mode": "sequential-subproblems",
         "models": [],
     }
 
 
-@pytest.mark.parametrize("study_type", [StudyType.INVESTMENT_SINGLE_SCENARIO, StudyType.INVESTMENT_MULTI_SCENARIO])
-def test_builder_investment_reproduces_the_benders_template(study_type: StudyType) -> None:
+def test_builder_multi_scenario_investment_reproduces_the_benders_template() -> None:
     # The template listed the four capacity models whatever the models used in the study.
-    assert build_optim_config(study_type, LIBRARY_ID, USED_MODEL_IDS).to_dict() == BENDERS_TEMPLATE
+    optim_config = build_optim_config(StudyType.INVESTMENT_MULTI_SCENARIO, LIBRARY_ID, USED_MODEL_IDS)
+    assert optim_config.to_dict() == BENDERS_TEMPLATE
 
 
 def test_hybrid_optim_config_is_the_benders_template() -> None:

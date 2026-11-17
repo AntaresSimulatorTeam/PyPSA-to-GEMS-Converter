@@ -13,9 +13,11 @@
 """Shared helpers for the PyPSA vs Antares-modeler end-to-end tests (test_end_2_end_*.py)."""
 
 import logging
+import math
 import subprocess
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from pypsa import Network
 
@@ -44,6 +46,39 @@ def get_original_pypsa_study_objective(network: Network) -> float:
     obj = network.objective + network.objective_constant
     logger.info("PyPSA study optimized; objective=%s", obj)
     return obj
+
+
+# Component types with a capacity variable: (GEMS variable, PyPSA "*_extendable" column, PyPSA optimized capacity).
+_CAPACITY_COLUMNS = {
+    "generators": ("p_nom", "p_nom_extendable", "p_nom_opt"),
+    "links": ("p_nom", "p_nom_extendable", "p_nom_opt"),
+    "storage_units": ("p_nom", "p_nom_extendable", "p_nom_opt"),
+    "stores": ("e_nom", "e_nom_extendable", "e_nom_opt"),
+}
+
+
+def assert_capacities_match(network: Network, study_name: str, rel_tol: float = 1e-6, abs_tol: float = 1e-6) -> None:
+    """Compare the capacities of the extendable components of an optimized network with antares-modeler's."""
+    result_file = next((current_dir / "tmp" / study_name / "systems" / "output").glob("**/simulation[-_]table*"))
+    table = pd.read_csv(result_file, sep="\t" if result_file.suffix == ".tsv" else ",")
+    capacities = table[table["output"].isin(["p_nom", "e_nom"])]
+    gems = {
+        (str(component), str(output)): float(value)
+        for component, output, value in zip(capacities["component"], capacities["output"], capacities["value"])
+    }
+    n_compared = 0
+    for component_type, (variable, extendable_col, optimized_col) in _CAPACITY_COLUMNS.items():
+        df = getattr(network, component_type)
+        for name in df.index[df[extendable_col].astype(bool)]:
+            gems_id = f"{component_type[:-1]}_{str(name).replace(' ', '_')}"
+            expected = float(df.at[name, optimized_col])
+            actual = gems[(gems_id, variable)]
+            assert math.isclose(actual, expected, rel_tol=rel_tol, abs_tol=abs_tol), (
+                f"{gems_id}.{variable}: antares-modeler {actual} vs PyPSA {expected}"
+            )
+            n_compared += 1
+    assert n_compared > 0, "No extendable component to compare"
+    logger.info("Capacities match PyPSA for %s (%s components)", study_name, n_compared)
 
 
 def get_gems_study_objective(study_name: str) -> float:

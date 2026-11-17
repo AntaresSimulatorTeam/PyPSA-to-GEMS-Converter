@@ -19,6 +19,7 @@ from pypsa import Network
 
 from src.pypsa_converter import PyPSAStudyConverter
 from tests.e2e.end_2_end_helpers import (
+    assert_capacities_match,
     check_antares_binaries,  # noqa: F401 (autouse fixture)
     current_dir,
     get_gems_study_objective,
@@ -26,10 +27,6 @@ from tests.e2e.end_2_end_helpers import (
     logger,
 )
 from tests.utils import load_pypsa_study, preprocess_network
-
-# Disabled for now: antares-modeler >= 10.2 can solve these single-scenario studies, but the converter routes every
-# study with extendable capacity to Antares-Xpansion (coin/xpress solver + Benders optim-config.yml).
-pytestmark = pytest.mark.skip(reason="Converter routes investment studies to Antares-Xpansion, not antares-modeler")
 
 
 @pytest.mark.parametrize(
@@ -50,6 +47,7 @@ def test_end_2_end_test(file: str, load_scaling: float, quota: bool, study_name:
     ).to_gems_study()
     logger.info("Comparing PyPSA vs GEMS objective for %s", study_name)
     assert math.isclose(get_original_pypsa_study_objective(network), get_gems_study_objective(study_name), rel_tol=1e-6)
+    assert_capacities_match(network, study_name)
     logger.info("E2E test passed: %s", study_name)
 
 
@@ -96,6 +94,7 @@ def test_load_gen_ext(capital_cost: float, p_nom_min: float, p_nom_max: float, s
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
+    assert_capacities_match(network, study_name)
 
 
 @pytest.mark.parametrize(
@@ -162,6 +161,7 @@ def test_load_gen_link_ext(capital_cost: float, p_nom_min: float, p_nom_max: flo
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
+    assert_capacities_match(network, study_name)
 
 
 @pytest.mark.parametrize(
@@ -251,6 +251,7 @@ def test_storage_unit_ext(
     assert math.isclose(
         network.objective + network.objective_constant, get_gems_study_objective(study_name), rel_tol=1e-6
     )
+    assert_capacities_match(network, study_name)
 
 
 def test_store_ext() -> None:
@@ -318,3 +319,4 @@ def test_store_ext() -> None:
         get_gems_study_objective("store_test_case_ext"),
         rel_tol=1e-6,
     )
+    assert_capacities_match(network, "store_test_case_ext")
