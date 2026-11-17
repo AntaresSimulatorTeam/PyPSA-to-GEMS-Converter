@@ -19,7 +19,7 @@ study with one inert virtual area unlocks antares-solver's Monte-Carlo-year loop
 why optim-config.yml/system.yml/modeler-scenariobuilder.dat need patching).
 
 `PyPSAStudyConverter.to_gems_study()` now builds this hybrid study automatically for
-any multi-scenario, non-investment study (see `_has_extendable_capacity` there) --
+any multi-scenario, non-investment study (see `src/study_type.py`) --
 `test_hybrid_two_scenarios_matches_pypsa_and_gemspy` and the parametrized
 `test_hybrid_n_scenarios_matches_pypsa_and_gemspy` (3 / 6 scenarios) exercise that
 automatic path.

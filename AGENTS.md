@@ -35,8 +35,10 @@ src/
 - Writes `system.yml`- GEMS components and port connections 
 - Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
 - Copies `pypsa-models.yml` - copies pre-built PyPSA GEMS model library
-- Writes `optim-config.yml` (required by `antares-modeler` >= 10.2): copies the Benders template for investment studies (extendable capacity), writes `resolution-mode: sequential-subproblems` for operational studies
+- Writes `optim-config.yml` (required by `antares-modeler` >= 10.2), built by `optim_config_builder.py`: Benders decomposition for investment studies (extendable capacity), `resolution-mode: sequential-subproblems` for operational studies
 - Preproceses and writes time series data into `data-series` directory 
+  study_type.py               # StudyType (operational/investment × single/multi-scenario) and classify_study()
+  optim_config_builder.py     # Builds optim-config.yml: resolution mode per study type + per-model rules (Benders split)
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
   cli.py                      # CLI entry point (`pypsa-to-gems = src.cli:main`): parses args, runs PyPSAStudyConverter
@@ -45,11 +47,11 @@ src/
     gems_system_yml_schema/   #  models for system.yml output
     pypsa_model_schema/       # Containers for PyPSA data
     modeler_parameter_yml_schema/  # AntaresModelerParameters for parameters.yml
+    optim_config_yml_schema/  # OptimConfig for optim-config.yml
 resources/
   pypsa_models/
     pypsa_models.yml          # GEMS model library used by all converted studies
   test_files/                 # PyPSA .nc network files for E2E tests
-  optim-config.yml            # Benders decomposition config (investment studies)
 tests/
   unit_tests/                 # Conversion logic tests (no Antares binary needed)
   e2e/                        # E2E tests: convert + run Antares + compare objectives
@@ -76,7 +78,7 @@ PyPSA Network (deep-copied)
 
 ### Key design decisions
 
-**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. What the converter writes depends on extendable capacity (`_has_extendable_capacity()`): investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs; operational studies get the sequential-subproblems `optim-config.yml`. Investment studies (any number of scenarios) and multi-scenario operational studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
+**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. What the converter writes depends on extendable capacity (`classify_study()` in `src/study_type.py`): investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs; operational studies get the sequential-subproblems `optim-config.yml`. Investment studies (any number of scenarios) and multi-scenario operational studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
@@ -97,7 +99,7 @@ PyPSA Network (deep-copied)
       system.yml
       model-libraries/
         pypsa_models.yml
-      optim-config.yml          # always: Benders template (investment) or sequential-subproblems (operational, written by the converter)
+      optim-config.yml          # always: built by src/optim_config_builder.py (Benders for investment, sequential-subproblems for operational)
       data-series/
         {system}_{component}_{param}.csv
     parameters.yml

@@ -37,13 +37,12 @@ This writer builds a "hybrid" study to get the best of both, validated end-to-en
 3. Set nb_years (Monte-Carlo years) in generaldata.ini, via antares-craft, to the
    number of scenarios declared by the GEMS/PyPSA study, so Antares' own MC-year loop
    lines up with the GEMS scenario axis.
-4. Copy optim-config.yml as-is. Its ``resolution-mode: benders-decomposition`` is
+4. Write the optim-config.yml given by the converter (``build_hybrid_optim_config`` in
+   src/optim_config_builder.py). Its ``resolution-mode: benders-decomposition`` is
    required by antares-solver's hybrid loader for ANY model with an investment-style
-   variable -- even non-extendable (p_nom_extendable=False) generators declare p_nom
-   as a "master-and-subproblems" decomposition variable in pypsa_models.yml (see
-   resources/optim-config.yml) -- so this applies even though this writer is only
-   ever invoked for non-investment studies (see PyPSAStudyConverter._has_extendable_capacity).
-   Without it, the solver refuses to load with "Scenario-independent variables are not
+   variable -- even non-extendable (p_nom_extendable=False) generators have p_nom as a
+   scenario-independent variable -- so this applies to multi-scenario operational
+   studies too. Without it, the solver refuses to load with "Scenario-independent variables are not
    supported in hybrid studies with sequential-subproblems resolution mode."
 5. Tag every component with scenario-group: default in system.yml and add
    input/data-series/modeler-scenariobuilder.dat with an identity mapping
@@ -82,6 +81,8 @@ from typing import Any
 import antares.craft as antares_craft
 import yaml
 
+from src.models.optim_config_yml_schema import OptimConfig
+
 
 @dataclass
 class AntaresHybridStudyWriter:
@@ -89,10 +90,10 @@ class AntaresHybridStudyWriter:
     study_name: str
     study_version: str = "9.3"
 
-    def write(self, gems_systems_dir: Path, n_timesteps: int, n_scenarios: int) -> Path:
+    def write(self, gems_systems_dir: Path, n_timesteps: int, n_scenarios: int, optim_config: OptimConfig) -> Path:
         """Build the hybrid study and return its directory (self.study_dir / self.study_name)."""
         antares_study_dir = self._build_virtual_antares_study(n_timesteps, n_scenarios)
-        self._add_gems_system(antares_study_dir, gems_systems_dir, n_scenarios)
+        self._add_gems_system(antares_study_dir, gems_systems_dir, n_scenarios, optim_config)
         return antares_study_dir
 
     def _build_virtual_antares_study(self, n_timesteps: int, n_scenarios: int) -> Path:
@@ -136,7 +137,9 @@ class AntaresHybridStudyWriter:
         )
         return study_dir
 
-    def _add_gems_system(self, antares_study_dir: Path, gems_systems_dir: Path, n_scenarios: int) -> None:
+    def _add_gems_system(
+        self, antares_study_dir: Path, gems_systems_dir: Path, n_scenarios: int, optim_config: OptimConfig
+    ) -> None:
         """
                                                           ^
                                                           |
@@ -155,9 +158,7 @@ class AntaresHybridStudyWriter:
         # Step 4: hybrid loader requires benders-decomposition for any study whose
         # models declare master/subproblem variables (including fixed p_nom). Without
         # this file, antares-solver refuses to load the hybrid study.
-        # resources/optim-config.yml already sets resolution-mode: benders-decomposition.
-        optim_config_src = Path(__file__).parent.parent / "resources" / "optim-config.yml"
-        shutil.copy(optim_config_src, antares_input / "optim-config.yml")
+        optim_config.to_yml(antares_input / "optim-config.yml")
 
         # Tag every component with the same scenario-group and add an identity
         # modeler-scenariobuilder.dat (MC year i -> data-series column i+1), so
