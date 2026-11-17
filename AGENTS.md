@@ -37,7 +37,7 @@ src/
 - Copies `pypsa-models.yml` - copies pre-built PyPSA GEMS model library
 - If study has >1 scenario copies `optim-config.yml` -  Benders decomposition used by `Antares Modeler`
 - Preproceses and writes time series data into `data-series` directory 
-  unsupported_features.py     # check_unsupported_features(): rejects PyPSA features the converter doesn't model
+  converter_limitations.py    # check_converter_limitations(): rejects PyPSA features the converter doesn't model
   utils.py                    # Data conversion helpers (PyPSA pandas → Polars)
   dependencies.py             # Resolve Antares binary paths from dependencies.json
   cli.py                      # CLI entry point (`pypsa-to-gems = src.cli:main`): parses args, runs PyPSAStudyConverter
@@ -204,7 +204,7 @@ E2E tests load `.nc` files from `resources/test_files/`, call `PyPSAStudyConvert
 
 3. **`resources/pypsa_models/pypsa_models.yml` parameter ids must exactly match `PyPSARegister`.** If you add a parameter to the register's mapping dict for a component type, you must add the corresponding parameter definition to the YAML model. The Antares modeler fails silently (no exception, no output) on a mismatch.
 
-4. **`_check_converter_limitations()` raises before any output is written.** It runs in the `PyPSAStudyConverter` constructor; output is only written later by `to_gems_study()`. If a network violates a constraint (e.g., uses quadratic costs, `committable=True`, has `active=0` components, non-cyclic storage, or non-empty `investment_periods`), the converter raises `ValueError` at construction time. No partial output is produced. PyPSA features that change the optimum but aren't modelled (ramp limits, multi-port links, `*_nom_set`, `fom_cost`, …) are detected in `src/unsupported_features.py`: each check compares against PyPSA's default value, all findings are reported in one `ValueError`, and features that don't change the optimum (`v_ang_min`, `p_init`) only log a warning. Inactive components are rejected, not dropped. See [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations).
+4. **`check_converter_limitations()` raises before any output is written.** It runs in the `PyPSAStudyConverter` constructor; output is only written later by `to_gems_study()`. If a network violates a constraint (e.g., uses quadratic costs, `committable=True`, has `active=0` components, non-cyclic storage, or non-empty `investment_periods`), the converter raises `ValueError` at construction time. No partial output is produced. All checks live in `src/converter_limitations.py`, called by `PyPSAPreprocessor`: each one compares against PyPSA's default value, all findings are reported in one `ValueError`, and features that don't change the optimum (`v_ang_min`, `p_init`) only log a warning. Inactive components are rejected, not dropped. See [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations).
 
 5. **The Antares modeler fails silently.** `subprocess.run` in E2E tests uses `check=False` with `capture_output=True`. If the modeler exits non-zero, no output directory is created and the test fails with `FileNotFoundError` on the objective value file. To debug, run the modeler binary directly and inspect stderr.
 

@@ -25,9 +25,9 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 
 ## Converter Limitations
 
-The tables below document all PyPSA features not yet supported by the converter. Where a limitation is **enforced**, the conversion stops with a `ValueError` before any file is written (`_check_converter_limitations()` in `src/pypsa_preprocessor.py`, and `src/unsupported_features.py` for features that change the optimum). Before 0.0.3, four of these checks were `assert`s and raised `AssertionError`. Where it is **not enforced**, the feature is silently ignored — the network is accepted but the unsupported data has no effect on the output.
+The tables below document all PyPSA features not yet supported by the converter. Where a limitation is **enforced**, the conversion stops with a `ValueError` before any file is written (`check_converter_limitations()` in `src/converter_limitations.py`, which reports every finding in one message). Before 0.0.3, four of these checks were `assert`s and raised `AssertionError`. Where it is **not enforced**, the feature is silently ignored — the network is accepted but the unsupported data has no effect on the output.
 
-When a new PyPSA version introduces features that the converter does not yet support, add a row to the relevant table. If the feature changes the optimum, also add a check in `src/unsupported_features.py` (compared against PyPSA's default value) and a unit test in `tests/unit_tests/test_unsupported_features.py`.
+When a new PyPSA version introduces features that the converter does not yet support, add a row to the relevant table. If the feature changes the optimum, also add a check in `src/converter_limitations.py` (compared against PyPSA's default value) and a unit test in `tests/unit_tests/test_converter_limitations.py`.
 
 ### Unsupported Components
 
@@ -78,12 +78,12 @@ Parameters relevant for DC LOPF but not yet implemented:
 | Parameter | Note |
 |---|---|
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
-| `p_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `p_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `p_set` | Fixed active power output — not implemented |
 | `p_nom_set` | Fixes the capacity of an extendable generator — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `maintainable`, `maintenance_pu`, `maintenance_duration`, `maintenance_events` | Maintenance scheduling — available from PyPSA 1.3.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
 | `committable` | Unit commitment (MILP) — not supported, enforced to be False |
@@ -98,7 +98,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `ramp_limit_shut_down` | Unit commitment parameter — not implemented (requires `committable=True` support) |
 | `ramp_limit_up` | Inter-temporal ramp constraint — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `ramp_limit_down` | Inter-temporal ramp constraint — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any generator has `active=0` (not dropped) |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any generator has `active=0` (not dropped) |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
@@ -117,7 +117,7 @@ Parameters not relevant for DC LOPF (silently ignored):
 |---|---|
 | `type` | Not used in GEMS model |
 | `carrier` | Not used in GEMS model |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any load has `active=0` (not dropped) |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any load has `active=0` (not dropped) |
 
 #### Link
 
@@ -126,13 +126,13 @@ Parameters relevant for DC LOPF but not yet implemented:
 | Parameter | Note |
 |---|---|
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
-| `p_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `p_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `p_set` | Fixed dispatch set point — not implemented |
 | `p_nom_set` | Fixes the capacity of an extendable link — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `delay`, `cyclic_delay` | Delayed energy delivery to `bus1` — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `maintainable`, `maintenance_pu`, `maintenance_duration`, `maintenance_events` | Maintenance scheduling — available from PyPSA 1.3.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `marginal_cost_quadratic` | Quadratic cost term — not implemented |
 | `committable` | Unit commitment (MILP) — not implemented |
@@ -148,7 +148,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `ramp_limit_up` | Inter-temporal ramp constraint — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `ramp_limit_down` | Inter-temporal ramp constraint — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `bus2`, `bus3`, … / `efficiency2`, `efficiency3`, … | Multi-port sector coupling — only bus0 → bus1 supported |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any link has `active=0` (not dropped) |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any link has `active=0` (not dropped) |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
@@ -167,10 +167,10 @@ Parameters relevant for DC LOPF but not yet implemented:
 
 | Parameter | Note |
 |---|---|
-| `overnight_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `overnight_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `discount_rate` | Available from PyPSA 1.1.0, not implemented |
-| `fom_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any line has `active=0` (not dropped), since 0.0.3 |
+| `fom_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any line has `active=0` (not dropped), since 0.0.3 |
 | `s_nom_set` | Fixes the capacity of an extendable line — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `v_ang_max` | Voltage angle difference limit, enforced by PyPSA since 1.4.0 — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `build_year` | Only meaningful with multi-investment periods — already blocked |
@@ -197,10 +197,10 @@ Parameters relevant for DC LOPF but not yet implemented:
 
 | Parameter | Note |
 |---|---|
-| `overnight_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `overnight_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `discount_rate` | Available from PyPSA 1.1.0, not implemented |
-| `fom_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any transformer has `active=0` (not dropped), since 0.0.3 |
+| `fom_cost` | Available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any transformer has `active=0` (not dropped), since 0.0.3 |
 | `s_nom_set` | Fixes the capacity of an extendable transformer — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `phase_shift` | Phase angle shift, used in the KVL constraints since PyPSA 1.3.0 — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `phase_shift_min`, `phase_shift_max` | Optimised phase shift (when `phase_shift_min < phase_shift_max`), available from PyPSA 1.3.0 — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
@@ -232,10 +232,10 @@ Parameters relevant for DC LOPF but not yet implemented:
 | Parameter | Note |
 |---|---|
 | `p_nom_extendable` | Not validated — converter uses `p_nom_min`/`p_nom_max` directly |
-| `p_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `p_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `p_nom_set` | Fixes the capacity of an extendable storage unit — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `p_dispatch_set` | Fixed active power dispatch set point — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `p_store_set` | Fixed active power charging set point — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
@@ -244,7 +244,7 @@ Parameters relevant for DC LOPF but not yet implemented:
 | `cyclic_state_of_charge` | Only `True` supported — enforced |
 | `state_of_charge_initial` | Initial state of charge — not implemented |
 | `state_of_charge_set` | State of charge set points for optimisation snapshots — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any storage unit has `active=0` (not dropped), since 0.0.3 |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any storage unit has `active=0` (not dropped), since 0.0.3 |
 
 Parameters not relevant for DC LOPF (silently ignored):
 
@@ -267,16 +267,16 @@ Parameters relevant for DC LOPF but not yet implemented:
 | Parameter | Note |
 |---|---|
 | `e_nom_extendable` | Not validated — converter uses `e_nom_min`/`e_nom_max` directly |
-| `e_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `e_nom_mod` | Modular integer capacity expansion — not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `e_nom_set` | Fixes the capacity of an extendable store — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
-| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
+| `overnight_cost` | Capital cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
+| `fom_cost` | Fixed O&M cost decomposition — available from PyPSA 1.1.0, not implemented. Rejected (`ValueError`) since 0.0.3 when set on an extendable component; PyPSA ignores it on fixed ones. |
 | `discount_rate` | Asset discount rate — available from PyPSA 1.1.0, not implemented |
 | `e_set` | Fixed energy level set point for optimisation — not implemented. Rejected (`ValueError`) since 0.0.3 when set. |
 | `marginal_cost_quadratic` | Quadratic cost term — not supported, enforced to be 0 |
 | `sign` | Only `sign = 1` supported — enforced |
 | `e_cyclic` | Only `True` supported — enforced |
-| `active` | Must be `active=1` — `_check_converter_limitations()` raises `ValueError` if any store has `active=0` (not dropped), since 0.0.3 |
+| `active` | Must be `active=1` — `check_converter_limitations()` raises `ValueError` if any store has `active=0` (not dropped), since 0.0.3 |
 
 Parameters not relevant for DC LOPF (silently ignored):
 

@@ -15,7 +15,7 @@ from typing import Any
 import pandas as pd
 from pypsa import Network
 
-from src.unsupported_features import check_unsupported_features
+from src.converter_limitations import check_converter_limitations
 from src.utils import any_to_float
 
 # Component types that have an emission_factor parameter in the GEMS model.
@@ -52,63 +52,11 @@ class PyPSAPreprocessor:
         ]
 
     def network_preprocessing(self) -> Network:
-        self._check_converter_limitations()
+        check_converter_limitations(self.pypsa_network)
         self._add_fictitious_carrier()
         self._rename_buses()
         self._preprocess_pypsa_components()
         return self.pypsa_network
-
-    def _check_converter_limitations(self) -> None:
-        """Raise ValueError if the network uses a feature the converter doesn't model (see COMPATIBILITY.md)."""
-        if len(self.pypsa_network.investment_periods) > 0:
-            raise ValueError(
-                "Converter supports only networks without investment periods, but the network has "
-                f"{len(self.pypsa_network.investment_periods)}."
-            )
-        if not (self.pypsa_network.snapshot_weightings.values == 1.0).all():
-            raise ValueError("Converter supports only snapshot weightings equal to 1.0.")
-        checks = [
-            ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
-            ("generators", "active", 1, "Generators", "active = 1"),
-            ("generators", "committable", False, "Generators", "commitable = False"),
-            ("loads", "active", 1, "Loads", "active = 1"),
-            ("links", "active", 1, "Links", "active = 1"),
-            ("lines", "active", 1, "Lines", "active = 1"),
-            ("transformers", "active", 1, "Transformers", "active = 1"),
-            ("storage_units", "active", 1, "Storage Units", "active = 1"),
-            ("stores", "active", 1, "Stores", "active = 1"),
-            ("storage_units", "sign", 1, "Storage Units", "sign = 1"),
-            ("storage_units", "cyclic_state_of_charge", 1, "Storage Units", "cyclic_state_of_charge"),
-            ("storage_units", "marginal_cost_quadratic", 0, "Storage Units", "linear cost"),
-            ("stores", "sign", 1, "Stores", "sign = 1"),
-            ("stores", "e_cyclic", 1, "Stores", "e_cyclic = True"),
-            ("stores", "marginal_cost_quadratic", 0, "Stores", "linear cost"),
-        ]
-
-        for component_type, col, expected, type_label, desc in checks:
-            c = getattr(self.pypsa_network.components, component_type)
-            if len(c.static) == 0:
-                continue
-            if not all(c.static[col] == expected):
-                raise ValueError(f"Converter supports only {type_label} with {desc}")
-
-        ### PyPSA components : GlobalConstraint
-        global_constraints = self.pypsa_network.global_constraints
-        for pypsa_model_id in global_constraints.index:
-            constraint_type = global_constraints.loc[pypsa_model_id, "type"]
-            if constraint_type != "primary_energy":
-                raise ValueError(
-                    f"Converter supports only GlobalConstraints of type 'primary_energy', but '{pypsa_model_id}' "
-                    f"has type '{constraint_type}'."
-                )
-            carrier_attribute = global_constraints.loc[pypsa_model_id, "carrier_attribute"]
-            if carrier_attribute != "co2_emissions":
-                raise ValueError(
-                    f"Converter supports only GlobalConstraints on carrier attribute 'co2_emissions', but "
-                    f"'{pypsa_model_id}' has '{carrier_attribute}'."
-                )
-
-        check_unsupported_features(self.pypsa_network)
 
     def _add_fictitious_carrier(self) -> None:
         """Add fictitious carrier (co2_emissions=0) for components with no carrier.
