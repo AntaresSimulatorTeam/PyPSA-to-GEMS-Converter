@@ -45,7 +45,8 @@ ModelConfigRule = Callable[[StudyContext], Iterable[ModelConfig]]
 
 _RESOLUTION_MODES: dict[StudyType, ResolutionMode] = {
     StudyType.OPERATIONAL_SINGLE_SCENARIO: ResolutionMode.SEQUENTIAL_SUBPROBLEMS,
-    StudyType.INVESTMENT_SINGLE_SCENARIO: ResolutionMode.BENDERS_DECOMPOSITION,
+    # One scenario: capacities and operation fit in one problem, nothing to decompose.
+    StudyType.INVESTMENT_SINGLE_SCENARIO: ResolutionMode.SEQUENTIAL_SUBPROBLEMS,
     # Solved on the hybrid study; systems/ alone solves scenario 0 only.
     StudyType.OPERATIONAL_MULTI_SCENARIO: ResolutionMode.SEQUENTIAL_SUBPROBLEMS,
     StudyType.INVESTMENT_MULTI_SCENARIO: ResolutionMode.BENDERS_DECOMPOSITION,

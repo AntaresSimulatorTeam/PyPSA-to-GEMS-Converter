@@ -35,7 +35,7 @@ src/
 - Writes `system.yml`- GEMS components and port connections 
 - Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
 - Copies `pypsa-models.yml` - copies pre-built PyPSA GEMS model library
-- Writes `optim-config.yml` (required by `antares-modeler` >= 10.2), built by `optim_config_builder.py`: Benders decomposition for investment studies (extendable capacity), `resolution-mode: sequential-subproblems` for operational studies
+- Writes `optim-config.yml` (required by `antares-modeler` >= 10.2), built by `optim_config_builder.py`: Benders decomposition for multi-scenario investment studies, `resolution-mode: sequential-subproblems` for the others
 - Preproceses and writes time series data into `data-series` directory 
   study_type.py               # StudyType (operational/investment × single/multi-scenario) and classify_study()
   optim_config_builder.py     # Builds optim-config.yml: resolution mode per study type + per-model rules (Benders split)
@@ -78,7 +78,7 @@ PyPSA Network (deep-copied)
 
 ### Key design decisions
 
-**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. What the converter writes depends on extendable capacity (`classify_study()` in `src/study_type.py`): investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs; operational studies get the sequential-subproblems `optim-config.yml`. Investment studies (any number of scenarios) and multi-scenario operational studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
+**Scenario handling:** All studies — including deterministic — go through `pypsa_network.set_scenarios()`. A deterministic network gets a single `"default"` scenario injected by `determine_pypsa_study_type()` in `src/utils.py`. What the converter writes depends on the study type (`classify_study()` in `src/study_type.py`: investment if a component has extendable capacity, multi-scenario if the network has several scenarios). Single-scenario studies, operational or investment, get the sequential-subproblems `optim-config.yml` and are solved by `antares-modeler`. Multi-scenario investment studies get the Benders `optim-config.yml` and Antares-Xpansion inputs. Multi-scenario studies also get a hybrid Antares study when the horizon is a multiple of 168 hours.
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
@@ -99,7 +99,7 @@ PyPSA Network (deep-copied)
       system.yml
       model-libraries/
         pypsa_models.yml
-      optim-config.yml          # always: built by src/optim_config_builder.py (Benders for investment, sequential-subproblems for operational)
+      optim-config.yml          # always: built by src/optim_config_builder.py (Benders for multi-scenario investment, sequential-subproblems otherwise)
       data-series/
         {system}_{component}_{param}.csv
     parameters.yml
@@ -163,7 +163,7 @@ uv run pre-commit run --all-files
 | Directory | What it tests | Antares needed? |
 |-----------|---------------|-----------------|
 | `tests/unit_tests/` | Conversion logic, data mapping, YAML output | No |
-| `tests/e2e/modeler/` | Studies solved by `antares-modeler`: convert → run → compare objective values. Investment file currently skipped | Yes |
+| `tests/e2e/modeler/` | Single-scenario studies solved by `antares-modeler`: convert → run → compare objective values (and capacities, for investment) | Yes |
 | `tests/e2e/benders/` | Studies solved by Antares-Xpansion Benders (multi-scenario hybrid Antares study) | Yes (+ Xpansion) |
 | `tests/e2e_2_stage_stochastic/` | Two-stage stochastic investment: convert → run `antares-xpansion-launcher` → compare cost and capacities with PyPSA (not on CI) | Yes (Xpansion) |
 | `tests/local_benchmark/` | Performance profiling; Jupyter notebook for analysis | Yes |

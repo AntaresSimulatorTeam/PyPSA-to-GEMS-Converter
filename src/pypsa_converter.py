@@ -23,7 +23,7 @@ from src.gems_study_writer import GemsStudyWriter
 from src.optim_config_builder import build_hybrid_optim_config, build_optim_config
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
-from src.study_type import classify_study
+from src.study_type import StudyType, classify_study
 from src.utils import check_time_series_format, determine_pypsa_study_type
 
 CONVERTER_LOGGER_NAME = "pypsa_to_gems_converter"
@@ -56,12 +56,11 @@ class PyPSAStudyConverter:
         self.pypsa_network, self.scenario_weightings = determine_pypsa_study_type(self.pypsa_network)
         self.solver_name = solver_name
         self.study_type = classify_study(self.pypsa_network, len(self.scenario_weightings))
-        self.is_investment_study = self.study_type.is_investment
 
-        if self.is_investment_study:
-            # Benders / Xpansion path: extendable capacity, regardless of scenario count.
+        if self.study_type is StudyType.INVESTMENT_MULTI_SCENARIO:
+            # Benders / Xpansion path.
             self._validate_xpansion_solver()
-        elif len(self.scenario_weightings) > 1:
+        elif self.study_type is StudyType.OPERATIONAL_MULTI_SCENARIO:
             # Operational multi-scenario path: GemsPy expec() is still unweighted 1/N.
             self._validate_scenario_weightings()
 
@@ -71,10 +70,10 @@ class PyPSAStudyConverter:
         self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(self.pypsa_network).register()
 
     def _validate_xpansion_solver(self) -> None:
-        """Investment studies are solved end-to-end via the antares-xpansion-launcher
+        """Multi-scenario investment studies are solved end-to-end via the antares-xpansion-launcher
         GEMS workflow, which only supports the 'coin' and 'xpress' solvers."""
         if self.solver_name.lower() not in {"coin", "xpress"}:
-            raise ValueError("Investment studies support only 'coin' and 'xpress' solvers.")
+            raise ValueError("Multi-scenario investment studies support only 'coin' and 'xpress' solvers.")
 
     def _validate_scenario_weightings(self) -> None:
         """
@@ -100,25 +99,28 @@ class PyPSAStudyConverter:
         """
         Extra outputs that make the converted study runnable end-to-end.
 
-        Branching is on *extendable capacity*, not on scenario count:
+        Branching is on the study type:
 
-        - Investment (any number of scenarios): write optim-config.yml and Xpansion
-          launcher inputs (settings.ini / yearly-weights). Also write a companion hybrid
-          Antares study when the horizon is a multiple of 168 hours so
+        - Single scenario (operational or investment): nothing extra; antares-modeler on systems/
+          solves the study with sequential-subproblems.
+        - Investment + multi-scenario: write Xpansion launcher inputs (settings.ini / yearly-weights).
+          Also write a companion hybrid Antares study when the horizon is a multiple of 168 hours so
           antares-problem-generator can emit Benders master/slave MPS (one subproblem per
           scenario / MC year).
         - Operational + multi-scenario: write the same hybrid study so antares-solver can
           run every Monte-Carlo year. Same 168-hour restriction (Antares Economy truncates
           incomplete weeks; see StudyRuntimeInfos::initializeRangeLimits).
-        - Operational + single scenario: nothing extra; antares-modeler on systems/ is enough.
 
         optim-config.yml (required by antares-modeler >= 10.2) is built by src/optim_config_builder.py.
         """
         gems_study_writer.write_optim_config_yml(build_optim_config(self.study_type, self.pypsalib_id, used_model_ids))
-        if self.is_investment_study:
+        if not self.study_type.is_multi_scenario:
+            return
+
+        if self.study_type.is_investment:
             # optim-config.yml's model-decomposition is what lets the
             # antares-xpansion-launcher GEMS workflow (antares-problem-generator + benders)
-            # run the master/subproblem Benders split end-to-end — including the 1-scenario case.
+            # run the master/subproblem Benders split end-to-end.
             gems_study_writer.prepare_xpansion_runnable_study(
                 solver_name=self.solver_name, scenario_weights=self.scenario_weightings
             )
@@ -133,9 +135,6 @@ class PyPSAStudyConverter:
                 antares_hybrid_dir,
                 antares_hybrid_dir,
             )
-            return
-
-        if len(self.scenario_weightings) <= 1:
             return
 
         antares_hybrid_dir = self._write_antares_hybrid_study()
