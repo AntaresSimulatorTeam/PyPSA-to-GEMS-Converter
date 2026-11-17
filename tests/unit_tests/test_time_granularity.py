@@ -138,6 +138,61 @@ def test_mismatched_physical_weightings_are_rejected(tmp_path: Path) -> None:
         )
 
 
+NAN, INF = float("nan"), float("inf")
+
+
+@pytest.mark.parametrize(
+    "weightings, match",
+    [
+        # nunique() ignores NaN, so a NaN must be rejected explicitly: in "objective" it would drop every cost.
+        ({"objective": [NAN, 1.0, 1.0, 1.0]}, "finite snapshot weightings.*'snapshot_weightings.objective'"),
+        ({"generators": [1.0, NAN, 1.0, 1.0]}, "finite snapshot weightings.*'snapshot_weightings.generators'"),
+        ({"stores": [INF] * 4, "generators": [INF] * 4}, "finite snapshot weightings.*'snapshot_weightings.stores'"),
+        ({"objective": [-INF] * 4}, "finite snapshot weightings.*'snapshot_weightings.objective'"),
+        ({"stores": [0.0] * 4, "generators": [0.0] * 4}, "positive time step duration"),
+        ({"stores": [-1.0] * 4, "generators": [-1.0] * 4}, "positive time step duration"),
+        ({"objective": [-1.0] * 4}, "non-negative snapshot weightings"),
+    ],
+    ids=[
+        "nan-objective",
+        "nan-generators",
+        "inf-physical",
+        "inf-objective",
+        "zero-step",
+        "negative-step",
+        "negative-objective",
+    ],
+)
+def test_out_of_range_weightings_are_rejected(weightings: dict[str, list[float]], match: str, tmp_path: Path) -> None:
+    network = _build_network()
+    for column, values in weightings.items():
+        network.snapshot_weightings[column] = values
+
+    with pytest.raises(ValueError, match=match):
+        PyPSAStudyConverter(
+            pypsa_network=network,
+            study_dir=tmp_path / "rejected_study",
+            series_file_format=".tsv",
+        )
+
+    assert not (tmp_path / "rejected_study").exists(), "no output must be written when the check fails"
+
+
+def test_floating_point_noise_in_weightings_is_accepted(tmp_path: Path) -> None:
+    """Weightings that differ only by rounding (0.1 + 0.2 vs 0.3) are constant and equal, as for PyPSA."""
+    noisy = 0.1 + 0.2  # 0.30000000000000004
+    network = _build_network()
+    network.snapshot_weightings["stores"] = [0.3, noisy, 0.3, 0.3]
+    network.snapshot_weightings["generators"] = noisy
+    network.snapshot_weightings["objective"] = [noisy, 0.3, 0.3, noisy]
+
+    system_yml = _convert(network, tmp_path / "noisy_study")
+
+    params = _time_weights(system_yml, "generator_gen")
+    assert params["hours_per_time_step"]["value"] == pytest.approx(0.3)
+    assert params["objective_weighting"]["value"] == pytest.approx(0.3)
+
+
 def _minimal_network(component: str) -> Network:
     """A load plus a single component of the given type, so that only one physical column is read."""
     n = Network(name="GranularityScope", snapshots=[i for i in range(4)])

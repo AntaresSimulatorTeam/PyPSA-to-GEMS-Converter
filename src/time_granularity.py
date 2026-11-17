@@ -32,6 +32,7 @@ The granularity is read from ``snapshot_weightings`` only, never inferred from t
 snapshot index: PyPSA itself treats a weighting of 1 as one hour whatever the index says.
 """
 
+import numpy as np
 from pypsa import Network
 
 from src.utils import any_to_float
@@ -61,13 +62,14 @@ def resolve_time_weights(pypsa_network: Network) -> dict[str, float]:
     without generators never reads "generators". Rejecting those would refuse a network that PyPSA
     itself solves without complaint.
 
-    Each relevant column must be constant over snapshots, since GEMS receives a single value.
+    Each relevant column must be finite and constant over snapshots, since GEMS receives a single value.
     "stores" and "generators" are both the physical duration of a time step, so they must agree
-    whenever both are read; otherwise hours_per_time_step comes from the one that is.
+    whenever both are read; otherwise hours_per_time_step comes from the one that is. Both comparisons
+    use np.isclose, so floating-point noise (e.g. 0.1 + 0.2 vs 0.3) is accepted, as PyPSA does.
 
     Raises:
-        ValueError: if a relevant column varies over snapshots, if the two physical columns disagree
-            while both are read, or if a resolved weighting is out of range.
+        ValueError: if a relevant column has a NaN or infinite value or varies over snapshots, if the two
+            physical columns disagree while both are read, or if a resolved weighting is out of range.
     """
     weightings = pypsa_network.snapshot_weightings
     has_storage = _has_components(pypsa_network, "stores", "storage_units")
@@ -83,17 +85,21 @@ def resolve_time_weights(pypsa_network: Network) -> dict[str, float]:
         if not is_relevant:
             continue
         values = weightings[column]
-        if values.nunique() != 1:
+        if not np.isfinite(values).all():
+            raise ValueError(
+                f"Converter supports only finite snapshot weightings, but 'snapshot_weightings.{column}' "
+                f"contains NaN or infinite values."
+            )
+        if not np.isclose(values, values.iloc[0]).all():
             raise ValueError(
                 f"Converter supports only snapshot weightings that are constant over snapshots, "
-                f"but 'snapshot_weightings.{column}' takes {values.nunique()} distinct values "
-                f"(between {values.min()} and {values.max()})."
+                f"but 'snapshot_weightings.{column}' varies between {values.min()} and {values.max()}."
             )
 
     if has_storage and has_generators:
         stores_weighting = float(weightings["stores"].iloc[0])
         generators_weighting = float(weightings["generators"].iloc[0])
-        if stores_weighting != generators_weighting:
+        if not np.isclose(stores_weighting, generators_weighting):
             raise ValueError(
                 f"Converter models a single time step duration, so 'snapshot_weightings.stores' "
                 f"({stores_weighting}) and 'snapshot_weightings.generators' ({generators_weighting}) "
