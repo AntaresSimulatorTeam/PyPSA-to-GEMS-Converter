@@ -31,6 +31,9 @@ src/
 -  Build GEMS components
 -  Build port connections
 -  Handles global constraints separately 
+  time_granularity.py         # Maps PyPSA `snapshot_weightings` onto the GEMS time-granularity
+                              # parameters (`hours_per_time_step`, `objective_weighting`): validates
+                              # them and writes them onto the components that carry them
   gems_study_writer.py        # GemsStudyWriter: 
 - Writes `system.yml`- GEMS components and port connections 
 - Writes `parameters.yml` (`parameters.yml`) — see [modeler parameters](https://gems-energy.readthedocs.io/en/latest/3_User_Guide/3_GEMS_File_Structure/6_solver_optimization/).
@@ -78,6 +81,25 @@ PyPSA Network (deep-copied)
 
 **Component renaming:** `PyPSAPreprocessor._rename_pypsa_component()` adds a component-type prefix and replaces spaces with underscores (e.g., PyPSA `"gen 1"` → GEMS `"generator_gen_1"`). Bus names are similarly space-normalized. **GEMS output IDs are never identical to PyPSA input IDs.**
 
+**Time granularity:** the converter supports any time granularity, read **only** from
+`network.snapshot_weightings` — never inferred from the spacing of the snapshot index (PyPSA itself
+treats a weighting of 1 as one hour whatever the index says). It becomes two scalar GEMS parameters,
+resolved by `resolve_time_weights()` and written by `add_time_weights()`
+(`src/time_granularity.py`, called from `PyPSAPreprocessor`): `hours_per_time_step` (physical
+duration of a time step — used in the storage balances, `e_sum_*` and the CO₂ emission port) and
+`objective_weighting` (hours a time step represents in the objective, PyPSA's `objective` column,
+which may legitimately differ).
+
+`resolve_time_weights()` validates **only the columns this network actually reads**: PyPSA reads
+`stores` for `Store` *and* `StorageUnit` balances (there is no `storage_units` column), `generators`
+for `e_sum_*` and the CO₂ constraint, and `objective` for the operational costs. Each relevant column
+must be constant over snapshots, and `stores` must equal `generators` **only when the network has
+both a generator and a storage component** — otherwise `hours_per_time_step` comes from whichever
+column is read. Rejecting a network over a column PyPSA ignores would refuse a study PyPSA solves.
+
+The `store`/`storage_unit` balances use `^` for the compounded standing loss, which requires
+Antares-Simulator ≥ 10.1.1.
+
 **CO₂ emission factors:** For emission-bearing component types (`_EMISSION_FACTOR_COMPONENTS`), the preprocessor resolves each component's `co2_emissions` from `network.carriers` via `_carrier_co2_by_scenario()` (`src/pypsa_preprocessor.py`), which preserves per-scenario values when `carriers` is scenario-indexed (MultiIndex). Components with no carrier get a fictitious `null` carrier with `co2_emissions=0`.
 
 **Data format:** Static data is converted from pandas to Polars via `static_pypsa_to_polars()`; time-series data via `dynamic_dict_pypsa_to_polars()`. PyPSA objects remain as pandas internally; only the Polars copies are used downstream.
@@ -116,7 +138,7 @@ This file defines all component models (generator, load, bus, link, line, transf
 | Supported | Not Supported |
 |-----------|---------------|
 | generators, loads, buses, links, storage_units, stores, lines, transformers | quadratic costs (`marginal_cost_quadratic`), `committable=True`, non-cyclic state of charge |
-| global_constraints (`co2_emissions`, `primary_energy` type, `<=` or `==` sense) | multi-investment periods, snapshot weightings ≠ 1 |
+| global_constraints (`co2_emissions`, `primary_energy` type, `<=` or `==` sense) | multi-investment periods, time-varying snapshot weightings |
 
 All listed components must have `active=1` (inactive ones are dropped). Lines and Transformers are converted **natively**: their `type` (LineTypes/TransformerTypes) is resolved into reactance by PyPSA's `calculate_dependent_values()` during preprocessing — see [pypsa_preprocessor.py](src/pypsa_preprocessor.py) and the authoritative limitations list in [COMPATIBILITY.md](COMPATIBILITY.md#converter-limitations). The `replace_lines_by_links()` helper in `tests/utils.py` (bidirectional link pairs with `p_min_pu=-1`) is still available for tests that prefer to model lines as links, but is no longer required.
 

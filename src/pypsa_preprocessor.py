@@ -15,6 +15,7 @@ from typing import Any
 import pandas as pd
 from pypsa import Network
 
+from src.time_granularity import add_time_weights, resolve_time_weights
 from src.utils import any_to_float
 
 # Component types that have an emission_factor parameter in the GEMS model.
@@ -60,7 +61,7 @@ class PyPSAPreprocessor:
     def _check_converter_limitations(self) -> None:
         """Assertion function to keep trace of the limitations of the converter"""
         assert len(self.pypsa_network.investment_periods) == 0
-        assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
+        resolve_time_weights(self.pypsa_network)
         checks = [
             ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
             ("generators", "active", 1, "Generators", "active = 1"),
@@ -273,6 +274,7 @@ class PyPSAPreprocessor:
         self._preprocess_pypsa_component("stores", "e_nom")
         self._preprocess_pypsa_component("storage_units", "p_nom")
         self._preprocess_pypsa_component("links", "p_nom")
+        add_time_weights(self.pypsa_network, resolve_time_weights(self.pypsa_network))
         self._add_bus_theta_bounds()
         if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()
