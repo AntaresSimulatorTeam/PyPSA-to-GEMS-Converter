@@ -48,7 +48,7 @@ pypsa-to-gems = "src.cli:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=7.0.1",
+    "pytest>=8.4.2",
     "pytest-xdist>=3.8.0",
     "highspy>=1.5.0",
     "ruff>=0.9.6",
