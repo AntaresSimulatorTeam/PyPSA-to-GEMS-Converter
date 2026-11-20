@@ -24,6 +24,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "pydantic>=2.12.5",
     "antares-craft==0.17.1",
+    "shapely>=2.1.2",  # cp314 wheels; older releases force a GEOS source build
 ]
 classifiers = [
     # Classifiers here: https://pypi.org/classifiers/
