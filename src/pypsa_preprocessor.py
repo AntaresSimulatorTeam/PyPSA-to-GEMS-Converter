@@ -15,6 +15,7 @@ from typing import Any
 import pandas as pd
 from pypsa import Network
 
+from src.converter_limitations import check_converter_limitations
 from src.utils import any_to_float
 
 # Component types that have an emission_factor parameter in the GEMS model.
@@ -51,41 +52,11 @@ class PyPSAPreprocessor:
         ]
 
     def network_preprocessing(self) -> Network:
-        self._check_converter_limitations()
+        check_converter_limitations(self.pypsa_network)
         self._add_fictitious_carrier()
         self._rename_buses()
         self._preprocess_pypsa_components()
         return self.pypsa_network
-
-    def _check_converter_limitations(self) -> None:
-        """Assertion function to keep trace of the limitations of the converter"""
-        assert len(self.pypsa_network.investment_periods) == 0
-        assert (self.pypsa_network.snapshot_weightings.values == 1.0).all()
-        checks = [
-            ("generators", "marginal_cost_quadratic", 0, "Generators", "linear cost"),
-            ("generators", "active", 1, "Generators", "active = 1"),
-            ("generators", "committable", False, "Generators", "commitable = False"),
-            ("loads", "active", 1, "Loads", "active = 1"),
-            ("links", "active", 1, "Links", "active = 1"),
-            ("storage_units", "sign", 1, "Storage Units", "sign = 1"),
-            ("storage_units", "cyclic_state_of_charge", 1, "Storage Units", "cyclic_state_of_charge"),
-            ("storage_units", "marginal_cost_quadratic", 0, "Storage Units", "linear cost"),
-            ("stores", "sign", 1, "Stores", "sign = 1"),
-            ("stores", "e_cyclic", 1, "Stores", "e_cyclic = True"),
-            ("stores", "marginal_cost_quadratic", 0, "Stores", "linear cost"),
-        ]
-
-        for component_type, col, expected, type_label, desc in checks:
-            c = getattr(self.pypsa_network.components, component_type)
-            if len(c.static) == 0:
-                continue
-            if not all(c.static[col] == expected):
-                raise ValueError(f"Converter supports only {type_label} with {desc}")
-
-        ### PyPSA components : GlobalConstraint
-        for pypsa_model_id in self.pypsa_network.global_constraints.index:
-            assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "type"] == "primary_energy"
-            assert self.pypsa_network.global_constraints.loc[pypsa_model_id, "carrier_attribute"] == "co2_emissions"
 
     def _add_fictitious_carrier(self) -> None:
         """Add fictitious carrier (co2_emissions=0) for components with no carrier.
