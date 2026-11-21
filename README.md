@@ -86,7 +86,7 @@ For the full list of unsupported components, component restrictions, and network
 
 ### 1. **Prerequisites**
 
-PyPSA-to-GEMS-Converter needs Python version >=3.11, and it's tested on version 3.11 and 3.12.
+PyPSA-to-GEMS-Converter needs Python version >=3.11,<3.15, and it's tested on versions 3.11 through 3.14.
 
 Its dependencies are listed inside the [`pyproject.toml`](pyproject.toml) and it is OS independent.
 
