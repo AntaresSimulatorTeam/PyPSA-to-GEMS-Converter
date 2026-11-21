@@ -16,6 +16,7 @@ import pandas as pd
 from pypsa import Network
 
 from src.converter_limitations import check_converter_limitations
+from src.time_granularity import add_time_weights, resolve_time_weights
 from src.utils import any_to_float
 
 # Component types that have an emission_factor parameter in the GEMS model.
@@ -244,6 +245,7 @@ class PyPSAPreprocessor:
         self._preprocess_pypsa_component("stores", "e_nom")
         self._preprocess_pypsa_component("storage_units", "p_nom")
         self._preprocess_pypsa_component("links", "p_nom")
+        add_time_weights(self.pypsa_network, resolve_time_weights(self.pypsa_network))
         self._add_bus_theta_bounds()
         if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()

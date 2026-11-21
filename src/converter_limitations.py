@@ -29,6 +29,8 @@ from typing import Any
 import numpy as np
 from pypsa import Network
 
+from src.time_granularity import resolve_time_weights
+
 # Child of the converter's logger (CONVERTER_LOGGER_NAME in src/pypsa_converter.py), so its handlers get the warnings.
 logger = logging.getLogger("pypsa_to_gems_converter.converter_limitations")
 
@@ -193,8 +195,10 @@ def _network_findings(network: Network) -> list[str]:
     findings = []
     if len(network.investment_periods) > 0:
         findings.append(f"investment periods ({len(network.investment_periods)} periods)")
-    if not (network.snapshot_weightings.values == 1.0).all():
-        findings.append("snapshot weightings other than 1.0")
+    try:
+        resolve_time_weights(network)
+    except ValueError as error:
+        findings.append(str(error))
 
     global_constraints = network.global_constraints
     for name in global_constraints.index:

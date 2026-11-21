@@ -5,7 +5,8 @@ This table maps converter versions to the PyPSA and Antares-Simulator versions t
 | Converter | PyPSA | Antares-Simulator | Notes |
 |-----------|-------|-------------------|-------|
 | 0.0.1     | 1.2.0 | 9.3.7             | Initial release |
-| 0.0.2     | 1.4.0 | 10.1.1            | Upcoming release |
+| 0.0.2     | 1.3.0 | 10.1.1            | |
+| 0.0.3     | 1.4.0 | 10.1.1            | Upcoming release |
 
 ## Versioning Policy
 

@@ -230,10 +230,10 @@ def test_investment_periods_are_rejected(tmp_path: Path) -> None:
         _convert(network, tmp_path)
 
 
-def test_snapshot_weightings_other_than_one_are_rejected(tmp_path: Path) -> None:
+def test_time_varying_snapshot_weightings_are_rejected(tmp_path: Path) -> None:
     network = _network()
-    network.snapshot_weightings["objective"] = 2.0
-    with pytest.raises(ValueError, match="snapshot weightings other than 1.0"):
+    network.snapshot_weightings["objective"] = [1.0, 2.0, 1.0, 2.0]
+    with pytest.raises(ValueError, match="constant over snapshots"):
         _convert(network, tmp_path)
 
 

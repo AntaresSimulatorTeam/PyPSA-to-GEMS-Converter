@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pypsa-to-gems-converter"
-version = "0.0.2"
+version = "0.0.3"
 description = "Convert PyPSA networks into GEMS study folders for modelling and simulation."
 readme = "README.md"
 license = "MPL-2.0"
