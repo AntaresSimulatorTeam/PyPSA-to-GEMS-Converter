@@ -96,51 +96,85 @@ def _bus_carrier_limit(n: Network) -> None:
     n.buses["nom_max_solar"] = [100.0, float("nan"), float("nan")]
 
 
+def _add_bus5(n: Network) -> None:
+    n.add("Bus", ["d", "e", "f"], v_nom=1)
+    n.add("Link", "big", bus0="a", bus1="b", bus2="c", bus3="d", bus4="e", bus5="f", p_nom=10)
+
+
+def _process_delay(n: Network) -> None:
+    n.add("Process", "proc", bus0="a", bus1="b", p_nom=10, delay1=1)
+
+
+def _two_primary_energy_attributes(n: Network) -> None:
+    n.add("GlobalConstraint", "co2", type="primary_energy", carrier_attribute="co2_emissions", constant=1.0)
+    n.add("GlobalConstraint", "nox", type="primary_energy", carrier_attribute="nox", constant=1.0)
+
+
+def _inactive_in_one_scenario(n: Network) -> None:
+    n.set_scenarios({"low": 0.5, "high": 0.5})
+    n.generators.loc[("high", "gen"), "active"] = False
+
+
 ERROR_CASES: list[tuple[str, Callable[[Network], None], str]] = [
-    ("process", _process, "Process components"),
-    ("link-bus2", _add_bus2, "Links with bus2"),
+    ("link-bus5", _add_bus5, "Links with bus5"),
     ("phase-shift", _set("phase_shift", 10.0, "Transformer", "trafo"), "Transformers with phase_shift"),
     ("phase-shift-range", _set("phase_shift_max", 30.0, "Transformer", "trafo"), "phase_shift_min < phase_shift_max"),
     ("v-ang-max-line", _set("v_ang_max", 30.0, "Line", "line"), "Lines with v_ang_max"),
     ("v-ang-max-trafo", _set("v_ang_max", 30.0, "Transformer", "trafo"), "Transformers with v_ang_max"),
-    ("p-nom-set", _set("p_nom_set", 50.0), "Generators with p_nom_set"),
-    ("p-nom-set-link", _set("p_nom_set", 50.0, "Link", "link"), "Links with p_nom_set"),
-    ("p-nom-set-su", _set("p_nom_set", 5.0, "StorageUnit", "su"), "Storage Units with p_nom_set"),
-    ("e-nom-set", _set("e_nom_set", 5.0, "Store", "store"), "Stores with e_nom_set"),
-    ("s-nom-set", _set("s_nom_set", 50.0, "Line", "line"), "Lines with s_nom_set"),
+    ("p-nom-set-fixed", _set("p_nom_set", 50.0), "Generators with p_nom_set"),
+    ("p-nom-set-fixed-link", _set("p_nom_set", 50.0, "Link", "link"), "Links with p_nom_set"),
+    ("p-nom-set-fixed-su", _set("p_nom_set", 5.0, "StorageUnit", "su"), "Storage Units with p_nom_set"),
+    ("e-nom-set-fixed", _set("e_nom_set", 5.0, "Store", "store"), "Stores with e_nom_set"),
+    ("s-nom-set-fixed", _set("s_nom_set", 50.0, "Line", "line"), "Lines with s_nom_set"),
     ("delay", _set("delay", 1, "Link", "link"), "Links with delay"),
+    ("process-delay", _process_delay, "Processes with delay1"),
     ("maintainable", _set("maintainable", True), "Generators with maintainable"),
-    ("ramp-up", _set("ramp_limit_up", 0.5), "Generators with ramp_limit_up"),
-    ("ramp-down-link", _set("ramp_limit_down", 0.5, "Link", "link"), "Links with ramp_limit_down"),
-    ("ramp-up-series", _ramp_series, "Generators with ramp_limit_up"),
     ("p-nom-mod", _set("p_nom_mod", 10.0, extendable=True), "Generators with p_nom_mod"),
     ("e-nom-mod", _set("e_nom_mod", 5.0, "Store", "store", extendable=True), "Stores with e_nom_mod"),
-    ("fom-cost", _set("fom_cost", 3.0, extendable=True), "Generators with fom_cost"),
-    ("fom-cost-line", _set("fom_cost", 3.0, "Line", "line", extendable=True), "Lines with fom_cost"),
-    ("overnight-cost", _set("overnight_cost", 1000.0, "Link", "link", extendable=True), "Links with overnight_cost"),
+    ("p-set-gen", _set("p_set", 10.0), "Generators with p_set"),
+    ("p-set-link", _set("p_set", 10.0, "Link", "link"), "Links with p_set"),
+    ("p-set-store", _set("p_set", 1.0, "Store", "store"), "Stores with p_set"),
+    ("p-set-su", _set("p_set", 1.0, "StorageUnit", "su"), "Storage Units with p_set"),
     ("soc-set", _set("state_of_charge_set", 5.0, "StorageUnit", "su"), "Storage Units with state_of_charge_set"),
     ("p-dispatch-set", _set("p_dispatch_set", 1.0, "StorageUnit", "su"), "Storage Units with p_dispatch_set"),
     ("p-store-set", _set("p_store_set", 1.0, "StorageUnit", "su"), "Storage Units with p_store_set"),
     ("e-set", _set("e_set", 1.0, "Store", "store"), "Stores with e_set"),
-    ("bus-carrier-limit", _bus_carrier_limit, "Buses with nom_max_solar"),
-    ("inactive-gen", _set("active", False), "Generators with active"),
-    ("inactive-load", _set_load_inactive, "Loads with active"),
-    ("inactive-link", _set("active", False, "Link", "link"), "Links with active"),
-    ("inactive-line", _set("active", False, "Line", "line"), "Lines with active"),
-    ("inactive-trafo", _set("active", False, "Transformer", "trafo"), "Transformers with active"),
-    ("inactive-su", _set("active", False, "StorageUnit", "su"), "Storage Units with active"),
-    ("inactive-store", _set("active", False, "Store", "store"), "Stores with active"),
     ("quadratic-cost", _set("marginal_cost_quadratic", 0.1), "Generators with marginal_cost_quadratic"),
     (
         "quadratic-cost-su",
         _set("marginal_cost_quadratic", 0.1, "StorageUnit", "su"),
         "Storage Units with marginal_cost_quadratic",
     ),
+    ("quadratic-cost-link", _set("marginal_cost_quadratic", 0.1, "Link", "link"), "Links with marginal_cost_quadratic"),
     ("committable", _set("committable", True), "Generators with committable"),
-    ("sign-su", _set("sign", -1.0, "StorageUnit", "su"), "Storage Units with sign"),
-    ("sign-store", _set("sign", -1.0, "Store", "store"), "Stores with sign"),
-    ("non-cyclic-su", _set("cyclic_state_of_charge", False, "StorageUnit", "su"), "cyclic_state_of_charge"),
-    ("non-cyclic-store", _set("e_cyclic", False, "Store", "store"), "Stores with e_cyclic"),
+    ("committable-link", _set("committable", True, "Link", "link"), "Links with committable"),
+    ("two-primary-energy-attributes", _two_primary_energy_attributes, "several carrier attributes"),
+    ("inactive-in-one-scenario", _inactive_in_one_scenario, "active in some scenarios only"),
+]
+
+# Features the converter used to reject and now models: the conversion must go through.
+SUPPORTED_CASES: list[tuple[str, Callable[[Network], None]]] = [
+    ("process", _process),
+    ("link-bus2", _add_bus2),
+    ("ramp-up", _set("ramp_limit_up", 0.5)),
+    ("ramp-down-link", _set("ramp_limit_down", 0.5, "Link", "link")),
+    ("ramp-up-series", _ramp_series),
+    ("p-init", _set("p_init", 20.0)),
+    ("p-nom-set-extendable", _set("p_nom_set", 50.0, extendable=True)),
+    ("e-nom-set-extendable", _set("e_nom_set", 5.0, "Store", "store", extendable=True)),
+    ("s-nom-set-extendable", _set("s_nom_set", 50.0, "Line", "line", extendable=True)),
+    ("fom-cost", _set("fom_cost", 3.0, extendable=True)),
+    ("fom-cost-line", _set("fom_cost", 3.0, "Line", "line", extendable=True)),
+    ("overnight-cost", _set("overnight_cost", 1000.0, "Link", "link", extendable=True)),
+    ("bus-carrier-limit", _bus_carrier_limit),
+    ("inactive-gen", _set("active", False)),
+    ("inactive-load", _set_load_inactive),
+    ("inactive-line", _set("active", False, "Line", "line")),
+    ("inactive-store", _set("active", False, "Store", "store")),
+    ("sign-su", _set("sign", -1.0, "StorageUnit", "su")),
+    ("sign-store", _set("sign", -1.0, "Store", "store")),
+    ("non-cyclic-su", _set("cyclic_state_of_charge", False, "StorageUnit", "su")),
+    ("non-cyclic-store", _set("e_cyclic", False, "Store", "store")),
 ]
 
 
@@ -178,31 +212,43 @@ def test_capital_cost_and_modular_attributes_on_fixed_components_are_accepted(
     _convert(network, tmp_path)
 
 
+@pytest.mark.parametrize("modify", [case[1] for case in SUPPORTED_CASES], ids=[c[0] for c in SUPPORTED_CASES])
+def test_supported_feature_is_converted(modify: Callable[[Network], None], tmp_path: Path) -> None:
+    network = _network()
+    modify(network)
+    _convert(network, tmp_path)
+
+
 def test_all_limitations_are_reported_together(tmp_path: Path) -> None:
     network = _network()
-    _set("ramp_limit_up", 0.5)(network)
+    _set("maintainable", True)(network)
     _set("delay", 2, "Link", "link")(network)
     with pytest.raises(ValueError) as error:
         _convert(network, tmp_path)
-    assert "Generators with ramp_limit_up" in str(error.value)
+    assert "Generators with maintainable" in str(error.value)
     assert "Links with delay" in str(error.value)
 
 
 def test_unsupported_feature_is_detected_in_a_multi_scenario_network(tmp_path: Path) -> None:
     network = _network()
     network.set_scenarios({"low": 0.5, "high": 0.5})
-    network.generators.loc[("high", "gen"), "ramp_limit_up"] = 0.5
-    with pytest.raises(ValueError, match="Generators with ramp_limit_up .*: gen"):
+    network.generators.loc[("high", "gen"), "maintainable"] = True
+    with pytest.raises(ValueError, match="Generators with maintainable .*: gen"):
         _convert(network, tmp_path)
+
+
+def _add_unknown_global_constraint(n: Network) -> None:
+    n.add("GlobalConstraint", "budget", type="Co2Budget", carrier_attribute="co2_emissions", constant=1.0)
 
 
 @pytest.mark.parametrize(
     ("modify", "message"),
     [
         (_set("v_ang_min", -30.0, "Line", "line"), "Lines with v_ang_min"),
-        (_set("p_init", 20.0), "Generators with p_init"),
+        (_add_unknown_global_constraint, "GlobalConstraint 'budget' of type 'Co2Budget'"),
+        (_set("active", False), "Converter drops inactive components"),
     ],
-    ids=["v-ang-min", "p-init"],
+    ids=["v-ang-min", "unknown-global-constraint-type", "inactive"],
 )
 def test_ignored_feature_is_a_warning(
     modify: Callable[[Network], None], message: str, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -230,30 +276,12 @@ def test_investment_periods_are_rejected(tmp_path: Path) -> None:
         _convert(network, tmp_path)
 
 
-def test_time_varying_snapshot_weightings_are_rejected(tmp_path: Path) -> None:
+def test_inactive_components_are_left_out_of_the_study(tmp_path: Path) -> None:
     network = _network()
-    network.snapshot_weightings["objective"] = [1.0, 2.0, 1.0, 2.0]
-    with pytest.raises(ValueError, match="constant over snapshots"):
-        _convert(network, tmp_path)
-
-
-@pytest.mark.parametrize(
-    ("attrs", "match"),
-    [
-        ({"type": "operational_limit", "carrier_attribute": "co2_emissions"}, "type 'operational_limit'"),
-        ({"type": "primary_energy", "carrier_attribute": "nox"}, "carrier attribute 'nox'"),
-    ],
-    ids=["type", "carrier-attribute"],
-)
-def test_unsupported_global_constraint_is_rejected(attrs: dict[str, str], match: str, tmp_path: Path) -> None:
-    network = _network()
-    network.add(
-        "GlobalConstraint",
-        "limit",
-        type=attrs["type"],
-        carrier_attribute=attrs["carrier_attribute"],
-        sense="<=",
-        constant=100.0,
-    )
-    with pytest.raises(ValueError, match=match):
-        _convert(network, tmp_path)
+    _set("active", False)(network)
+    _set("active", False, "Line", "line")(network)
+    PyPSAStudyConverter(pypsa_network=network, study_dir=tmp_path / "study", series_file_format=".tsv").to_gems_study()
+    system = (tmp_path / "study" / "systems" / "input" / "system.yml").read_text()
+    assert "generator_gen" not in system
+    assert "line_line" not in system
+    assert "storage_unit_su" in system

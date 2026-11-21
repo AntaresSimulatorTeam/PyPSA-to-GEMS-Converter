@@ -66,7 +66,7 @@ include = ["src", "src.*", "resources"]
 namespaces = true
 
 [tool.setuptools.package-data]
-resources = ["optim-config.yml", "pypsa_models/*"]
+resources = ["pypsa_models/*"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["*.ipynb"]
@@ -103,5 +103,5 @@ module = ["tests.e2e.end_2_end_tests", "tests.e2e.test_hybrid_study_comparison",
 disable_error_code = ["operator"]
 
 [[tool.mypy.overrides]]
-module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*", "gems_craft.*", "gems_runner.*", "gems_craft_hybrid.*", "antares.*", "highspy.*"]
+module = ["pypsa.*", "pandas.*", "pydantic.*", "pytest.*", "gems_craft.*", "gems_runner.*", "gems_craft_hybrid.*", "antares.*", "highspy.*", "scipy.*"]
 ignore_missing_imports = true

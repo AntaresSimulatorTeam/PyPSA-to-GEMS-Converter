@@ -14,11 +14,26 @@
 # References for PyPSA
 # T. Brown, J. Hörsch, D. Schlachtberger, PyPSA: Python for Power System Analysis, 2018, Journal of Open Research Software, 6(1), arXiv:1707.09913, DOI:10.5334/jors.188
 # https://pypsa.readthedocs.io/en/latest/
+#
+# Model variants. GEMS has no model inheritance yet, so a PyPSA component type whose options change the
+# equations is mapped onto several close models, and the converter picks one per component:
+#   - generator / generator_ramp: without / with ramp limits (ramp_limit_up, ramp_limit_down)
+#   - link / link_ramp: 2-port link without / with ramp limits
+#   - link_multiport / link_multiport_ramp: Link with bus2..bus4, and Process, without / with ramp limits
+#   - storage_unit / storage_unit_non_cyclic: cyclic_state_of_charge True / False
+#   - store / store_non_cyclic: e_cyclic True / False
+# The *_ramp and *_non_cyclic models have constraints referring to the previous time step that PyPSA does not
+# wrap around the horizon: the converter declares them with `out-of-bounds-processing: drop` in optim-config.yml.
+#
+# Time granularity: hours_per_time_step comes from n.snapshot_weightings.generators (generator models) or
+# n.snapshot_weightings.stores (storage models); objective_weighting from n.snapshot_weightings.objective.
+# Both may vary over time. standing_efficiency = (1 - standing_loss)^hours_per_time_step is computed by the
+# converter, because Antares Modeler only accepts constant exponents.
 
 library:
   id: pypsa_models
-  version: "2.1.0"
-  description: PyPSA model library 
+  version: "3.0.0"
+  description: PyPSA model library
   #https://pypsa.readthedocs.io/en/latest/user-guide/components.html#
 
   port-types:
@@ -28,9 +43,17 @@ library:
         - id: power
         - id: angle
     - id: emission
-      description: A port which accounts for CO2 emissions
+      description: A port which accounts for CO2 emissions (more generally, the carrier attribute of a primary_energy global constraint)
       fields:
         - id: emission
+    - id: quantity
+      description: A time-dependent quantity summed over the horizon by a global constraint (energy produced, storage depletion, final storage level)
+      fields:
+        - id: value
+    - id: capacity
+      description: A time-independent quantity summed by a global constraint (installed capacity, possibly weighted by length or cost)
+      fields:
+        - id: value
 
   models:
     - id: bus
@@ -59,7 +82,11 @@ library:
           time-dependent: false
           scenario-dependent: false
         - id: theta_min
+          time-dependent: false
+          scenario-dependent: false
         - id: theta_max
+          time-dependent: false
+          scenario-dependent: false
       variables:
         - id: theta
           lower-bound: theta_min
@@ -93,7 +120,7 @@ library:
         - id: sign # default value = -1
           time-dependent: false
           scenario-dependent: false
-        #- id: active # Parameter that is not instantiated: only active components are built by the data converter.
+        #- id: active # Not instantiated: the converter drops inactive components.
       ports:
         - id: p_balance_port
           type: flow
@@ -110,10 +137,11 @@ library:
     - id: generator
       #Model for PyPSA generator: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#generator
       parameters:
-        #- id: control # Parameter not instantiated for now
+        #- id: control # Not used in DC LOPF
         #- id: type # This parameter is not used in the Gems model
-        #- id: p_nom_mod # Parameter not instantiated for now
-        #- id: p_nom_extendable # Parameter that is not used in Gems model: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
+        #- id: p_nom_mod # Not instantiated: modular expansion is rejected by the converter
+        #- id: p_nom_extendable # Not used in the Gems model: p_nom_min and p_nom_max fix p_nom for non-extendable generators
+        #- id: p_nom_set # Handled by converter: p_nom_min = p_nom_max = p_nom_set for extendable generators
         - id: p_nom_min
           time-dependent: false
           scenario-dependent: false
@@ -126,8 +154,8 @@ library:
         - id: p_max_pu
           time-dependent: true
           scenario-dependent: true
-        #- id: p_set # Parameter not instantiated for now
-        #- id: q_set # Parameter not instantiated for now
+        #- id: p_set # Not instantiated: fixed dispatch is rejected by the converter
+        #- id: q_set # No reactive power in DC LOPF
         - id: e_sum_min
           time-dependent: false
           scenario-dependent: true
@@ -137,52 +165,38 @@ library:
         - id: sign # default value = 1
           time-dependent: false
           scenario-dependent: false
-        #- id: carrier # This parameter is not used in the Gems model
+        #- id: carrier # Used by the converter to connect the generator to global constraints
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
-        #- id: marginal_cost_quadratic # Parameter not instantiated for now
-        #- id: active # Parameter that is not instantiated: only active components are built by the data converter.
-        #- id: build_year # Parameter not instantiated for now
-        #- id: lifetime # Parameter not instantiated for now
+        #- id: marginal_cost_quadratic # Non-linear: rejected by the converter
+        #- id: active # Not instantiated: the converter drops inactive components.
+        #- id: build_year # Only used with investment periods, which are rejected
+        #- id: lifetime # Only used with investment periods and overnight_cost
         - id: capital_cost
+          # Periodized cost: capital_cost + fom_cost, or annuity(overnight_cost, discount_rate, lifetime) + fom_cost
           time-dependent: false
           scenario-dependent: false
         - id: efficiency
           time-dependent: true
           scenario-dependent: true
-        #- id: committable # Parameter not instantiated for now
-        #- id: start_up_cost # Parameter not instantiated for now
-        #- id: shut_down_cost # Parameter not instantiated for now
-        #- id: stand_by_cost # Parameter not instantiated for now
-        #- id: min_up_time # Parameter not instantiated for now
-        #- id: min_down_time # Parameter not instantiated for now
-        #- id: up_time_before # Parameter not instantiated for now
-        #- id: down_time_before # Parameter not instantiated for now
-        #- id: ramp_limit_up # Parameter not instantiated for now
-        #- id: ramp_limit_down # Parameter not instantiated for now
-        #- id: ramp_limit_start_up # Parameter not instantiated for now
-        #- id: ramp_limit_shut_down # Parameter not instantiated for now
-        #- id: weight # Parameter not instantiated for now
-        # Additional parameters that are not stored in the PyPSA object, but in a Carrier object
+        #- id: committable # Unit commitment (MILP): rejected by the converter
+        #- id: start_up_cost, shut_down_cost, stand_by_cost, min_up_time, min_down_time, up_time_before,
+        #      down_time_before, ramp_limit_start_up, ramp_limit_shut_down # Unit commitment only
+        #- id: ramp_limit_up, ramp_limit_down # See generator_ramp
+        #- id: weight # Used only for network clustering
         - id: emission_factor
+          # Carrier attribute (co2_emissions by default) of the generator's carrier, used by primary_energy global constraints
           time-dependent: false
           scenario-dependent: true
-
-        # Time granularity parameters. Both are constant over time steps in the current converter,
-        # but declared time-dependent so that time-varying weightings can be supported later.
         - id: hours_per_time_step
-          # Number of hours represented by one time step.
-          # Source: PyPSA n.snapshot_weightings.stores / .generators (the converter requires them to be equal).
+          # Source: PyPSA n.snapshot_weightings.generators
           time-dependent: true
           scenario-dependent: false
         - id: objective_weighting
-          # Number of hours a time step represents in the objective function; may differ from
-          # hours_per_time_step when operational costs are annualised over representative periods.
           # Source: PyPSA n.snapshot_weightings.objective
           time-dependent: true
           scenario-dependent: false
-
       variables:
         - id: p_nom
           lower-bound: p_nom_min
@@ -190,14 +204,15 @@ library:
           time-dependent: false
           scenario-dependent: false
         - id: p
-        #- id: q
       ports:
         - id: p_balance_port
           type: flow
         - id: emission_port
           type: emission
-        #- id: q_balance_port
-        #  type: flow
+        - id: operational_port
+          type: quantity
+        - id: capacity_port
+          type: capacity
       port-field-definitions:
         - port: p_balance_port
           field: power
@@ -205,9 +220,12 @@ library:
         - port: emission_port
           field: emission
           definition: p*emission_factor*hours_per_time_step/efficiency
-        #- port: q_balance_port
-        #  field: flow
-        #  definition: q*sign
+        - port: operational_port
+          field: value
+          definition: p * hours_per_time_step
+        - port: capacity_port
+          field: value
+          definition: p_nom
       constraints:
         - id: min_dispatch
           expression: p >=p_nom * p_min_pu
@@ -217,6 +235,128 @@ library:
           expression: sum(p * hours_per_time_step) >= e_sum_min
         - id: max_production
           expression: sum(p * hours_per_time_step) <= e_sum_max
+      objective-contributions:
+        - id: capital_objective
+          expression: p_nom * capital_cost
+        - id: operational_objective
+          expression: sum(objective_weighting * marginal_cost * p)
+
+    - id: generator_ramp
+      #Model for PyPSA generator with ramp limits (ramp_limit_up and/or ramp_limit_down set).
+      #Same as generator, plus the ramp constraints of PyPSA's define_ramp_limit_constraints (non-committable case):
+      #  p[t] - p[t-1] <= ramp_limit_up * p_nom and p[t] - p[t-1] >= -ramp_limit_down * p_nom, for t >= 1.
+      #ramp_up and ramp_down are declared with `out-of-bounds-processing: drop` (no wrap-around at t = 0).
+      #At t = 0, PyPSA ramps from p_init when it is set: ramp_*_initial, switched off by p_init_active = 0.
+      parameters:
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: e_sum_min
+          time-dependent: false
+          scenario-dependent: true
+        - id: e_sum_max
+          time-dependent: false
+          scenario-dependent: true
+        - id: sign
+          time-dependent: false
+          scenario-dependent: false
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: emission_factor
+          time-dependent: false
+          scenario-dependent: true
+        - id: hours_per_time_step
+          time-dependent: true
+          scenario-dependent: false
+        - id: objective_weighting
+          time-dependent: true
+          scenario-dependent: false
+        - id: ramp_limit_up
+          # Per unit of p_nom. Set to 1 by the converter where ramp_up_active = 0.
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_limit_down
+          # Per unit of p_nom. Set to 1 by the converter where ramp_down_active = 0.
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_up_active
+          # 1 where PyPSA's ramp_limit_up is set (not NaN), else 0
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_down_active
+          # 1 where PyPSA's ramp_limit_down is set (not NaN), else 0
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_init
+          # Dispatch before the first time step (PyPSA p_init). 0 where p_init_active = 0.
+          time-dependent: false
+          scenario-dependent: true
+        - id: p_init_active
+          # 1 if PyPSA's p_init is set (not NaN), else 0
+          time-dependent: false
+          scenario-dependent: true
+      variables:
+        - id: p_nom
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p
+      ports:
+        - id: p_balance_port
+          type: flow
+        - id: emission_port
+          type: emission
+        - id: operational_port
+          type: quantity
+        - id: capacity_port
+          type: capacity
+      port-field-definitions:
+        - port: p_balance_port
+          field: power
+          definition: p*sign
+        - port: emission_port
+          field: emission
+          definition: p*emission_factor*hours_per_time_step/efficiency
+        - port: operational_port
+          field: value
+          definition: p * hours_per_time_step
+        - port: capacity_port
+          field: value
+          definition: p_nom
+      constraints:
+        - id: min_dispatch
+          expression: p >=p_nom * p_min_pu
+        - id: max_dispatch
+          expression: p <=p_nom * p_max_pu
+        - id: min_production
+          expression: sum(p * hours_per_time_step) >= e_sum_min
+        - id: max_production
+          expression: sum(p * hours_per_time_step) <= e_sum_max
+        - id: ramp_up
+          expression: ramp_up_active * (p - p[t-1]) <= ramp_limit_up * p_nom
+        - id: ramp_down
+          expression: ramp_down_active * (p - p[t-1]) >= -ramp_limit_down * p_nom
+        - id: ramp_up_initial
+          expression: p_init_active * ramp_up_active[0] * (p[0] - p_init) <= ramp_limit_up[0] * p_nom
+        - id: ramp_down_initial
+          expression: p_init_active * ramp_down_active[0] * (p[0] - p_init) >= -ramp_limit_down[0] * p_nom
       objective-contributions:
         - id: capital_objective
           expression: p_nom * capital_cost
@@ -251,14 +391,16 @@ library:
           time-dependent: true
           scenario-dependent: true
         - id: capital_cost
-          #Annuitised investment cost per MVA of installed capacity [currency/MVA].
-          #In PyPSA ≤1.0.0, capital_cost covers both annuitised CAPEX and fixed O&M (FOM) combined.
-          #In PyPSA ≥1.1.0 (PR #1507), fom_cost is a separate attribute and the optimizer objective
-          #uses periodized_cost = capital_cost + fom_cost.
+          #Periodized investment cost per MVA of installed capacity [currency/MVA]: capital_cost + fom_cost, or
+          #annuity(overnight_cost, discount_rate, lifetime) + fom_cost (PyPSA >= 1.1.0 periodized_cost).
           time-dependent: false
           scenario-dependent: false
         - id: modular
           #Expansion mode: 0 = continuous (LP), 1 = modular integer (MIP).
+          time-dependent: false
+          scenario-dependent: false
+        - id: length
+          #Line length [km]. Only used by transmission_volume_expansion_limit global constraints.
           time-dependent: false
           scenario-dependent: false
         #- id: type # Preprocessing: triggers lookup in line_types table — overrides r, x, b. Converter must call calculate_dependent_values() first.
@@ -267,19 +409,18 @@ library:
         #- id: b # Not used in DC LOPF.
         #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max.
         #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
-        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
-        #- id: overnight_cost # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
-        #- id: discount_rate # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
-        #- id: fom_cost # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
-        #- id: active # Handled by converter: only active components are built.
-        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
-        #- id: lifetime # Used with overnight_cost (PyPSA ≥1.1.0) and in investment periods. TODO: not yet implemented in the converter.
-        #- id: length # When type is set, scales x from line_types (r/b also scaled but not used in DC LOPF) — x absorbed by calculate_dependent_values(); capital_cost must already include any length factor.
-        #- id: carrier # Not GEMS parameter, but in PyPSA for Line Component carrier is always AC.
+        #- id: s_nom_set # Handled by converter: for extendable lines, s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Handled by converter: folded into capital_cost (periodized cost).
+        #- id: discount_rate # Handled by converter: folded into capital_cost (periodized cost).
+        #- id: fom_cost # Handled by converter: folded into capital_cost (periodized cost).
+        #- id: active # Handled by converter: inactive lines are dropped.
+        #- id: build_year # Used in investment periods only, which are rejected.
+        #- id: lifetime # Used with overnight_cost (folded into capital_cost) and in investment periods.
+        #- id: carrier # Used by the converter to connect the line to global constraints.
         #- id: terrain_factor # Defined in PyPSA schema but never read by the optimizer. User must pre-multiply into capital_cost.
         #- id: num_parallel # Only used when type is set (scales r/x/b from line_types); ignored otherwise.
-        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
-        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
+        #- id: v_ang_min # Deprecated and ignored by PyPSA >= 1.4.0.
+        #- id: v_ang_max # Enforced by PyPSA >= 1.4.0: rejected by the converter.
       variables:
         - id: n_mod
           #Integer modules. Active when modular=1; bounded to [0,0] when modular=0.
@@ -300,6 +441,12 @@ library:
           type: flow
         - id: bus1_p_port
           type: flow
+        - id: capacity_port
+          type: capacity
+        - id: expansion_volume_port
+          type: capacity
+        - id: expansion_cost_port
+          type: capacity
       port-field-definitions:
         - port: bus0_p_port
           field: power
@@ -307,6 +454,15 @@ library:
         - port: bus1_p_port
           field: power
           definition: p0
+        - port: capacity_port
+          field: value
+          definition: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt
+        - port: expansion_volume_port
+          field: value
+          definition: length * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
+        - port: expansion_cost_port
+          field: value
+          definition: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
       constraints:
         - id: capacity_min
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
@@ -352,10 +508,8 @@ library:
           time-dependent: true
           scenario-dependent: true
         - id: capital_cost
-          #Annuitised investment cost per MVA of installed capacity [currency/MVA].
-          #In PyPSA ≤1.0.0, capital_cost covers both annuitised CAPEX and fixed O&M (FOM) combined.
-          #In PyPSA ≥1.1.0 (PR #1507), fom_cost is a separate attribute and the optimizer objective
-          #uses periodized_cost = capital_cost + fom_cost.
+          #Periodized investment cost per MVA of installed capacity [currency/MVA]: capital_cost + fom_cost, or
+          #annuity(overnight_cost, discount_rate, lifetime) + fom_cost (PyPSA >= 1.1.0 periodized_cost).
           time-dependent: false
           scenario-dependent: false
         - id: modular
@@ -370,19 +524,19 @@ library:
         #- id: tap_ratio # Absorbed into x_pu_eff by calculate_dependent_values() — x_pu_eff = (x/s_nom)*tap_ratio. Overridden by transformer_types table when type is set.
         #- id: tap_side # Not used in DC LOPF (AC power flow only). Overridden by transformer_types table when type is set.
         #- id: tap_position # Only used when type is set — To be investigated how it is used within type.
-        #- id: phase_shift # Not used in DC LOPF optimization. Overridden by transformer_types table when type is set.
+        #- id: phase_shift # Changes the KVL flows: rejected by the converter when non-zero.
         #- id: s_nom # Handled by converter: translated into s_nom_min/s_nom_max bounds on s_nom_opt.
         #- id: s_nom_extendable # Handled by converter: False → s_nom_min = s_nom_max = s_nom; True → use s_nom_min/s_nom_max directly.
-        #- id: s_nom_set # Handled by converter: when set → s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
-        #- id: overnight_cost # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
-        #- id: discount_rate # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
-        #- id: fom_cost # Available from PyPSA 1.1.0 (PR #1507). Not supported in 1.0.0.
+        #- id: s_nom_set # Handled by converter: for extendable transformers, s_nom_min = s_nom_max = s_nom_set (pins optimal capacity).
+        #- id: overnight_cost # Handled by converter: folded into capital_cost (periodized cost).
+        #- id: discount_rate # Handled by converter: folded into capital_cost (periodized cost).
+        #- id: fom_cost # Handled by converter: folded into capital_cost (periodized cost).
         #- id: num_parallel # Only used when type is set (scales all impedances from transformer_types); ignored otherwise.
-        #- id: active # Handled by converter: only active components are built.
-        #- id: build_year # TODO: not yet implemented in the converter. Used in investment periods.
-        #- id: lifetime # Used with overnight_cost (PyPSA ≥1.1.0) and in investment periods. TODO: not yet implemented in the converter.
-        #- id: v_ang_min # Not used in optimisation (placeholder in PyPSA).
-        #- id: v_ang_max # Not used in optimisation (placeholder in PyPSA).
+        #- id: active # Handled by converter: inactive transformers are dropped.
+        #- id: build_year # Used in investment periods only, which are rejected.
+        #- id: lifetime # Used with overnight_cost (folded into capital_cost) and in investment periods.
+        #- id: v_ang_min # Deprecated and ignored by PyPSA >= 1.4.0.
+        #- id: v_ang_max # Enforced by PyPSA >= 1.4.0: rejected by the converter.
       variables:
         - id: n_mod
           #Integer modules. Active when modular=1; bounded to [0,0] when modular=0.
@@ -403,6 +557,8 @@ library:
           type: flow
         - id: bus1_p_port
           type: flow
+        - id: capacity_port
+          type: capacity
       port-field-definitions:
         - port: bus0_p_port
           field: power
@@ -410,6 +566,9 @@ library:
         - port: bus1_p_port
           field: power
           definition: p0
+        - port: capacity_port
+          field: value
+          definition: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt
       constraints:
         - id: capacity_min
           expression: modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt >= s_nom_min
@@ -427,25 +586,27 @@ library:
           expression: capital_cost * (modular * n_mod * s_nom_mod + (1 - modular) * s_nom_opt)
 
     - id: link
-      #Model for PyPSA link: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
+      #Model for PyPSA link with two buses (bus0 -> bus1): https://pypsa.readthedocs.io/en/latest/user-guide/components.html#link
+      #Links with bus2, bus3 or bus4 use link_multiport.
       parameters:
         #- id: type # This parameter is not used in the Gems model
-        #- id: carrier # This parameter is not used in the Gems model
+        #- id: carrier # Used by the converter to connect the link to global constraints
         - id: efficiency
           time-dependent: true
           scenario-dependent: true
-        #- id: active # Parameter that is not instantiated: only active components are built by the data converter.
-        #- id: build_year # Parameter not instantiated for now
-        #- id: lifetime # Parameter not instantiated for now
-        #- id: p_nom_mod # Parameter not instantiated for now
-        #- id: p_nom_extendable # Parameter that is not instantiated: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
+        #- id: active # Not instantiated: the converter drops inactive components.
+        #- id: build_year # Only used with investment periods, which are rejected
+        #- id: lifetime # Only used with investment periods and overnight_cost
+        #- id: p_nom_mod # Not instantiated: modular expansion is rejected by the converter
+        #- id: p_nom_extendable # Not used in the Gems model: p_nom_min and p_nom_max fix p_nom for non-extendable links
+        #- id: p_nom_set # Handled by converter: p_nom_min = p_nom_max = p_nom_set for extendable links
         - id: p_nom_min
           time-dependent: false
           scenario-dependent: false
         - id: p_nom_max
           time-dependent: false
           scenario-dependent: false
-        #- id: p_set # Parameter not instantiated for now
+        #- id: p_set # Not instantiated: fixed dispatch is rejected by the converter
         - id: p_min_pu
           time-dependent: true
           scenario-dependent: true
@@ -453,30 +614,23 @@ library:
           time-dependent: true
           scenario-dependent: true
         - id: capital_cost
+          # Periodized cost: capital_cost + fom_cost, or annuity(overnight_cost, discount_rate, lifetime) + fom_cost
           time-dependent: false
           scenario-dependent: false
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
-        #- id: marginal_cost_quadratic # Parameter not instantiated for now
-        #- id: stand_by_cost # Parameter not instantiated for now
-        #- id: length # Parameter not instantiated for now
-        #- id: terrain_factor # Parameter not instantiated for now
-        #- id: committable # Parameter not instantiated for now
-        #- id: start_up_cost # Parameter not instantiated for now
-        #- id: shut_down_cost # Parameter not instantiated for now
-        #- id: min_up_time # Parameter not instantiated for now
-        #- id: min_down_time # Parameter not instantiated for now
-        #- id: up_time_before # Parameter not instantiated for now
-        #- id: down_time_before # Parameter not instantiated for now
-        #- id: ramp_limit_up # Parameter not instantiated for now
-        #- id: ramp_limit_down # Parameter not instantiated for now
-        #- id: ramp_limit_start_up # Parameter not instantiated for now
-        #- id: ramp_limit_shut_down # Parameter not instantiated for now
-        # Time granularity parameter. Constant over time steps in the current converter, but declared
-        # time-dependent so that time-varying weightings can be supported later.
+        #- id: marginal_cost_quadratic # Non-linear: rejected by the converter
+        #- id: committable, start_up_cost, shut_down_cost, stand_by_cost, min_up_time, min_down_time, up_time_before,
+        #      down_time_before, ramp_limit_start_up, ramp_limit_shut_down # Unit commitment (MILP): rejected by the converter
+        #- id: ramp_limit_up, ramp_limit_down # See link_ramp
+        #- id: delay # Delayed delivery: rejected by the converter
+        #- id: terrain_factor # Defined in PyPSA schema but never read by the optimizer
+        - id: length
+          # Link length [km]. Only used by transmission_volume_expansion_limit global constraints.
+          time-dependent: false
+          scenario-dependent: false
         - id: objective_weighting
-          # Number of hours a time step represents in the objective function.
           # Source: PyPSA n.snapshot_weightings.objective
           time-dependent: true
           scenario-dependent: false
@@ -487,19 +641,17 @@ library:
           lower-bound: p_nom_min
           upper-bound: p_nom_max
         - id: p0
-        #- id: p_nom_opt
-        #- id: status
-        #- id: start_up
-        #- id: shut_down
       ports:
         - id: p0_port
           type: flow
-        #- id: q_0_port
-        #  type: flow
         - id: p1_port
           type: flow
-        #- id: q_1_port
-        #  type: flow
+        - id: capacity_port
+          type: capacity
+        - id: expansion_volume_port
+          type: capacity
+        - id: expansion_cost_port
+          type: capacity
       port-field-definitions:
         - port: p0_port
           field: power
@@ -507,9 +659,15 @@ library:
         - port: p1_port
           field: power
           definition: efficiency * p0
-        #- port: q_balance_port
-        #  field: flow
-        #  definition: q
+        - port: capacity_port
+          field: value
+          definition: p_nom
+        - port: expansion_volume_port
+          field: value
+          definition: length * p_nom
+        - port: expansion_cost_port
+          field: value
+          definition: capital_cost * p_nom
       constraints:
         - id: p0_upper
           expression: p0 <= p_max_pu * p_nom
@@ -521,13 +679,12 @@ library:
         - id: operational_objective
           expression: sum(objective_weighting * marginal_cost * p0)
 
-    - id: storage_unit
-      #Model for PyPSA storage unit: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
+    - id: link_ramp
+      #Model for PyPSA 2-port link with ramp limits (ramp_limit_up and/or ramp_limit_down set). See generator_ramp.
       parameters:
-        #- id: control # Parameter not instantiated for now
-        #- id: type # This parameter is not used in the Gems model
-        #- id: p_nom_mod # Parameter not instantiated for now
-        #- id: p_nom_extendable # Parameter that is not instantiated: p_nom_min and p_nom_max are used to possibly fix the value of p_nom
+        - id: efficiency
+          time-dependent: true
+          scenario-dependent: true
         - id: p_nom_min
           time-dependent: false
           scenario-dependent: false
@@ -540,33 +697,371 @@ library:
         - id: p_max_pu
           time-dependent: true
           scenario-dependent: true
-        #- id: p_set # Parameter not instantiated for now
-        #- id: q_set # Parameter not instantiated for now
-        - id: sign # default value = 1
+        - id: capital_cost
           time-dependent: false
           scenario-dependent: false
-        #- id: carrier # This parameter is not used in the Gems model
-        - id: spill_cost # Parameter not instantiated for now
-          time-dependent: true
-          scenario-dependent: true
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
-        #- id: marginal_cost_quadratic # Parameter not instantiated for now
-        - id: marginal_cost_storage
+        - id: length
+          time-dependent: false
+          scenario-dependent: false
+        - id: objective_weighting
+          time-dependent: true
+          scenario-dependent: false
+        - id: ramp_limit_up
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_limit_down
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_up_active
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_down_active
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_init
+          time-dependent: false
+          scenario-dependent: true
+        - id: p_init_active
+          time-dependent: false
+          scenario-dependent: true
+      variables:
+        - id: p_nom
+          time-dependent: false
+          scenario-dependent: false
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+        - id: p0
+      ports:
+        - id: p0_port
+          type: flow
+        - id: p1_port
+          type: flow
+        - id: capacity_port
+          type: capacity
+        - id: expansion_volume_port
+          type: capacity
+        - id: expansion_cost_port
+          type: capacity
+      port-field-definitions:
+        - port: p0_port
+          field: power
+          definition: -p0
+        - port: p1_port
+          field: power
+          definition: efficiency * p0
+        - port: capacity_port
+          field: value
+          definition: p_nom
+        - port: expansion_volume_port
+          field: value
+          definition: length * p_nom
+        - port: expansion_cost_port
+          field: value
+          definition: capital_cost * p_nom
+      constraints:
+        - id: p0_upper
+          expression: p0 <= p_max_pu * p_nom
+        - id: p0_lower
+          expression: p0 >= p_min_pu * p_nom
+        - id: ramp_up
+          expression: ramp_up_active * (p0 - p0[t-1]) <= ramp_limit_up * p_nom
+        - id: ramp_down
+          expression: ramp_down_active * (p0 - p0[t-1]) >= -ramp_limit_down * p_nom
+        - id: ramp_up_initial
+          expression: p_init_active * ramp_up_active[0] * (p0[0] - p_init) <= ramp_limit_up[0] * p_nom
+        - id: ramp_down_initial
+          expression: p_init_active * ramp_down_active[0] * (p0[0] - p_init) >= -ramp_limit_down[0] * p_nom
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * p_nom
+        - id: operational_objective
+          expression: sum(objective_weighting * marginal_cost * p0)
+
+    - id: link_multiport
+      #Model for PyPSA link with up to five buses (bus0 -> bus1, bus2, bus3, bus4), and for PyPSA Process.
+      #The power injected into bus i is rate_i * p0, with:
+      #  - Link: rate0 = -1, efficiency = efficiency (bus1), efficiency2..efficiency4 (bus2..bus4)
+      #  - Process: rate0 = rate0, efficiency = rate1, efficiency2..efficiency4 = rate2..rate4
+      #A port without a bus is left unconnected and its coefficient is set to 0.
+      parameters:
+        - id: rate0
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency2
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency3
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency4
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
           time-dependent: true
           scenario-dependent: true
         - id: capital_cost
           time-dependent: false
           scenario-dependent: false
-        #- id: active # Parameter that is not instantiated: only active components are built by the data converter.
-        #- id: build_year # Parameter not instantiated for now
-        #- id: lifetime # Parameter not instantiated for now
-        #- id: state_of_charge_initial # Parameter not instantiated for now
-        #- id: state_of_charge_initial_per_period # Parameter not instantiated for now
-        #- id: state_pf_charge_set # Parameter not instantiated for now
-        #- id: cyclic_state_of_charge # Parameter not instantiated for now
-        #- id: cyclic_state_of_charge_per_period # Parameter not instantiated for now
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: length
+          time-dependent: false
+          scenario-dependent: false
+        - id: objective_weighting
+          time-dependent: true
+          scenario-dependent: false
+      variables:
+        - id: p_nom
+          time-dependent: false
+          scenario-dependent: false
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+        - id: p0
+      ports:
+        - id: p0_port
+          type: flow
+        - id: p1_port
+          type: flow
+        - id: p2_port
+          type: flow
+        - id: p3_port
+          type: flow
+        - id: p4_port
+          type: flow
+        - id: capacity_port
+          type: capacity
+        - id: expansion_volume_port
+          type: capacity
+        - id: expansion_cost_port
+          type: capacity
+      port-field-definitions:
+        - port: p0_port
+          field: power
+          definition: rate0 * p0
+        - port: p1_port
+          field: power
+          definition: efficiency * p0
+        - port: p2_port
+          field: power
+          definition: efficiency2 * p0
+        - port: p3_port
+          field: power
+          definition: efficiency3 * p0
+        - port: p4_port
+          field: power
+          definition: efficiency4 * p0
+        - port: capacity_port
+          field: value
+          definition: p_nom
+        - port: expansion_volume_port
+          field: value
+          definition: length * p_nom
+        - port: expansion_cost_port
+          field: value
+          definition: capital_cost * p_nom
+      constraints:
+        - id: p0_upper
+          expression: p0 <= p_max_pu * p_nom
+        - id: p0_lower
+          expression: p0 >= p_min_pu * p_nom
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * p_nom
+        - id: operational_objective
+          expression: sum(objective_weighting * marginal_cost * p0)
+
+    - id: link_multiport_ramp
+      #Model for PyPSA multi-port link or Process with ramp limits. See link_multiport and generator_ramp.
+      parameters:
+        - id: rate0
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency2
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency3
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency4
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: length
+          time-dependent: false
+          scenario-dependent: false
+        - id: objective_weighting
+          time-dependent: true
+          scenario-dependent: false
+        - id: ramp_limit_up
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_limit_down
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_up_active
+          time-dependent: true
+          scenario-dependent: true
+        - id: ramp_down_active
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_init
+          time-dependent: false
+          scenario-dependent: true
+        - id: p_init_active
+          time-dependent: false
+          scenario-dependent: true
+      variables:
+        - id: p_nom
+          time-dependent: false
+          scenario-dependent: false
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+        - id: p0
+      ports:
+        - id: p0_port
+          type: flow
+        - id: p1_port
+          type: flow
+        - id: p2_port
+          type: flow
+        - id: p3_port
+          type: flow
+        - id: p4_port
+          type: flow
+        - id: capacity_port
+          type: capacity
+        - id: expansion_volume_port
+          type: capacity
+        - id: expansion_cost_port
+          type: capacity
+      port-field-definitions:
+        - port: p0_port
+          field: power
+          definition: rate0 * p0
+        - port: p1_port
+          field: power
+          definition: efficiency * p0
+        - port: p2_port
+          field: power
+          definition: efficiency2 * p0
+        - port: p3_port
+          field: power
+          definition: efficiency3 * p0
+        - port: p4_port
+          field: power
+          definition: efficiency4 * p0
+        - port: capacity_port
+          field: value
+          definition: p_nom
+        - port: expansion_volume_port
+          field: value
+          definition: length * p_nom
+        - port: expansion_cost_port
+          field: value
+          definition: capital_cost * p_nom
+      constraints:
+        - id: p0_upper
+          expression: p0 <= p_max_pu * p_nom
+        - id: p0_lower
+          expression: p0 >= p_min_pu * p_nom
+        - id: ramp_up
+          expression: ramp_up_active * (p0 - p0[t-1]) <= ramp_limit_up * p_nom
+        - id: ramp_down
+          expression: ramp_down_active * (p0 - p0[t-1]) >= -ramp_limit_down * p_nom
+        - id: ramp_up_initial
+          expression: p_init_active * ramp_up_active[0] * (p0[0] - p_init) <= ramp_limit_up[0] * p_nom
+        - id: ramp_down_initial
+          expression: p_init_active * ramp_down_active[0] * (p0[0] - p_init) >= -ramp_limit_down[0] * p_nom
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * p_nom
+        - id: operational_objective
+          expression: sum(objective_weighting * marginal_cost * p0)
+
+    - id: storage_unit
+      #Model for PyPSA storage unit with cyclic state of charge: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#storage-unit
+      #Non-cyclic storage units use storage_unit_non_cyclic.
+      parameters:
+        #- id: control # Not used in DC LOPF
+        #- id: type # This parameter is not used in the Gems model
+        #- id: p_nom_mod # Not instantiated: modular expansion is rejected by the converter
+        #- id: p_nom_extendable # Not used in the Gems model: p_nom_min and p_nom_max fix p_nom for non-extendable storage units
+        #- id: p_nom_set # Handled by converter: p_nom_min = p_nom_max = p_nom_set for extendable storage units
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          # p_store <= -p_min_pu * p_nom (PyPSA default p_min_pu = -1)
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
+          # p_dispatch <= p_max_pu * p_nom
+          time-dependent: true
+          scenario-dependent: true
+        #- id: p_set, p_dispatch_set, p_store_set, state_of_charge_set # Fixed operation: rejected by the converter
+        #- id: q_set # No reactive power in DC LOPF
+        - id: sign # default value = 1
+          time-dependent: false
+          scenario-dependent: false
+        #- id: carrier # Used by the converter to connect the storage unit to global constraints
+        - id: spill_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        #- id: marginal_cost_quadratic # Non-linear: rejected by the converter
+        - id: marginal_cost_storage
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          # Periodized cost: capital_cost + fom_cost, or annuity(overnight_cost, discount_rate, lifetime) + fom_cost
+          time-dependent: false
+          scenario-dependent: false
+        #- id: active # Not instantiated: the converter drops inactive components.
+        #- id: build_year # Only used with investment periods, which are rejected
+        #- id: lifetime # Only used with investment periods and overnight_cost
+        #- id: state_of_charge_initial # Ignored by PyPSA when cyclic_state_of_charge = True
+        #- id: state_of_charge_initial_per_period, cyclic_state_of_charge_per_period # Investment periods only
         - id: max_hours
           time-dependent: false
           scenario-dependent: false
@@ -576,26 +1071,22 @@ library:
         - id: efficiency_dispatch
           time-dependent: true
           scenario-dependent: true
-        - id: standing_loss
+        - id: standing_efficiency
+          # (1 - standing_loss)^hours_per_time_step, computed by the converter
           time-dependent: true
           scenario-dependent: true
         - id: inflow
           time-dependent: true
           scenario-dependent: true
-        # Additional parameters that are not stored in the PyPSA object, but in a Carrier object
         - id: emission_factor
+          # Carrier attribute of a primary_energy global constraint. Cyclic storage units contribute nothing to it.
           time-dependent: false
           scenario-dependent: true
-        # Time granularity parameters. Both are constant over time steps in the current converter,
-        # but declared time-dependent so that time-varying weightings can be supported later.
         - id: hours_per_time_step
-          # Number of hours represented by one time step.
-          # Source: PyPSA n.snapshot_weightings.stores / .generators (the converter requires them to be equal).
+          # Source: PyPSA n.snapshot_weightings.stores
           time-dependent: true
           scenario-dependent: false
         - id: objective_weighting
-          # Number of hours a time step represents in the objective function; may differ from
-          # hours_per_time_step when operational costs are annualised over representative periods.
           # Source: PyPSA n.snapshot_weightings.objective
           time-dependent: true
           scenario-dependent: false
@@ -607,7 +1098,7 @@ library:
           upper-bound: p_nom_max
         - id: p_store
           lower-bound: 0
-          upper-bound: p_max_pu * p_nom_max
+          upper-bound: -p_min_pu * p_nom_max
         - id: p_dispatch
           lower-bound: 0
           upper-bound: p_max_pu * p_nom_max
@@ -622,35 +1113,164 @@ library:
           type: flow
         - id: emission_port
           type: emission
+        - id: capacity_port
+          type: capacity
       port-field-definitions:
         - port: p_balance_port
           field: power
-          definition: p_dispatch - p_store
+          definition: sign * (p_dispatch - p_store)
         - port: emission_port
           field: emission
-          definition: emission_factor * 0 # Since we assume here cyclity of StorageUnits. In the future, for non-cyclic Store: (e[-1] - e[T-1])*emission_factor
+          definition: emission_factor * 0 # A cyclic storage unit ends where it starts: no primary energy contribution
+        - port: capacity_port
+          field: value
+          definition: p_nom
       constraints:
         - id: p_store_upper
-          expression: p_store <= p_max_pu * p_nom
+          expression: p_store <= -p_min_pu * p_nom
         - id: p_dispatch_upper
           expression: p_dispatch <= p_max_pu * p_nom
         - id: state_of_charge_upper
           expression: state_of_charge <= max_hours * p_nom
         - id: state_of_charge_balance
-          expression: state_of_charge = ((1 - standing_loss)^hours_per_time_step) * state_of_charge[t-1] + efficiency_store * hours_per_time_step * p_store - hours_per_time_step * p_dispatch / efficiency_dispatch + hours_per_time_step * inflow - hours_per_time_step * spill
+          expression: state_of_charge = standing_efficiency * state_of_charge[t-1] + hours_per_time_step * (efficiency_store * p_store - p_dispatch / efficiency_dispatch + inflow - spill)
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * p_nom
         - id: operational_objective
-          expression: sum(objective_weighting * (marginal_cost * p_dispatch + spill_cost*spill + marginal_cost_storage * state_of_charge))
+          expression: sum(objective_weighting * (marginal_cost * p_dispatch + spill_cost * spill + marginal_cost_storage * state_of_charge))
+
+    - id: storage_unit_non_cyclic
+      #Model for PyPSA storage unit with cyclic_state_of_charge = False.
+      #state_of_charge_balance is declared with `out-of-bounds-processing: drop`, and the first time step starts from
+      #state_of_charge_initial (no standing loss applied to it, as in PyPSA).
+      #is_last_time_step (1 at the last time step, else 0) gives the final state of charge to the global constraints:
+      #a non-cyclic storage unit contributes (state_of_charge_initial - final state of charge) to them, as in PyPSA.
+      parameters:
+        - id: p_nom_min
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: p_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: p_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: sign
+          time-dependent: false
+          scenario-dependent: false
+        - id: spill_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: marginal_cost_storage
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: max_hours
+          time-dependent: false
+          scenario-dependent: false
+        - id: efficiency_store
+          time-dependent: true
+          scenario-dependent: true
+        - id: efficiency_dispatch
+          time-dependent: true
+          scenario-dependent: true
+        - id: standing_efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: inflow
+          time-dependent: true
+          scenario-dependent: true
+        - id: emission_factor
+          time-dependent: false
+          scenario-dependent: true
+        - id: hours_per_time_step
+          time-dependent: true
+          scenario-dependent: false
+        - id: objective_weighting
+          time-dependent: true
+          scenario-dependent: false
+        - id: state_of_charge_initial
+          time-dependent: false
+          scenario-dependent: true
+        - id: is_last_time_step
+          # Shared series: 1 at the last time step of the horizon, 0 elsewhere
+          time-dependent: true
+          scenario-dependent: false
+      variables:
+        - id: p_nom
+          time-dependent: false
+          scenario-dependent: false
+          lower-bound: p_nom_min
+          upper-bound: p_nom_max
+        - id: p_store
+          lower-bound: 0
+          upper-bound: -p_min_pu * p_nom_max
+        - id: p_dispatch
+          lower-bound: 0
+          upper-bound: p_max_pu * p_nom_max
+        - id: state_of_charge
+          lower-bound: 0
+          upper-bound: max_hours * p_nom_max
+        - id: spill
+          lower-bound: 0
+          upper-bound: inflow
+      ports:
+        - id: p_balance_port
+          type: flow
+        - id: emission_port
+          type: emission
+        - id: operational_port
+          type: quantity
+        - id: capacity_port
+          type: capacity
+      port-field-definitions:
+        - port: p_balance_port
+          field: power
+          definition: sign * (p_dispatch - p_store)
+        - port: emission_port
+          field: emission
+          definition: emission_factor * is_last_time_step * (state_of_charge_initial - state_of_charge)
+        - port: operational_port
+          field: value
+          definition: is_last_time_step * (state_of_charge_initial - state_of_charge)
+        - port: capacity_port
+          field: value
+          definition: p_nom
+      constraints:
+        - id: p_store_upper
+          expression: p_store <= -p_min_pu * p_nom
+        - id: p_dispatch_upper
+          expression: p_dispatch <= p_max_pu * p_nom
+        - id: state_of_charge_upper
+          expression: state_of_charge <= max_hours * p_nom
+        - id: state_of_charge_balance
+          expression: state_of_charge = standing_efficiency * state_of_charge[t-1] + hours_per_time_step * (efficiency_store * p_store - p_dispatch / efficiency_dispatch + inflow - spill)
+        - id: state_of_charge_initial_balance
+          expression: state_of_charge[0] = state_of_charge_initial + hours_per_time_step[0] * (efficiency_store[0] * p_store[0] - p_dispatch[0] / efficiency_dispatch[0] + inflow[0] - spill[0])
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * p_nom
+        - id: operational_objective
+          expression: sum(objective_weighting * (marginal_cost * p_dispatch + spill_cost * spill + marginal_cost_storage * state_of_charge))
 
     - id: store
-      #Model for PyPSA store: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#store
+      #Model for PyPSA store with e_cyclic = True: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#store
+      #Non-cyclic stores use store_non_cyclic.
       parameters:
         #- id: type # This parameter is not used in the Gems model
-        #- id: carrier # This parameter is not used in the Gems model
-        #- id: e_nom_mod # Parameter not instantiated for now
-        #- id: e_nom_extendable # Parameter that is not instantiated: e_nom_min and e_nom_max are used to possibly fix the value of e_nom
+        #- id: carrier # Used by the converter to connect the store to global constraints
+        #- id: e_nom_mod # Not instantiated: modular expansion is rejected by the converter
+        #- id: e_nom_extendable # Not used in the Gems model: e_nom_min and e_nom_max fix e_nom for non-extendable stores
+        #- id: e_nom_set # Handled by converter: e_nom_min = e_nom_max = e_nom_set for extendable stores
         - id: e_nom_min
           time-dependent: false
           scenario-dependent: false
@@ -663,45 +1283,40 @@ library:
         - id: e_max_pu
           time-dependent: true
           scenario-dependent: true
-        #- id: e_initial # Parameter not instantiated for now
-        #- id: e_initial_per_period # Parameter not instantiated for now
-        #- id: e_cyclic # Parameter not instantiated for now
-        #- id: e_cyclic_per_period # Parameter not instantiated for now
-        #- id: p_set # Parameter not instantiated for now
-        #- id: q_set # Parameter not instantiated for now
+        #- id: e_initial # Ignored by PyPSA when e_cyclic = True
+        #- id: e_initial_per_period, e_cyclic_per_period # Investment periods only
+        #- id: p_set, e_set # Fixed operation: rejected by the converter
+        #- id: q_set # No reactive power in DC LOPF
         - id: sign # default value = 1
           time-dependent: false
           scenario-dependent: false
         - id: marginal_cost
           time-dependent: true
           scenario-dependent: true
-        #- id: marginal_cost_quadratic # Parameter not instantiated for now
+        #- id: marginal_cost_quadratic # Non-linear: rejected by the converter
         - id: marginal_cost_storage
           time-dependent: true
           scenario-dependent: true
         - id: capital_cost
+          # Periodized cost: capital_cost + fom_cost, or annuity(overnight_cost, discount_rate, lifetime) + fom_cost
           time-dependent: false
           scenario-dependent: false
-        - id: standing_loss
+        - id: standing_efficiency
+          # (1 - standing_loss)^hours_per_time_step, computed by the converter
           time-dependent: true
           scenario-dependent: true
-        #- id: active # Parameter that is not instantiated: only active components are built by the data converter.
-        #- id: build_year # Parameter not instantiated for now
-        #- id: lifetime # Parameter not instantiated for now
-        # Additional parameters that are not stored in the PyPSA object, but in a Carrier object
+        #- id: active # Not instantiated: the converter drops inactive components.
+        #- id: build_year # Only used with investment periods, which are rejected
+        #- id: lifetime # Only used with investment periods and overnight_cost
         - id: emission_factor
+          # Carrier attribute of a primary_energy global constraint. Cyclic stores contribute nothing to it.
           time-dependent: false
           scenario-dependent: true
-        # Time granularity parameters. Both are constant over time steps in the current converter,
-        # but declared time-dependent so that time-varying weightings can be supported later.
         - id: hours_per_time_step
-          # Number of hours represented by one time step.
-          # Source: PyPSA n.snapshot_weightings.stores / .generators (the converter requires them to be equal).
+          # Source: PyPSA n.snapshot_weightings.stores
           time-dependent: true
           scenario-dependent: false
         - id: objective_weighting
-          # Number of hours a time step represents in the objective function; may differ from
-          # hours_per_time_step when operational costs are annualised over representative periods.
           # Source: PyPSA n.snapshot_weightings.objective
           time-dependent: true
           scenario-dependent: false
@@ -718,38 +1333,145 @@ library:
           type: flow
         - id: emission_port
           type: emission
+        - id: capacity_port
+          type: capacity
       port-field-definitions:
         - port: p_balance_port
           field: power
-          definition: p
+          definition: sign * p
         - port: emission_port
           field: emission
-          definition: emission_factor * 0 # Since we assume here cyclity of stores. In the future, for non-cyclic Store: (e[-1] - e[T-1])*emission_factor
+          definition: emission_factor * 0 # A cyclic store ends where it starts: no primary energy contribution
+        - port: capacity_port
+          field: value
+          definition: e_nom
       constraints:
         - id: e_upper
           expression: e <= e_max_pu * e_nom
         - id: e_lower
           expression: e >= e_min_pu * e_nom
         - id: energy_balance
-          expression: e = ((1 - standing_loss)^hours_per_time_step) * e[t-1] - hours_per_time_step * p
+          expression: e = standing_efficiency * e[t-1] - hours_per_time_step * p
       objective-contributions:
         - id: capital_objective
           expression: capital_cost * e_nom
         - id: operational_objective
           expression: sum(objective_weighting * (marginal_cost * p + marginal_cost_storage * e))
 
-    #### Models for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint ###
-
-    - id: global_constraint_co2_max
-      #Model for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint
-      # Case CO2, <=
+    - id: store_non_cyclic
+      #Model for PyPSA store with e_cyclic = False (PyPSA's default), e.g. the PyPSA-Eur "co2 atmosphere" store.
+      #energy_balance is declared with `out-of-bounds-processing: drop`, and the first time step starts from e_initial
+      #(no standing loss applied to it, as in PyPSA).
+      #is_last_time_step (1 at the last time step, else 0) gives the final energy level to the global constraints:
+      #  - primary_energy and operational_limit: (e_initial - final level), as in PyPSA
+      #  - co2_atmosphere (PyPSA-Eur): final level
       parameters:
-        # type = Primary energy
-        # carrier_attribute = CO2_emissions
-        # sense = <=
-        - id: quota
+        - id: e_nom_min
           time-dependent: false
           scenario-dependent: false
+        - id: e_nom_max
+          time-dependent: false
+          scenario-dependent: false
+        - id: e_min_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: e_max_pu
+          time-dependent: true
+          scenario-dependent: true
+        - id: sign
+          time-dependent: false
+          scenario-dependent: false
+        - id: marginal_cost
+          time-dependent: true
+          scenario-dependent: true
+        - id: marginal_cost_storage
+          time-dependent: true
+          scenario-dependent: true
+        - id: capital_cost
+          time-dependent: false
+          scenario-dependent: false
+        - id: standing_efficiency
+          time-dependent: true
+          scenario-dependent: true
+        - id: emission_factor
+          time-dependent: false
+          scenario-dependent: true
+        - id: hours_per_time_step
+          time-dependent: true
+          scenario-dependent: false
+        - id: objective_weighting
+          time-dependent: true
+          scenario-dependent: false
+        - id: e_initial
+          time-dependent: false
+          scenario-dependent: true
+        - id: is_last_time_step
+          # Shared series: 1 at the last time step of the horizon, 0 elsewhere
+          time-dependent: true
+          scenario-dependent: false
+      variables:
+        - id: e_nom
+          time-dependent: false
+          scenario-dependent: false
+          lower-bound: e_nom_min
+          upper-bound: e_nom_max
+        - id: e
+        - id: p
+      ports:
+        - id: p_balance_port
+          type: flow
+        - id: emission_port
+          type: emission
+        - id: operational_port
+          type: quantity
+        - id: final_level_port
+          type: quantity
+        - id: capacity_port
+          type: capacity
+      port-field-definitions:
+        - port: p_balance_port
+          field: power
+          definition: sign * p
+        - port: emission_port
+          field: emission
+          definition: emission_factor * is_last_time_step * (e_initial - e)
+        - port: operational_port
+          field: value
+          definition: is_last_time_step * (e_initial - e)
+        - port: final_level_port
+          field: value
+          definition: is_last_time_step * e
+        - port: capacity_port
+          field: value
+          definition: e_nom
+      constraints:
+        - id: e_upper
+          expression: e <= e_max_pu * e_nom
+        - id: e_lower
+          expression: e >= e_min_pu * e_nom
+        - id: energy_balance
+          expression: e = standing_efficiency * e[t-1] - hours_per_time_step * p
+        - id: initial_energy_balance
+          expression: e[0] = e_initial - hours_per_time_step[0] * p[0]
+      objective-contributions:
+        - id: capital_objective
+          expression: capital_cost * e_nom
+        - id: operational_objective
+          expression: sum(objective_weighting * (marginal_cost * p + marginal_cost_storage * e))
+
+    #### Models for PyPSA global constraints: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint ###
+    # One model per sense (<=, ==, >=). The converter connects each global constraint to the ports of the components
+    # PyPSA includes in it.
+
+    - id: global_constraint_co2_max
+      # PyPSA primary_energy global constraint, sense <=:
+      #   sum over generators of p / efficiency * hours * carrier attribute
+      #   + sum over non-cyclic stores and storage units of (initial - final level) * carrier attribute <= constant
+      # The carrier attribute is co2_emissions by default (any single attribute is supported, through emission_factor).
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
       ports:
         - id: emission_port
           type: emission
@@ -758,18 +1480,112 @@ library:
           expression: sum(sum_connections(emission_port.emission)) <= quota
 
     - id: global_constraint_co2_eq
-      #Model for PyPSA global constraint: https://pypsa.readthedocs.io/en/latest/user-guide/components.html#global-constraint
-      # Case CO2, ==
+      # PyPSA primary_energy global constraint, sense ==. See global_constraint_co2_max.
       parameters:
-        # type = Primary energy
-        # carrier_attribute = CO2_emissions
-        # sense = ==
         - id: quota
           time-dependent: false
-          scenario-dependent: false
+          scenario-dependent: true
       ports:
         - id: emission_port
           type: emission
       binding-constraints:
         - id: constraint_expression
           expression: sum(sum_connections(emission_port.emission)) = quota
+
+    - id: global_constraint_co2_min
+      # PyPSA primary_energy global constraint, sense >=. See global_constraint_co2_max.
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: emission_port
+          type: emission
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum(sum_connections(emission_port.emission)) >= quota
+
+    - id: global_constraint_quantity_max
+      # Sum over the horizon of time-dependent quantities, sense <=. Used for:
+      #   - PyPSA operational_limit: energy of the generators of the carrier + (initial - final level) of the
+      #     non-cyclic stores and storage units of the carrier (operational_port)
+      #   - PyPSA-Eur co2_atmosphere: final level of the non-cyclic stores on buses whose carrier has a non-zero
+      #     carrier attribute (final_level_port)
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: quantity_port
+          type: quantity
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum(sum_connections(quantity_port.value)) <= quota
+
+    - id: global_constraint_quantity_eq
+      # Sense ==. See global_constraint_quantity_max.
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: quantity_port
+          type: quantity
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum(sum_connections(quantity_port.value)) = quota
+
+    - id: global_constraint_quantity_min
+      # Sense >=. See global_constraint_quantity_max.
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: quantity_port
+          type: quantity
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum(sum_connections(quantity_port.value)) >= quota
+
+    - id: global_constraint_capacity_max
+      # Sum of time-independent capacity terms, sense <=. Used for:
+      #   - PyPSA transmission_volume_expansion_limit: length * capacity of extendable lines and links (expansion_volume_port)
+      #   - PyPSA transmission_expansion_cost_limit: capital_cost * capacity of extendable lines and links (expansion_cost_port)
+      #   - PyPSA tech_capacity_expansion_limit and bus nom_max_<carrier>: capacity of extendable components (capacity_port)
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: capacity_port
+          type: capacity
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum_connections(capacity_port.value) <= quota
+
+    - id: global_constraint_capacity_eq
+      # Sense ==. See global_constraint_capacity_max.
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: capacity_port
+          type: capacity
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum_connections(capacity_port.value) = quota
+
+    - id: global_constraint_capacity_min
+      # Sense >=. Also used for bus nom_min_<carrier>. See global_constraint_capacity_max.
+      parameters:
+        - id: quota
+          time-dependent: false
+          scenario-dependent: true
+      ports:
+        - id: capacity_port
+          type: capacity
+      binding-constraints:
+        - id: constraint_expression
+          expression: sum_connections(capacity_port.value) >= quota

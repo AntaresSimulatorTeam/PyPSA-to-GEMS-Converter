@@ -110,32 +110,42 @@ def test_only_models_with_time_dependent_terms_carry_the_parameters(tmp_path: Pa
     assert _time_weights(system_yml, "load_demand") == {}
 
 
-def test_time_varying_weightings_are_rejected(tmp_path: Path) -> None:
-    """Only constant weightings can be expressed as a scalar GEMS parameter."""
+def test_time_varying_weightings_are_written_once_as_shared_series(tmp_path: Path) -> None:
+    """A varying weighting (temporal clustering, segmentation) is shared by every component: one data series
+    per snapshot_weightings column, referenced by each component, rather than one copy per component."""
+    study_dir = tmp_path / "varying_study"
     network = _build_network(hours_per_time_step=3.0)
     network.snapshot_weightings["objective"] = [1.0, 2.0, 3.0, 4.0]
+    system_yml = _convert(network, study_dir)
 
-    with pytest.raises(ValueError, match="constant over snapshots"):
-        PyPSAStudyConverter(
-            pypsa_network=network,
-            study_dir=tmp_path / "rejected_study",
-            series_file_format=".tsv",
-        )
+    for component_id in ("generator_gen", "link_link", "store_store", "storage_unit_storage"):
+        objective = _time_weights(system_yml, component_id)["objective_weighting"]
+        assert objective["time-dependent"] is True
+        assert objective["value"] == "GranularityTest_snapshot_weightings_objective"
+    assert _time_weights(system_yml, "generator_gen")["hours_per_time_step"]["value"] == 3.0
 
-    assert not (tmp_path / "rejected_study").exists(), "no output must be written when the check fails"
+    series = study_dir / "systems" / "input" / "data-series" / "GranularityTest_snapshot_weightings_objective.tsv"
+    assert [float(v) for v in series.read_text().split()] == [1.0, 2.0, 3.0, 4.0]
 
 
-def test_mismatched_physical_weightings_are_rejected(tmp_path: Path) -> None:
-    """GEMS models a single time step duration, so the two physical columns must agree."""
+def test_each_model_reads_its_own_physical_weighting(tmp_path: Path) -> None:
+    """PyPSA reads `generators` for generators and `stores` for storage: they may differ."""
     network = _build_network(hours_per_time_step=3.0)
     network.snapshot_weightings["generators"] = 1.0
+    system_yml = _convert(network, tmp_path / "mixed_study")
 
-    with pytest.raises(ValueError, match="single time step duration"):
-        PyPSAStudyConverter(
-            pypsa_network=network,
-            study_dir=tmp_path / "rejected_study",
-            series_file_format=".tsv",
-        )
+    assert _time_weights(system_yml, "generator_gen")["hours_per_time_step"]["value"] == 1.0
+    assert _time_weights(system_yml, "store_store")["hours_per_time_step"]["value"] == 3.0
+    assert _time_weights(system_yml, "storage_unit_storage")["hours_per_time_step"]["value"] == 3.0
+
+
+def test_standing_efficiency_combines_standing_loss_and_duration(tmp_path: Path) -> None:
+    """(1 - standing_loss) ** hours is computed by the converter: Antares Modeler only accepts constant exponents."""
+    network = _build_network(hours_per_time_step=3.0)
+    system_yml = _convert(network, tmp_path / "standing_study")
+    (store,) = [c for c in system_yml["system"]["components"] if c["id"] == "store_store"]
+    (efficiency,) = [p for p in store["parameters"] if p["id"] == "standing_efficiency"]
+    assert efficiency["value"] == pytest.approx((1 - 0.05) ** 3)
 
 
 NAN, INF = float("nan"), float("inf")
@@ -147,7 +157,7 @@ NAN, INF = float("nan"), float("inf")
         # nunique() ignores NaN, so a NaN must be rejected explicitly: in "objective" it would drop every cost.
         ({"objective": [NAN, 1.0, 1.0, 1.0]}, "finite snapshot weightings.*'snapshot_weightings.objective'"),
         ({"generators": [1.0, NAN, 1.0, 1.0]}, "finite snapshot weightings.*'snapshot_weightings.generators'"),
-        ({"stores": [INF] * 4, "generators": [INF] * 4}, "finite snapshot weightings.*'snapshot_weightings.stores'"),
+        ({"stores": [INF] * 4, "generators": [1.0] * 4}, "finite snapshot weightings.*'snapshot_weightings.stores'"),
         ({"objective": [-INF] * 4}, "finite snapshot weightings.*'snapshot_weightings.objective'"),
         ({"stores": [0.0] * 4, "generators": [0.0] * 4}, "positive time step duration"),
         ({"stores": [-1.0] * 4, "generators": [-1.0] * 4}, "positive time step duration"),

@@ -10,16 +10,20 @@
 #
 # This file is part of the Antares project.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class PyPSAGlobalConstraintData:
-    pypsa_name: str
-    # pypsa_investment_period
-    pypsa_carrier_attribute: str
-    pypsa_sense: str
-    pypsa_constant: float
+    """A GEMS global constraint component and the component ports it sums.
+
+    One PyPSA GlobalConstraint (or one bus nom_min_/nom_max_<carrier> limit) gives one component, whatever the
+    number of scenarios: its quota is scenario-dependent when PyPSA's constant differs between scenarios.
+    """
+
+    gems_component_id: str
     gems_model_id: str  # gems model for this GlobalConstraint
     gems_port_id: str  # gems port for this GlobalConstraint
-    gems_components_and_ports: list[tuple[str, str]]
+    quota_by_scenario: dict[str, float]
+    gems_components_and_ports: list[tuple[str, str]] = field(default_factory=list)
+    pypsa_type: str = ""
