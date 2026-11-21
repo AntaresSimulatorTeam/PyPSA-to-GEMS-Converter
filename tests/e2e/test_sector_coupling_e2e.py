@@ -34,7 +34,7 @@ from pypsa import Network
 
 from src.dependencies import get_antares_dir_name, get_antares_modeler_bin
 from src.pypsa_converter import PyPSAStudyConverter
-from tests.utils import get_objective_value
+from tests.utils import get_objective_value, load_pypsa_study
 
 logger = logging.getLogger(__name__)
 current_dir = Path(__file__).resolve().parents[2]
@@ -420,3 +420,24 @@ def test_nominal_set_inactive_and_periodized_costs() -> None:
         p_max_pu=0.9,
     )
     _assert_same_objective(n, "sector_nom_set_inactive_periodized")
+
+
+def _average_every_nhours(n: Network, offset: str) -> Network:
+    """PyPSA-Eur scripts/prepare_network.py, time resolution option (e.g. "3H")."""
+    m = n.copy(snapshots=[])
+    weightings = n.snapshot_weightings.resample(offset).sum()
+    m.set_snapshots(list(weightings.index))
+    m.snapshot_weightings = weightings
+    for c in n.components:
+        for key, df in c.dynamic.items():
+            if not df.empty:
+                m.components[c.name].dynamic[key] = df.resample(offset).mean()
+    return m
+
+
+def test_pypsa_eur_co2_limit_and_temporal_aggregation() -> None:
+    """Issue #126 step 2 on a PyPSA-Eur electricity network: opts "Co2L-3H" (3-hourly snapshot weightings and a
+    binding primary_energy CO2 limit at 80 % of the unconstrained emissions)."""
+    n = _average_every_nhours(load_pypsa_study(file="base_s_4_elec.nc", load_scaling=0.4), "3h")
+    n.add("GlobalConstraint", "CO2Limit", carrier_attribute="co2_emissions", sense="<=", constant=0.8 * 48_326_378.6)
+    _assert_same_objective(n, "sector_pypsa_eur_co2_limit_3h")
