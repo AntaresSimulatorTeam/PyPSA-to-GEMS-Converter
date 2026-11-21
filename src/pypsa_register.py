@@ -18,6 +18,28 @@ from src.models.pypsa_model_schema import PyPSAComponentData, PyPSAGlobalConstra
 from src.utils import dynamic_dict_pypsa_to_polars, static_pypsa_to_polars
 
 
+def _split_by_extendable(
+    static: pd.DataFrame, dynamic: dict[str, pd.DataFrame], extendable_col: str
+) -> tuple[tuple[pd.DataFrame, dict[str, pd.DataFrame]], tuple[pd.DataFrame, dict[str, pd.DataFrame]]]:
+    """Partition a component's static/dynamic data into (fixed, extendable) subsets by its
+    own *_extendable boolean column, so each half can be registered under a different GEMS
+    model (e.g. "line" for fixed capacity vs "line_extendable" for LP/MILP expansion)."""
+    if len(static) == 0:
+        return (static, dynamic), (static, dynamic)
+
+    is_extendable = static[extendable_col].astype(bool)
+    fixed_static = static[~is_extendable]
+    extendable_static = static[is_extendable]
+
+    fixed_names = set(fixed_static.index.get_level_values(-1))
+    extendable_names = set(extendable_static.index.get_level_values(-1))
+    fixed_dynamic = {attr: df.loc[:, df.columns.get_level_values(-1).isin(fixed_names)] for attr, df in dynamic.items()}
+    extendable_dynamic = {
+        attr: df.loc[:, df.columns.get_level_values(-1).isin(extendable_names)] for attr, df in dynamic.items()
+    }
+    return (fixed_static, fixed_dynamic), (extendable_static, extendable_dynamic)
+
+
 class PyPSARegister:
     def __init__(self, pypsa_network: Network):
         self.pypsa_network = pypsa_network
@@ -71,8 +93,6 @@ class PyPSARegister:
                 "v_mag_pu_set": "v_mag_pu_set",
                 "v_mag_pu_min": "v_mag_pu_min",
                 "v_mag_pu_max": "v_mag_pu_max",
-                "theta_min": "theta_min",
-                "theta_max": "theta_max",
             },
             {},
         )
@@ -143,11 +163,58 @@ class PyPSARegister:
         )
 
         ### PyPSA components : Lines
-        self._register_pypsa_component(
-            "lines",
+        # First split by s_nom_extendable: a fixed line carries none of the capacity-decision
+        # variables/constraints a truly extendable one needs. Then split the extendable subset
+        # again by modular: the common continuous-LP case gets no integer variable at all,
+        # while the rare discrete-block (modular) case is registered separately as its own
+        # always-MIP model (see CHANGELOG for why).
+        (lines_fixed_static, lines_fixed_dynamic), (lines_ext_static, lines_ext_dynamic) = _split_by_extendable(
             self.pypsa_network.components.lines.static,
             self.pypsa_network.components.lines.dynamic,
+            "s_nom_extendable",
+        )
+        (lines_lp_static, lines_lp_dynamic), (lines_mod_static, lines_mod_dynamic) = _split_by_extendable(
+            lines_ext_static,
+            lines_ext_dynamic,
+            "modular",
+        )
+        self._register_pypsa_component(
+            "lines",
+            lines_fixed_static,
+            lines_fixed_dynamic,
             "line",
+            {
+                "x_pu": "x",
+                "s_nom": "s_nom",
+                "s_max_pu": "s_max_pu",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        self._register_pypsa_component(
+            "lines_extendable",
+            lines_lp_static,
+            lines_lp_dynamic,
+            "line_extendable",
+            {
+                "x_pu": "x",
+                "s_nom_min": "s_nom_min",
+                "s_nom_max": "s_nom_max",
+                "s_max_pu": "s_max_pu",
+                "capital_cost": "capital_cost",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        self._register_pypsa_component(
+            "lines_extendable_modular",
+            lines_mod_static,
+            lines_mod_dynamic,
+            "line_extendable_modular",
             {
                 "x_pu": "x",
                 "s_nom_min": "s_nom_min",
@@ -155,7 +222,6 @@ class PyPSARegister:
                 "s_nom_mod": "s_nom_mod",
                 "s_max_pu": "s_max_pu",
                 "capital_cost": "capital_cost",
-                "modular": "modular",
             },
             {
                 "bus0": ("bus0_p_port", "p_balance_port"),
@@ -163,11 +229,62 @@ class PyPSARegister:
             },
         )
         ### PyPSA components : Transformers
-        self._register_pypsa_component(
-            "transformers",
+        (
+            (transformers_fixed_static, transformers_fixed_dynamic),
+            (
+                transformers_ext_static,
+                transformers_ext_dynamic,
+            ),
+        ) = _split_by_extendable(
             self.pypsa_network.components.transformers.static,
             self.pypsa_network.components.transformers.dynamic,
+            "s_nom_extendable",
+        )
+        (
+            (transformers_lp_static, transformers_lp_dynamic),
+            (transformers_mod_static, transformers_mod_dynamic),
+        ) = _split_by_extendable(
+            transformers_ext_static,
+            transformers_ext_dynamic,
+            "modular",
+        )
+        self._register_pypsa_component(
+            "transformers",
+            transformers_fixed_static,
+            transformers_fixed_dynamic,
             "transformer",
+            {
+                "x_pu_eff": "x_pu_eff",
+                "s_nom": "s_nom",
+                "s_max_pu": "s_max_pu",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        self._register_pypsa_component(
+            "transformers_extendable",
+            transformers_lp_static,
+            transformers_lp_dynamic,
+            "transformer_extendable",
+            {
+                "x_pu_eff": "x_pu_eff",
+                "s_nom_min": "s_nom_min",
+                "s_nom_max": "s_nom_max",
+                "s_max_pu": "s_max_pu",
+                "capital_cost": "capital_cost",
+            },
+            {
+                "bus0": ("bus0_p_port", "p_balance_port"),
+                "bus1": ("bus1_p_port", "p_balance_port"),
+            },
+        )
+        self._register_pypsa_component(
+            "transformers_extendable_modular",
+            transformers_mod_static,
+            transformers_mod_dynamic,
+            "transformer_extendable_modular",
             {
                 "x_pu_eff": "x_pu_eff",
                 "s_nom_min": "s_nom_min",
@@ -175,7 +292,6 @@ class PyPSARegister:
                 "s_nom_mod": "s_nom_mod",
                 "s_max_pu": "s_max_pu",
                 "capital_cost": "capital_cost",
-                "modular": "modular",
             },
             {
                 "bus0": ("bus0_p_port", "p_balance_port"),

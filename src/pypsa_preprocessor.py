@@ -199,66 +199,6 @@ class PyPSAPreprocessor:
         if attribute_name is not None:
             self._fix_capacity_non_extendable_attribute(component_type, attribute_name)
 
-    def _buses_with_ac_branches(self) -> set[str]:
-        """Bus names that are endpoints of at least one Line or Transformer (angle-coupled)."""
-        buses: set[str] = set()
-        for component_type in ("lines", "transformers"):
-            df = getattr(self.pypsa_network, component_type)
-            if len(df) == 0:
-                continue
-            buses.update(df["bus0"].astype(str))
-            buses.update(df["bus1"].astype(str))
-        return buses
-
-    def _add_bus_theta_bounds(self) -> None:
-        """Add theta angle bounds to buses for DC LOPF. Fix reference bus angle to 0.
-
-        Only Slack buses that participate in a Line/Transformer get theta fixed. Island
-        buses (Links-only AC subnetworks, non-AC carriers, etc.) never enter the angle
-        constraint matrix; FX bounds on those unused theta variables make Antares-Xpansion's
-        Clp MPS reader fail with "No match for column ...theta...".
-        """
-        if len(self.pypsa_network.buses) == 0:
-            return
-
-        self.pypsa_network.determine_network_topology()
-
-        # Re-fetch after determine_network_topology(), which may replace the internal DataFrame
-        buses_df = self.pypsa_network.components.buses.static
-
-        buses_df["theta_min"] = float("-inf")
-        buses_df["theta_max"] = float("inf")
-
-        ac_branch_buses: set[str] = self._buses_with_ac_branches()
-        if not ac_branch_buses:
-            return
-
-        index = buses_df.index
-        names = index.get_level_values(-1) if isinstance(index, pd.MultiIndex) else index
-
-        slack_buses: list[str] = []
-        for name in dict.fromkeys(names):
-            bus_name = str(name)
-            if bus_name not in ac_branch_buses:
-                continue
-            mask = (index.get_level_values(-1) == name) if isinstance(index, pd.MultiIndex) else (index == name)
-            if buses_df.loc[mask, "control"].iloc[0] == "Slack":
-                slack_buses.append(bus_name)
-
-        if not slack_buses:
-            for name in dict.fromkeys(names):
-                bus_name = str(name)
-                if bus_name in ac_branch_buses:
-                    slack_buses = [bus_name]
-                    break
-
-        for slack_bus in slack_buses:
-            mask = (
-                (index.get_level_values(-1) == slack_bus) if isinstance(index, pd.MultiIndex) else (index == slack_bus)
-            )
-            buses_df.loc[mask, "theta_min"] = 0.0
-            buses_df.loc[mask, "theta_max"] = 0.0
-
     def _add_modular_flag(self, component_type: str) -> None:
         """Compute modular expansion flag and ensure s_nom_mod is positive."""
         df = getattr(self.pypsa_network, component_type)
@@ -273,7 +213,6 @@ class PyPSAPreprocessor:
         self._preprocess_pypsa_component("stores", "e_nom")
         self._preprocess_pypsa_component("storage_units", "p_nom")
         self._preprocess_pypsa_component("links", "p_nom")
-        self._add_bus_theta_bounds()
         if len(self.pypsa_network.lines) > 0 or len(self.pypsa_network.transformers) > 0:
             self.pypsa_network.calculate_dependent_values()
         if len(self.pypsa_network.lines) > 0:

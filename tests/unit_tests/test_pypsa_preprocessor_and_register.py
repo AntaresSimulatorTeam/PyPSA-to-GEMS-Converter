@@ -96,55 +96,6 @@ def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> 
     assert {k[0] for k in global_constraints if k[1] == "co2"} == {"low", "medium", "high"}
 
 
-def test_bus_theta_bounds_added(base_network: Network) -> None:
-    logger.info("Running test_bus_theta_bounds_added")
-    PyPSAPreprocessor(base_network).network_preprocessing()
-    buses = base_network.buses
-
-    assert "theta_min" in buses.columns
-    assert "theta_max" in buses.columns
-    # base_network is Links-only: no Line/Transformer couples bus angles, so theta stays free.
-    # Fixing unused Slack thetas would emit orphan FX bounds that Clp rejects in Xpansion MPS.
-    assert all(buses["theta_min"] == float("-inf"))
-    assert all(buses["theta_max"] == float("inf"))
-
-
-def test_bus_theta_bounds_fixed_only_on_ac_branch_slack(line_network: Network) -> None:
-    logger.info("Running test_bus_theta_bounds_fixed_only_on_ac_branch_slack")
-    # Island bus connected only by a Link must keep free theta; AC-line Slack is fixed to 0.
-    line_network.add("Bus", "island", v_nom=1.0)
-    line_network.add(
-        "Link",
-        "dc_link",
-        bus0="bus1",
-        bus1="island",
-        p_nom=10.0,
-        p_min_pu=-1,
-        p_max_pu=1,
-    )
-    PyPSAPreprocessor(line_network).network_preprocessing()
-    buses = line_network.buses
-
-    assert buses.loc["bus1", "theta_min"] == 0.0
-    assert buses.loc["bus1", "theta_max"] == 0.0
-    assert buses.loc["bus2", "theta_min"] == float("-inf")
-    assert buses.loc["bus2", "theta_max"] == float("inf")
-    assert buses.loc["island", "theta_min"] == float("-inf")
-    assert buses.loc["island", "theta_max"] == float("inf")
-
-
-def test_bus_register_includes_theta_params(base_network: Network) -> None:
-    logger.info("Running test_bus_register_includes_theta_params")
-    PyPSAPreprocessor(base_network).network_preprocessing()
-    components, _ = PyPSARegister(base_network).register()
-
-    bus_data = components["buses"]
-    assert "theta_min" in bus_data.pypsa_params_to_gems_params
-    assert "theta_max" in bus_data.pypsa_params_to_gems_params
-    assert bus_data.pypsa_params_to_gems_params["theta_min"] == "theta_min"
-    assert bus_data.pypsa_params_to_gems_params["theta_max"] == "theta_max"
-
-
 @pytest.fixture()
 def line_network() -> Network:
     net = Network(name="Line_Network", snapshots=[0, 1])
