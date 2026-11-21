@@ -17,6 +17,7 @@ This converter is based on the representation of the PyPSA models of components 
 ## Table of Contents
 - [How the Converter Works](#how-the-converter-works)
 - [Input and Output of the Converter](#input-and-output-of-the-converter)
+- [Supported PyPSA Features](COMPATIBILITY.md#supported-pypsa-features)
 - [Current Limitations of the Converter](COMPATIBILITY.md#converter-limitations)
 - [Step-by-Step Guide: Manually Executing a Simulation in GEMS Modeler](#step-by-step-guide-manually-executing-a-simulation-in-gems-modeler)
 - [Comparing Results Between GEMS Modeler and PyPSA](#comparing-results-between-gems-modeler-and-pypsa)
