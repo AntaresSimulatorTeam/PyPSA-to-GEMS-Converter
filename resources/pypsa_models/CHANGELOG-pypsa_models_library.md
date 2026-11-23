@@ -41,6 +41,12 @@ whose options change the equations maps onto several close models; the converter
   Results change for storage units whose `p_min_pu` differs from `-p_max_pu`.
 - **Changed** `bus` — `theta_min` / `theta_max` declare their time and scenario dependence (GemsPy >= 0.3.0 makes
   undeclared parameters time- and scenario-dependent).
+- **Added** `line_modular`, `transformer_modular` — modular expansion (integer number of `s_nom_mod` modules), moved
+  out of `line` and `transformer`.
+- **Changed** `line`, `transformer` — continuous capacity only: the integer `n_mod` variable and the `modular` /
+  `s_nom_mod` parameters are removed. The integer variable, declared on every line even when fixed to 0, turned every
+  study with lines into a MIP: HiGHS then ignores an IPM setting and runs branch-and-bound on dual simplex (8 to 18
+  times slower on PyPSA-Eur sector networks). Results are unchanged.
 
 ---
 

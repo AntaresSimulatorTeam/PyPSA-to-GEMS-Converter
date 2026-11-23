@@ -192,7 +192,6 @@ def test_line_preprocessing(line_network: Network) -> None:
     assert line_network.lines.loc["line_line1", "s_nom_min"] == 100.0
     assert line_network.lines.loc["line_line1", "s_nom_max"] == 100.0
     assert line_network.lines.loc["line_line1", "capital_cost"] == 0.0
-    assert line_network.lines.loc["line_line1", "s_nom_mod"] > 0.0
     # v_nom=1 kV → x_pu = x_ohm / 1² = x_ohm (no conversion)
     assert abs(line_network.lines.loc["line_line1", "x_pu"] - 0.1) < 1e-9
 
@@ -211,6 +210,32 @@ def test_line_register(line_network: Network) -> None:
     assert "bus1" in line_data.pypsa_params_to_gems_connections
     assert line_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")
     assert line_data.pypsa_params_to_gems_connections["bus1"] == ("bus1_p_port", "p_balance_port")
+    assert "s_nom_mod" not in line_data.pypsa_params_to_gems_params
+    assert "lines:line_modular" not in components
+
+
+def test_modular_branches_use_the_modular_variants(line_network: Network) -> None:
+    """Only extendable branches with s_nom_mod > 0 carry the integer module count: other studies stay LPs."""
+    line_network.add("Bus", "bus3", v_nom=1.0)
+    line_network.add(
+        "Line", "line2", bus0="bus2", bus1="bus3", x=0.1, s_nom_extendable=True, s_nom_mod=50.0, s_nom_max=200
+    )
+    line_network.add("Line", "line3", bus0="bus1", bus1="bus3", x=0.1, s_nom_extendable=True, s_nom_max=200)
+    line_network.add("Transformer", "trafo1", bus0="bus1", bus1="bus3", x=0.1, s_nom_extendable=True, s_nom_mod=20.0)
+    PyPSAPreprocessor(line_network).network_preprocessing()
+    register = PyPSARegister(line_network)
+    components, _ = register.register()
+
+    branches = {name: model for name, model in register.component_models.items() if not name.startswith("bus")}
+    assert branches == {
+        "line_line1": "line",
+        "line_line3": "line",
+        "line_line2": "line_modular",
+        "transformer_trafo1": "transformer_modular",
+    }
+    assert components["lines:line_modular"].pypsa_params_to_gems_params["s_nom_mod"] == "s_nom_mod"
+    assert "s_nom_mod" not in components["lines:line"].pypsa_params_to_gems_params
+    assert "transformers:transformer" not in components
 
 
 @pytest.fixture()

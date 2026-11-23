@@ -379,12 +379,11 @@ class PyPSAPreprocessor:
         buses_df.loc[slack_mask, "theta_max"] = 0.0
 
     def _add_modular_flag(self, component_type: str) -> None:
-        """Compute modular expansion flag and ensure s_nom_mod is positive."""
+        """Flag the branches with modular expansion; the register routes them to the ``*_modular`` model variant."""
         df = getattr(self.pypsa_network, component_type)
         if len(df) == 0:
             return
         df["modular"] = (df["s_nom_extendable"] & (df["s_nom_mod"] > 0)).astype(float)
-        df.loc[df["s_nom_mod"] == 0, "s_nom_mod"] = 1.0
 
     def _preprocess_pypsa_components(self) -> None:
         self._preprocess_pypsa_component("loads")

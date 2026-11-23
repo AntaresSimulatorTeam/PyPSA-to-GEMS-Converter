@@ -112,6 +112,16 @@ _TWO_PORT_LINK = {"bus0": ("p0_port", "p_balance_port"), "bus1": ("p1_port", "p_
 _MULTIPORT_LINK = {f"bus{i}": (f"p{i}_port", "p_balance_port") for i in range(MAX_MULTIPORT_BUSES)}
 _BRANCH = {"bus0": ("bus0_p_port", "p_balance_port"), "bus1": ("bus1_p_port", "p_balance_port")}
 
+# Lines and transformers; their *_modular variants add s_nom_mod.
+_BRANCH_PARAMS: dict[str, str] = {
+    "s_nom_min": "s_nom_min",
+    "s_nom_max": "s_nom_max",
+    "s_max_pu": "s_max_pu",
+    "capital_cost": "capital_cost",
+}
+_LINE_PARAMS: dict[str, str] = {"x_pu": "x", **_BRANCH_PARAMS, "length": "length"}
+_TRANSFORMER_PARAMS: dict[str, str] = {"x_pu_eff": "x_pu_eff", **_BRANCH_PARAMS}
+
 _SENSE_SUFFIX = {"<=": "max", "==": "eq", ">=": "min"}
 
 
@@ -196,35 +206,8 @@ class PyPSARegister:
             {"state_of_charge_initial": "state_of_charge_initial"},
         )
         self._register_storage("stores", "e_cyclic", "store", _STORE_PARAMS, {"e_initial": "e_initial"})
-        self._register(
-            "lines",
-            "line",
-            {
-                "x_pu": "x",
-                "s_nom_min": "s_nom_min",
-                "s_nom_max": "s_nom_max",
-                "s_nom_mod": "s_nom_mod",
-                "s_max_pu": "s_max_pu",
-                "capital_cost": "capital_cost",
-                "modular": "modular",
-                "length": "length",
-            },
-            _BRANCH,
-        )
-        self._register(
-            "transformers",
-            "transformer",
-            {
-                "x_pu_eff": "x_pu_eff",
-                "s_nom_min": "s_nom_min",
-                "s_nom_max": "s_nom_max",
-                "s_nom_mod": "s_nom_mod",
-                "s_max_pu": "s_max_pu",
-                "capital_cost": "capital_cost",
-                "modular": "modular",
-            },
-            _BRANCH,
-        )
+        self._register_branches("lines", "line", _LINE_PARAMS)
+        self._register_branches("transformers", "transformer", _TRANSFORMER_PARAMS)
 
         self._register_pypsa_globalconstraints()
         self._register_bus_carrier_limits()
@@ -359,6 +342,19 @@ class PyPSARegister:
             {**_MULTIPORT_PARAMS, **_RAMP},
             _MULTIPORT_LINK,
             multiport.intersection(ramp),
+        )
+
+    def _register_branches(self, component_type: str, gems_model_id: str, params: dict[str, str]) -> None:
+        """Lines or transformers: modular expansion (integer module count) goes to the ``*_modular`` variant so that
+        studies without it stay linear programs."""
+        static: pd.DataFrame = getattr(self.pypsa_network.components, component_type).static
+        if len(static) == 0:
+            return
+        names = self._all_names(component_type)
+        modular = self._flagged_names(component_type, static["modular"].astype(bool))
+        self._register(component_type, gems_model_id, params, _BRANCH, names.difference(modular, sort=False))
+        self._register(
+            component_type, f"{gems_model_id}_modular", {**params, "s_nom_mod": "s_nom_mod"}, _BRANCH, modular
         )
 
     def _register_storage(

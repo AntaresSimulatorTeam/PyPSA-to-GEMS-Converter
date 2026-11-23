@@ -82,7 +82,7 @@ PyPSA Network (deep-copied)
   → GemsStudyWriter     write system.yml, parameters.yml, data-series/, optim-config.yml
 ```
 
-**Model variants:** GEMS has no model inheritance, so a PyPSA component type whose options change the equations maps onto several close GEMS models, and `PyPSARegister` routes each component to one of them: `generator` / `generator_ramp`, `link` / `link_ramp` / `link_multiport` / `link_multiport_ramp` (Links with `bus2`..`bus4` and every `Process`), `storage_unit` / `storage_unit_non_cyclic`, `store` / `store_non_cyclic`. Component data is keyed `"<component type>:<gems model>"` (e.g. `"links:link_multiport"`). When you change a model, change its variants too.
+**Model variants:** GEMS has no model inheritance, so a PyPSA component type whose options change the equations maps onto several close GEMS models, and `PyPSARegister` routes each component to one of them: `generator` / `generator_ramp`, `link` / `link_ramp` / `link_multiport` / `link_multiport_ramp` (Links with `bus2`..`bus4` and every `Process`), `storage_unit` / `storage_unit_non_cyclic`, `store` / `store_non_cyclic`, `line` / `line_modular` and `transformer` / `transformer_modular` (extendable with `s_nom_mod > 0`). Component data is keyed `"<component type>:<gems model>"` (e.g. `"links:link_multiport"`). When you change a model, change its variants too. Keep integer variables in dedicated variants: a single integer variable, even fixed to 0, makes HiGHS solve the whole study as a MIP and ignore an IPM setting.
 
 **Boundary handling:** PyPSA does not wrap ramp limits or non-cyclic storage balances around the horizon. The `*_ramp` and `*_non_cyclic` models are listed in `optim-config.yml` with `out-of-bounds-processing: drop` (written by `src/optim_config.py`; the file format with only `models:` is read by GemsPy and antares-modeler 10.1/10.2), plus an explicit `[0]` initial constraint. The final storage level, needed by global constraints, comes from the shared `is_last_time_step` series (antares-modeler rejects a parameter as explicit time index).
 
@@ -136,7 +136,7 @@ The compounded standing loss `(1 - standing_loss)^hours` is computed by the conv
 
 ## GEMS Model Library (`resources/pypsa_models/pypsa_models.yml`)
 
-This file defines all component models and their variants (bus, load, generator, generator_ramp, line, transformer, link, link_ramp, link_multiport, link_multiport_ramp, storage_unit, storage_unit_non_cyclic, store, store_non_cyclic, global_constraint_{co2,quantity,capacity}_{max,eq,min}). It is copied into every converted study's `model-libraries/` directory. `tests/unit_tests/test_sector_coupling_features.py` checks that every converted component carries exactly its model's parameters.
+This file defines all component models and their variants (bus, load, generator, generator_ramp, line, line_modular, transformer, transformer_modular, link, link_ramp, link_multiport, link_multiport_ramp, storage_unit, storage_unit_non_cyclic, store, store_non_cyclic, global_constraint_{co2,quantity,capacity}_{max,eq,min}). It is copied into every converted study's `model-libraries/` directory. `tests/unit_tests/test_sector_coupling_features.py` checks that every converted component carries exactly its model's parameters.
 
 **Critical:** the parameter list in this YAML must exactly match what `PyPSARegister.register()` maps for each component type. A mismatch causes the Antares modeler to fail silently.
 

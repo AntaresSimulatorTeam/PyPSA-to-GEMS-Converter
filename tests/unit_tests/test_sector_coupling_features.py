@@ -159,6 +159,15 @@ def test_every_component_carries_exactly_its_model_parameters(converted: tuple[P
     } <= used
 
 
+def test_only_modular_variants_declare_integer_variables() -> None:
+    """One integer variable, even fixed to 0, makes solvers such as HiGHS run their MIP algorithm (and ignore IPM)."""
+    library = yaml.safe_load(LIBRARY.read_text())["library"]
+    integer_models = {
+        m["id"] for m in library["models"] for v in m.get("variables", []) if v.get("variable-type") == "integer"
+    }
+    assert integer_models == {"line_modular", "transformer_modular"}
+
+
 def test_multiport_link_connects_only_the_buses_it_has(converted: tuple[Path, dict[str, Any]]) -> None:
     _, system = converted
     assert _component(system, "link_CHP")["model"] == "pypsa_models.link_multiport"

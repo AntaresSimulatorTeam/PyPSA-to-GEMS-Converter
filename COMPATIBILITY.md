@@ -33,6 +33,7 @@ model inheritance yet); see the header of `resources/pypsa_models/pypsa_models.y
 | Feature | GEMS model(s) / handling |
 |---|---|
 | Bus, Load (incl. negative or zero `p_set`), Generator, Line, Transformer, Link, StorageUnit, Store | `bus`, `load`, `generator`, `line`, `transformer`, `link`, `storage_unit`, `store` |
+| Modular expansion of Lines and Transformers (`s_nom_extendable` with `s_nom_mod > 0`, MILP) | `line_modular`, `transformer_modular` (the integer module count stays out of `line` / `transformer`, so studies without it remain LPs) |
 | Multi-port Link (`bus2`..`bus4`, `efficiency2`..`efficiency4`, static or time-varying) | `link_multiport` (unused ports left unconnected) |
 | Process (PyPSA ≥ 1.1.0, `rate0`..`rate4`) | `link_multiport` |
 | Ramp limits `ramp_limit_up` / `ramp_limit_down` (static or time-varying), `p_init` | `generator_ramp`, `link_ramp`, `link_multiport_ramp`; `out-of-bounds-processing: drop` in `optim-config.yml` |
@@ -102,7 +103,7 @@ The **Path** column says what support would take: *variant model* — possible t
 | `marginal_cost_quadratic` | Quadratic cost | Yes — `ValueError` | Non-linear (GEMS is linear); a piecewise-linear approximation needs custom sets |
 | `committable` and `start_up_cost`, `shut_down_cost`, `stand_by_cost`, `min_up_time`, `min_down_time`, `up_time_before`, `down_time_before`, `ramp_limit_start_up`, `ramp_limit_shut_down` | Unit commitment (MILP) | Yes — `ValueError` | Open PR #117 (issue #110); GEMS supports integer variables |
 | `maintainable`, `maintenance_*` | Maintenance scheduling (MILP, PyPSA ≥ 1.3.0) | Yes — `ValueError` | Variant model (integer variables) |
-| `p_nom_mod` on extendable components | Modular expansion (MILP) | Yes — `ValueError` | Variant model, as `line`/`transformer` do |
+| `p_nom_mod` on extendable components | Modular expansion (MILP) | Yes — `ValueError` | Variant model, as `line_modular` / `transformer_modular` do |
 | `p_set` | Fixed dispatch (`p = p_set` where set) | Yes — `ValueError` | Variant model with a mask series |
 | `p_nom_set` on non-extendable components | PyPSA fails on it | Yes — `ValueError` | — |
 | `control`, `type`, `q_set`, `weight`, `build_year`, `lifetime` (without `overnight_cost`), `length`, `terrain_factor`, `carrier` | Not used by the LP (`carrier` routes global constraints) | No | — |
