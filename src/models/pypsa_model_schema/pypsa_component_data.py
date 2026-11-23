@@ -10,7 +10,7 @@
 #
 # This file is part of the Antares project.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import polars as pl
 
@@ -23,6 +23,9 @@ class PyPSAComponentData:
     gems_model_id: str
     pypsa_params_to_gems_params: dict[str, str]
     pypsa_params_to_gems_connections: dict[str, tuple[str, str]]
+    # GEMS parameters whose value is a data series shared by every component (e.g. a time-varying snapshot
+    # weighting, the last-time-step indicator): {gems param id: shared series key}
+    shared_params: dict[str, str] = field(default_factory=dict)
 
     def check_params_consistency(self) -> None:
         for key in self.pypsa_params_to_gems_params:

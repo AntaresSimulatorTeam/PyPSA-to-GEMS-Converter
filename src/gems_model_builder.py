@@ -23,39 +23,39 @@ class GemsModelBuilder:
         self.logger = logging.getLogger(__name__)
 
     def _convert_pypsa_globalconstraint(
-        self, pypsa_gc_data: PyPSAGlobalConstraintData
+        self, pypsa_gc_data: PyPSAGlobalConstraintData, quota: str | float
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
         """
         Convert PyPSA GlobalConstraint
-        This function is independent of study type and process
+        This function is independent of study type and process.
+        quota is the constant, or the name of the data series holding it when it differs between scenarios.
         """
 
         self.logger.info(f"Creating PyPSA GlobalConstraint of type: {pypsa_gc_data.gems_model_id}. ")
 
         components = [
             GemsComponent(
-                id=pypsa_gc_data.pypsa_name[1],
+                id=pypsa_gc_data.gems_component_id,
                 model=f"{self.pypsalib_id}.{pypsa_gc_data.gems_model_id}",
                 parameters=[
                     GemsComponentParameter(
                         id="quota",
                         time_dependent=False,
-                        scenario_dependent=False,
-                        value=pypsa_gc_data.pypsa_constant,
+                        scenario_dependent=isinstance(quota, str),
+                        value=quota,
                     )
                 ],
             )
         ]
-        connections = []
-        for component_id, port_id in pypsa_gc_data.gems_components_and_ports:
-            connections.append(
-                GemsPortConnection(
-                    component1=pypsa_gc_data.pypsa_name[1],
-                    port1=pypsa_gc_data.gems_port_id,
-                    component2=component_id[1],
-                    port2=port_id,
-                )
+        connections = [
+            GemsPortConnection(
+                component1=pypsa_gc_data.gems_component_id,
+                port1=pypsa_gc_data.gems_port_id,
+                component2=component_id,
+                port2=port_id,
             )
+            for component_id, port_id in pypsa_gc_data.gems_components_and_ports
+        ]
 
         return components, connections
 
@@ -66,8 +66,14 @@ class GemsModelBuilder:
         pypsa_params_to_gems_params: dict[str, str],
         comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]],
         comp_param_to_static_name: dict[tuple[str, str], str | float],
+        shared_params: dict[str, str] | None = None,
     ) -> list[GemsComponent]:
+        """shared_params: {gems param id: data series name} for parameters shared by every component."""
         components: list[GemsComponent] = []
+        shared_parameters = [
+            GemsComponentParameter(id=param, time_dependent=True, scenario_dependent=False, value=series)
+            for param, series in (shared_params or {}).items()
+        ]
         if len(constant_data) == 0 or "component" not in constant_data.columns:
             return components
         # Get unique component names (order of first appearance)
@@ -100,7 +106,8 @@ class GemsModelBuilder:
                             else comp_param_to_static_name.get((component, param)),
                         )
                         for param in pypsa_params_to_gems_params
-                    ],
+                    ]
+                    + shared_parameters,
                 )
             )
         return components
@@ -121,6 +128,9 @@ class GemsModelBuilder:
             buses = buses_df[bus_id].to_list()
 
             for i, component in enumerate(component_names):
+                if buses[i] is None or str(buses[i]).strip() == "":
+                    # Unused port of a multi-port link: left unconnected, as PyPSA drops buses set to "".
+                    continue
                 connections.append(
                     GemsPortConnection(
                         component1=buses[i],
@@ -136,9 +146,11 @@ class GemsModelBuilder:
         pypsa_components_data: PyPSAComponentData,
         comp_param_to_timeseries_name: dict[tuple[str, str], str | list[str | bool]],
         comp_param_to_static_name: dict[tuple[str, str], str | float],
+        shared_series_names: dict[str, str] | None = None,
     ) -> tuple[list[GemsComponent], list[GemsPortConnection]]:
         """
-        Generic function to handle the different PyPSA classes
+        Generic function to handle the different PyPSA classes.
+        shared_series_names: {shared series key: data series name} written by GemsStudyWriter.
         """
         self.logger.info(f"Creating objects of type: {pypsa_components_data.gems_model_id}. ")
 
@@ -153,5 +165,6 @@ class GemsModelBuilder:
             pypsa_components_data.pypsa_params_to_gems_params,
             comp_param_to_timeseries_name,
             comp_param_to_static_name,
+            {param: (shared_series_names or {})[key] for param, key in pypsa_components_data.shared_params.items()},
         )
         return components, connections

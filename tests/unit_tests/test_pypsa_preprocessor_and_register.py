@@ -90,10 +90,26 @@ def test_register_outputs_expected_keys_scenarios(scenario_network: Network) -> 
     PyPSAPreprocessor(scenario_network).network_preprocessing()
     components, global_constraints = PyPSARegister(scenario_network).register()
 
-    assert {"generators", "loads", "buses", "links"} <= set(components.keys())
+    # Component data is keyed by "<PyPSA component type>:<GEMS model>": a type may map onto several models.
+    assert {"generators:generator", "loads:load", "buses:bus", "links:link"} <= set(components.keys())
 
-    # global constraint keys are (scenario, name)
-    assert {k[0] for k in global_constraints if k[1] == "co2"} == {"low", "medium", "high"}
+    # No generator has an emitting carrier: PyPSA adds no constraint, neither does the converter.
+    assert global_constraints == {}
+
+
+def test_global_constraint_is_one_component_whatever_the_number_of_scenarios(scenario_network: Network) -> None:
+    """One GEMS component per PyPSA GlobalConstraint, with a quota per scenario (not one component per scenario)."""
+    scenario_network.carriers.loc[("high", "carrier"), "co2_emissions"] = 0.5
+    scenario_network.generators["carrier"] = "carrier"
+    scenario_network.global_constraints.loc[("low", "co2"), "constant"] = 50.0
+    PyPSAPreprocessor(scenario_network).network_preprocessing()
+    _, global_constraints = PyPSARegister(scenario_network).register()
+
+    assert list(global_constraints) == ["global_constraint_co2"]
+    co2 = global_constraints["global_constraint_co2"]
+    assert co2.gems_model_id == "global_constraint_co2_max"
+    assert co2.quota_by_scenario == {"low": 50.0, "medium": 100.0, "high": 100.0}
+    assert co2.gems_components_and_ports == [("generator_gen_1", "emission_port")]
 
 
 def test_bus_theta_bounds_added(base_network: Network) -> None:
@@ -138,7 +154,7 @@ def test_bus_register_includes_theta_params(base_network: Network) -> None:
     PyPSAPreprocessor(base_network).network_preprocessing()
     components, _ = PyPSARegister(base_network).register()
 
-    bus_data = components["buses"]
+    bus_data = components["buses:bus"]
     assert "theta_min" in bus_data.pypsa_params_to_gems_params
     assert "theta_max" in bus_data.pypsa_params_to_gems_params
     assert bus_data.pypsa_params_to_gems_params["theta_min"] == "theta_min"
@@ -176,7 +192,6 @@ def test_line_preprocessing(line_network: Network) -> None:
     assert line_network.lines.loc["line_line1", "s_nom_min"] == 100.0
     assert line_network.lines.loc["line_line1", "s_nom_max"] == 100.0
     assert line_network.lines.loc["line_line1", "capital_cost"] == 0.0
-    assert line_network.lines.loc["line_line1", "s_nom_mod"] > 0.0
     # v_nom=1 kV → x_pu = x_ohm / 1² = x_ohm (no conversion)
     assert abs(line_network.lines.loc["line_line1", "x_pu"] - 0.1) < 1e-9
 
@@ -186,8 +201,8 @@ def test_line_register(line_network: Network) -> None:
     PyPSAPreprocessor(line_network).network_preprocessing()
     components, _ = PyPSARegister(line_network).register()
 
-    assert "lines" in components
-    line_data = components["lines"]
+    assert "lines:line" in components
+    line_data = components["lines:line"]
     assert line_data.gems_model_id == "line"
     assert "x_pu" in line_data.pypsa_params_to_gems_params
     assert line_data.pypsa_params_to_gems_params["x_pu"] == "x"
@@ -195,6 +210,32 @@ def test_line_register(line_network: Network) -> None:
     assert "bus1" in line_data.pypsa_params_to_gems_connections
     assert line_data.pypsa_params_to_gems_connections["bus0"] == ("bus0_p_port", "p_balance_port")
     assert line_data.pypsa_params_to_gems_connections["bus1"] == ("bus1_p_port", "p_balance_port")
+    assert "s_nom_mod" not in line_data.pypsa_params_to_gems_params
+    assert "lines:line_modular" not in components
+
+
+def test_modular_branches_use_the_modular_variants(line_network: Network) -> None:
+    """Only extendable branches with s_nom_mod > 0 carry the integer module count: other studies stay LPs."""
+    line_network.add("Bus", "bus3", v_nom=1.0)
+    line_network.add(
+        "Line", "line2", bus0="bus2", bus1="bus3", x=0.1, s_nom_extendable=True, s_nom_mod=50.0, s_nom_max=200
+    )
+    line_network.add("Line", "line3", bus0="bus1", bus1="bus3", x=0.1, s_nom_extendable=True, s_nom_max=200)
+    line_network.add("Transformer", "trafo1", bus0="bus1", bus1="bus3", x=0.1, s_nom_extendable=True, s_nom_mod=20.0)
+    PyPSAPreprocessor(line_network).network_preprocessing()
+    register = PyPSARegister(line_network)
+    components, _ = register.register()
+
+    branches = {name: model for name, model in register.component_models.items() if not name.startswith("bus")}
+    assert branches == {
+        "line_line1": "line",
+        "line_line3": "line",
+        "line_line2": "line_modular",
+        "transformer_trafo1": "transformer_modular",
+    }
+    assert components["lines:line_modular"].pypsa_params_to_gems_params["s_nom_mod"] == "s_nom_mod"
+    assert "s_nom_mod" not in components["lines:line"].pypsa_params_to_gems_params
+    assert "transformers:transformer" not in components
 
 
 @pytest.fixture()
@@ -233,8 +274,8 @@ def test_transformer_register(transformer_network: Network) -> None:
     PyPSAPreprocessor(transformer_network).network_preprocessing()
     components, _ = PyPSARegister(transformer_network).register()
 
-    assert "transformers" in components
-    trafo_data = components["transformers"]
+    assert "transformers:transformer" in components
+    trafo_data = components["transformers:transformer"]
     assert trafo_data.gems_model_id == "transformer"
     assert "x_pu_eff" in trafo_data.pypsa_params_to_gems_params
     assert trafo_data.pypsa_params_to_gems_params["x_pu_eff"] == "x_pu_eff"

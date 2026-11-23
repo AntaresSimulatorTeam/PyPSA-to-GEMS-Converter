@@ -10,16 +10,28 @@
 #
 # This file is part of the Antares project.
 import math
+import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 import polars as pl
+import yaml
 
 from src.models.gems_system_yml_schema import GemsComponent, GemsPortConnection, GemsSystem
 from src.models.modeler_parameter_yml_schema import AntaresModelerParameters
 from src.models.pypsa_model_schema import PyPSAComponentData
 
 _COLUMN_SEP = "__"
+
+
+def series_name(*parts: str) -> str:
+    """Data series name (the file name without extension): only letters, digits, "_" and "-".
+
+    Network names may hold URLs (PyPSA-Eur), and GemsPy finds a series file with Path.with_suffix(), which cuts a
+    name at its last dot.
+    """
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", "_".join(parts))
 
 
 class GemsStudyWriter:
@@ -121,7 +133,7 @@ class GemsStudyWriter:
 
                 comp_param_to_skip_in_static_treatment.add((component, param))
 
-                timeseries_name = f"{system_name}_{component}_{param}"
+                timeseries_name = series_name(system_name, component, param)
 
                 comp_param_to_timeseries_file_name[(component, param)] = [
                     timeseries_name,
@@ -146,30 +158,33 @@ class GemsStudyWriter:
         comp_param_to_static_file_name: dict[tuple[str, str], str | float] = {}
 
         for param in static_params:
-            static_component_names = constant_data["component"].unique(maintain_order=True).to_list()
-            for component in static_component_names:
-                if (component, param) not in comp_param_to_skip_in_static_treatment:
-                    comp_df = constant_data.filter(pl.col("component") == component)
-                    component_values = comp_df[param].to_list()
-
-                    # only if we have multiple different values for the same parameter, we need to create a time series file for static parameters
-                    # in that case we will have static scenarized parameter
-                    # if we have only one value, we can use the value directly (it will be used over all scenarios)
-                    if len(set(component_values)) > 1:
-                        scenario_names = comp_df["scenario"].to_list()
-                        scenario_data = pl.DataFrame({str(s): [v] for s, v in zip(scenario_names, component_values)})
-                        timeseries_name = f"{system_name}_{component}_{param}"
-                        comp_param_to_static_file_name[(component, param)] = timeseries_name
-                        self._write_time_series_file(
-                            scenario_data,
-                            self.series_dir / Path(f"{timeseries_name}{self.series_file_format}"),
-                            self.separator,
-                        )
-                    else:
-                        component_value = list(set(component_values))[0]
-                        comp_param_to_static_file_name[(component, param)] = self.sanitize_component_value(
-                            component_value
-                        )
+            # One value per component and scenario: a single distinct value is written directly in system.yml
+            # (used for every scenario), several distinct values make a static scenarized parameter, written as a
+            # one-row data series with one column per scenario.
+            per_component = constant_data.group_by("component", maintain_order=True).agg(
+                pl.col(param).n_unique().alias("n_unique"), pl.col(param).first().alias("first")
+            )
+            scenarized: list[str] = []
+            for component, n_unique, value in per_component.iter_rows():
+                if (component, param) in comp_param_to_skip_in_static_treatment:
+                    continue
+                if n_unique > 1:
+                    scenarized.append(component)
+                else:
+                    comp_param_to_static_file_name[(component, param)] = self.sanitize_component_value(value)
+            for component in scenarized:
+                comp_df = constant_data.filter(pl.col("component") == component)
+                scenario_data = pl.DataFrame(
+                    {str(s): [v] for s, v in zip(comp_df["scenario"].to_list(), comp_df[param].to_list())}
+                )
+                timeseries_name = series_name(system_name, component, param)
+                comp_param_to_static_file_name[(component, param)] = timeseries_name
+                self.series_dir.mkdir(parents=True, exist_ok=True)
+                self._write_time_series_file(
+                    scenario_data,
+                    self.series_dir / Path(f"{timeseries_name}{self.series_file_format}"),
+                    self.separator,
+                )
         return comp_param_to_static_file_name
 
     def sanitize_component_value(self, component_value: float) -> float:
@@ -188,14 +203,40 @@ class GemsStudyWriter:
             separator=separator,
         )
 
-    def write_optim_config_yml(self) -> None:
-        Path(self.study_dir / "systems" / "input" / "model-libraries").mkdir(parents=True, exist_ok=True)
+    def write_optim_config_yml(self, optim_config: dict[str, Any]) -> None:
+        """Write optim-config.yml (built by src.optim_config.build_optim_config)."""
         destination_file = Path(self.study_dir / "systems" / "input" / "optim-config.yml")
-        destination_file.touch()
+        destination_file.parent.mkdir(parents=True, exist_ok=True)
+        with destination_file.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(optim_config, f, default_flow_style=False, sort_keys=False)
 
-        project_root = Path(__file__).parent.parent
-        source_file = project_root / "resources" / "optim-config.yml"
-        shutil.copy(source_file, destination_file)
+    def write_shared_series(self, shared_series: dict[str, list[float]], system_name: str) -> dict[str, str]:
+        """Write the data series shared by several components, once each. Returns {key: data series name}."""
+        names: dict[str, str] = {}
+        if shared_series:
+            self.series_dir.mkdir(parents=True, exist_ok=True)
+        for key, values in shared_series.items():
+            name = series_name(system_name, key)
+            self._write_time_series_file(
+                pl.DataFrame({key: values}), self.series_dir / Path(f"{name}{self.series_file_format}"), self.separator
+            )
+            names[key] = name
+        return names
+
+    def write_scenario_value(self, name: str, values_by_scenario: dict[str, float]) -> str | float:
+        """A time-independent value: the value itself if it is the same in every scenario, else the name of a
+        one-row data series with one column per scenario."""
+        name = series_name(name)
+        values = list(values_by_scenario.values())
+        if len(set(values)) <= 1:
+            return self.sanitize_component_value(values[0])
+        self.series_dir.mkdir(parents=True, exist_ok=True)
+        self._write_time_series_file(
+            pl.DataFrame({str(s): [v] for s, v in values_by_scenario.items()}),
+            self.series_dir / Path(f"{name}{self.series_file_format}"),
+            self.separator,
+        )
+        return name
 
     def prepare_xpansion_runnable_study(self, solver_name: str, scenario_weights: dict[str, float]) -> None:
         """

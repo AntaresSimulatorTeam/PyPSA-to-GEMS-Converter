@@ -14,12 +14,15 @@ import logging
 import math
 import shutil
 from pathlib import Path
+from typing import Any
 
 from pypsa import Network
 
 from src.antares_hybrid_writer import AntaresHybridStudyWriter
+from src.converter_limitations import drop_inactive_components
 from src.gems_model_builder import GemsModelBuilder
-from src.gems_study_writer import GemsStudyWriter
+from src.gems_study_writer import GemsStudyWriter, series_name
+from src.optim_config import build_optim_config
 from src.pypsa_preprocessor import PyPSAPreprocessor
 from src.pypsa_register import PyPSARegister
 from src.utils import check_time_series_format, determine_pypsa_study_type
@@ -31,6 +34,7 @@ _CONVERTER_LOG = logging.getLogger(CONVERTER_LOGGER_NAME)
 _EXTENDABLE_CAPACITY_FLAGS: dict[str, str] = {
     "generators": "p_nom_extendable",
     "links": "p_nom_extendable",
+    "processes": "p_nom_extendable",
     "storage_units": "p_nom_extendable",
     "stores": "e_nom_extendable",
     # For consideration, currently not processed
@@ -63,6 +67,8 @@ class PyPSAStudyConverter:
         self.system_name = pypsa_network.name
         self.series_file_format = check_time_series_format(series_file_format)
         self.pypsa_network, self.scenario_weightings = determine_pypsa_study_type(self.pypsa_network)
+        # PyPSA leaves inactive components out of the optimisation: drop them before anything reads the network.
+        drop_inactive_components(self.pypsa_network)
         self.solver_name = solver_name
         self.is_investment_study = self._has_extendable_capacity()
 
@@ -74,9 +80,13 @@ class PyPSAStudyConverter:
             self._validate_scenario_weightings()
 
         # Preprocess the network
-        self.pypsa_network = PyPSAPreprocessor(self.pypsa_network).network_preprocessing()
+        preprocessor = PyPSAPreprocessor(self.pypsa_network)
+        self.pypsa_network = preprocessor.network_preprocessing()
         # Register the PyPSA components and global constraints
-        self.pypsa_components_data, self.pypsa_globalconstraints_data = PyPSARegister(self.pypsa_network).register()
+        register = PyPSARegister(self.pypsa_network, preprocessor.shared_params)
+        self.pypsa_components_data, self.pypsa_globalconstraints_data = register.register()
+        self.shared_series = register.shared_series
+        self.used_model_ids: set[str] = set()
 
     def _validate_xpansion_solver(self) -> None:
         """Investment studies are solved end-to-end via the antares-xpansion-launcher
@@ -140,7 +150,7 @@ class PyPSAStudyConverter:
             # optim-config.yml's model-decomposition is what lets the
             # antares-xpansion-launcher GEMS workflow (antares-problem-generator + benders)
             # run the master/subproblem Benders split end-to-end — including the 1-scenario case.
-            gems_study_writer.write_optim_config_yml()
+            gems_study_writer.write_optim_config_yml(self._optim_config(benders=True))
             gems_study_writer.prepare_xpansion_runnable_study(
                 solver_name=self.solver_name, scenario_weights=self.scenario_weightings
             )
@@ -184,11 +194,20 @@ class PyPSAStudyConverter:
             )
             return None
 
-        return AntaresHybridStudyWriter(self.study_dir, study_name=self.pypsa_network.name).write(
+        # A "/" in the network name (PyPSA-Eur names hold URLs) would nest the study folder.
+        study_name = str(self.pypsa_network.name).replace("/", "_")
+        return AntaresHybridStudyWriter(self.study_dir, study_name=study_name).write(
             gems_systems_dir=self.study_dir / "systems",
             n_timesteps=n_timesteps,
             n_scenarios=len(self.scenario_weightings),
+            optim_config=self._optim_config(benders=True),
         )
+
+    def _optim_config(self, benders: bool) -> dict[str, Any]:
+        optim_config = build_optim_config(self.pypsalib_id, self.used_model_ids, benders=benders)
+        if optim_config is None:
+            raise ValueError("A Benders optim-config.yml is always built")
+        return optim_config
 
     def to_gems_study(self) -> None:
         """Main function, to export PyPSA as Gems study"""
@@ -201,6 +220,9 @@ class PyPSAStudyConverter:
         gems_study_writer.copy_library_yml()
 
         gems_model_builder = GemsModelBuilder(self.pypsalib_id)
+        # Prefix of the data series names, made of safe characters by series_name() (PyPSA-Eur names hold URLs).
+        system_name = series_name(str(self.system_name)).strip("_") or "pypsa"
+        shared_series_names = gems_study_writer.write_shared_series(self.shared_series, system_name)
 
         for pypsa_components_data in self.pypsa_components_data.values():
             # We test whether the keys of the conversion dictionary are allowed in the PyPSA model : all authorized parameters are columns in the constant data frame (even though they are specified as time-varying values in the time-varying data frame)
@@ -211,22 +233,36 @@ class PyPSAStudyConverter:
                 pypsa_components_data.time_dependent_data,
                 pypsa_components_data.constant_data,
                 pypsa_components_data,
-                self.system_name,
+                system_name,
             )
 
             components, connections = gems_model_builder.convert_pypsa_components_of_given_model(
-                pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name
+                pypsa_components_data, comp_param_to_timeseries_name, comp_param_to_static_name, shared_series_names
             )
+            if components:
+                self.used_model_ids.add(pypsa_components_data.gems_model_id)
             list_components.extend(components)
             list_connections.extend(connections)
 
         for pypsa_global_constraint_data in self.pypsa_globalconstraints_data.values():
+            quota = gems_study_writer.write_scenario_value(
+                f"{system_name}_{pypsa_global_constraint_data.gems_component_id}_quota",
+                pypsa_global_constraint_data.quota_by_scenario,
+            )
             (
                 components,
                 connections,
-            ) = gems_model_builder._convert_pypsa_globalconstraint(pypsa_global_constraint_data)
+            ) = gems_model_builder._convert_pypsa_globalconstraint(pypsa_global_constraint_data, quota)
+            self.used_model_ids.add(pypsa_global_constraint_data.gems_model_id)
             list_components.extend(components)
             list_connections.extend(connections)
+
+        if not self.is_investment_study:
+            # Out-of-bounds processing of ramp limits and non-cyclic storage (investment studies get it in
+            # their Benders optim-config.yml, written by _write_execution_outputs).
+            optim_config = build_optim_config(self.pypsalib_id, self.used_model_ids, benders=False)
+            if optim_config is not None:
+                gems_study_writer.write_optim_config_yml(optim_config)
 
         system_id = self.system_name if self.system_name not in {"", None} else "pypsa_to_gems_converter"
         gems_study_writer.write_gems_system_yml(list_components, list_connections, system_id, self.pypsalib_id)
